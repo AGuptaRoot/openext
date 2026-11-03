@@ -1,0 +1,236 @@
+'use client';
+
+import { Edit2, Trash2, Heart, Plus } from 'lucide-react';
+import type { BlockRendererProps, BlockData } from '@/types/index';
+import { getIconForBlock } from './icons';
+import { ColumnDropZone } from './ColumnDropZone';
+import { SortableChildren } from './SortableChildren';
+import { zoneContainerId } from '@/utils/blockContainers';
+import RenderBlock from '../renderblock';
+import { useAppDispatch } from '@/redux/hooks';
+import {
+  insertColumn,
+  removeBlock,
+  removeColumn,
+  setSelectedBlock,
+  setSelectedLabel,
+} from '@/redux/canvasSlice';
+import { useBlockEvents } from '@/hooks/useBlockEvents';
+
+interface Props extends BlockRendererProps {
+  isEditing?: boolean;
+}
+
+export const ColumnBlock = ({ block, isEditing = false }: Props) => {
+  const dispatch = useAppDispatch();
+  const { handleClick } = useBlockEvents(block as BlockData, isEditing);
+
+  const handleRemove = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    dispatch(removeBlock(block.uniqueId ?? ''));
+  };
+
+  const handleInsertColumn = (e: React.MouseEvent, columnIndex: number) => {
+    e.stopPropagation();
+    if (!block.uniqueId) return;
+    dispatch(insertColumn({ targetBlockId: block.uniqueId, columnIndex }));
+  };
+
+  const handleRemoveColumn = (e: React.MouseEvent, columnIndex: number) => {
+    e.stopPropagation();
+    if (!block.uniqueId) return;
+    dispatch(removeColumn({ targetBlockId: block.uniqueId, columnIndex }));
+  };
+
+  const handleSelect = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Trigger custom events if not in editing mode
+    handleClick(e);
+
+    if (!isEditing) return;
+    dispatch(setSelectedBlock(block as BlockData));
+    dispatch(setSelectedLabel('Column Layout'));
+  };
+
+  const blockStyle = typeof block.style === 'object' ? block.style : {};
+  const columnCount = block.children?.length || 0;
+  const layoutDisplay = (blockStyle.display as React.CSSProperties['display']) || 'flex';
+  const layoutGap = (blockStyle.gap as React.CSSProperties['gap']) || '16px';
+  const layoutFlexDirection =
+    (blockStyle.flexDirection as React.CSSProperties['flexDirection']) || 'row';
+  const layoutFlexWrap = (blockStyle.flexWrap as React.CSSProperties['flexWrap']) || 'wrap';
+  const layoutAlignItems =
+    (blockStyle.alignItems as React.CSSProperties['alignItems']) || 'stretch';
+  const layoutJustifyContent =
+    (blockStyle.justifyContent as React.CSSProperties['justifyContent']) || 'flex-start';
+  const containerStyle = { ...blockStyle };
+  delete containerStyle.display;
+  delete containerStyle.gap;
+  delete containerStyle.flexDirection;
+  delete containerStyle.flexWrap;
+  delete containerStyle.alignItems;
+  delete containerStyle.justifyContent;
+  delete containerStyle.height;
+
+  // If not in editing mode, use a simplified view
+  if (!isEditing) {
+    return (
+      <div
+        style={{
+          width: blockStyle.width || '100%',
+          minWidth: 0,
+          boxSizing: 'border-box',
+          ...containerStyle,
+        }}
+      >
+        <div
+          className="cms-stack-on-mobile"
+          style={{
+            display: layoutDisplay,
+            flexDirection: layoutFlexDirection,
+            flexWrap: layoutFlexWrap,
+            alignItems: layoutAlignItems,
+            justifyContent: layoutJustifyContent,
+            gap: layoutGap,
+            width: '100%',
+            minWidth: 0,
+          }}
+        >
+          {block.children?.map((childBlocks, index) => (
+            <div key={`${block.uniqueId}-col-${index}`} className="min-w-0 flex-1 overflow-hidden">
+              {Array.isArray(childBlocks) && childBlocks.length > 0
+                ? childBlocks.map((child) => (
+                    <RenderBlock key={child.uniqueId} block={child} isEditing={false} />
+                  ))
+                : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Editing mode with all controls and structure
+  return (
+    <div
+      className="group relative mb-6"
+      style={{
+        width: blockStyle.width || '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
+        ...containerStyle,
+      }}
+      onClick={handleSelect}
+      onMouseEnter={() => {
+        document.querySelectorAll(`.hover-${block.uniqueId}`).forEach((el) => {
+          (el as HTMLElement).style.opacity = '1';
+          (el as HTMLElement).style.pointerEvents = 'auto';
+        });
+      }}
+      onMouseLeave={() => {
+        document.querySelectorAll(`.hover-${block.uniqueId}`).forEach((el) => {
+          (el as HTMLElement).style.opacity = '0';
+          (el as HTMLElement).style.pointerEvents = 'none';
+        });
+      }}
+    >
+      {/* Top Label */}
+      <div
+        id={`label-${block.uniqueId}`}
+        className={`hover-${block.uniqueId} absolute top-[-12px] left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded flex items-center gap-1 opacity-0 transition-opacity duration-200 z-10 pointer-events-none`}
+      >
+        {getIconForBlock(block.icon as string | undefined)}
+        <span className="ml-1">Column Layout</span>
+      </div>
+
+      {/* Top Right Buttons */}
+      <div
+        id={`actions-${block.uniqueId}`}
+        className={`hover-${block.uniqueId} absolute top-[-12px] right-0 flex gap-1 opacity-0 transition-opacity duration-200 z-10 pointer-events-none`}
+      >
+        <button className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 cursor-pointer mb-1">
+          <Edit2 className="w-4 h-4" />
+        </button>
+        <button
+          onClick={handleRemove}
+          className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 cursor-pointer"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Bottom Right Heart */}
+      <div
+        className={`hover-${block.uniqueId} absolute bottom-[-12px] right-2 flex gap-1 opacity-0 transition-opacity duration-200 z-10 pointer-events-none`}
+      >
+        <button className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 cursor-pointer">
+          <Heart className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Main Content */}
+      <div
+        className="relative cms-stack-on-mobile"
+        style={{
+          display: layoutDisplay,
+          flexDirection: layoutFlexDirection,
+          flexWrap: layoutFlexWrap,
+          alignItems: layoutAlignItems,
+          justifyContent: layoutJustifyContent,
+          gap: layoutGap,
+          width: '100%',
+          minWidth: 0,
+          minHeight: '48px',
+          boxSizing: 'border-box',
+        }}
+      >
+        {block.children?.map((childBlocks, index) => (
+          <div
+            key={`${block.uniqueId}-col-wrap-${index}`}
+            className="group/column relative min-w-0 flex-1 overflow-hidden"
+          >
+            {block.children && block.children.length > 1 && (
+              <button
+                type="button"
+                onClick={(e) => handleRemoveColumn(e, index)}
+                className="absolute right-2 top-2 z-20 hidden rounded bg-red-500 p-1 text-white shadow-sm hover:bg-red-600 group-hover/column:block"
+                title="Delete this column"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
+
+            <ColumnDropZone
+              key={`${block.uniqueId}-col-${index}`}
+              columnIndex={index}
+              block={block}
+              isEditing={true}
+              isEmpty={!Array.isArray(childBlocks) || childBlocks.length === 0}
+            >
+              <SortableChildren
+                containerId={zoneContainerId(block.uniqueId || '', index)}
+                childBlocks={Array.isArray(childBlocks) ? childBlocks : []}
+              />
+            </ColumnDropZone>
+          </div>
+        ))}
+
+        {block.children?.map((_, index) => (
+          <button
+            key={`${block.uniqueId}-insert-${index}`}
+            type="button"
+            onClick={(e) => handleInsertColumn(e, index + 1)}
+            className="absolute top-1/2 z-20 hidden h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-primary bg-background text-primary shadow-sm group-hover:flex"
+            style={{
+              left: `${((index + 1) / Math.max(columnCount, 1)) * 100}%`,
+            }}
+            title="Add column here"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};

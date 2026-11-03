@@ -1,0 +1,119 @@
+import { apiUrl } from '@/lib/apiClient';
+import renderFromJson from '@/components/ReusableComponents/RenderFromJson';
+import ActiveThemeScope from '@/components/theme-preview/ActiveThemeScope';
+import { BlockData, Page } from '@/types';
+import { useEffect, useState } from 'react';
+import { hasVerticalHeader } from '@/utils/headerLayout';const Default = () => {
+  const [pageData, setPageData] = useState<BlockData[]>([]);
+  const [headerData, setHeaderData] = useState<BlockData[]>([]);
+  const [footerData, setFooterData] = useState<BlockData[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      let url = apiUrl(`/api/pages/get-pages`);
+      let slug = '';
+      try {
+        // Checking if USER is logged in checking JWT token
+        const tokenRes = await fetch(apiUrl(`/api/check-token`));
+        if (!tokenRes.ok) {
+          try {
+            const response = await fetch(apiUrl(`/api/env-connection?key=DEFAULT_HOME_SLUG`));
+
+            if (!response.ok) {
+              throw new Error('Failed to fetch default home slug');
+            }
+
+            const value = await response.json();
+
+            if (value.DEFAULT_HOME_SLUG) {
+              slug = value.DEFAULT_HOME_SLUG;
+            } else {
+              throw new Error('DEFAULT_HOME_SLUG not found in .env');
+            }
+          } catch (error) {
+            console.error('Error fetching slug from .env:', error);
+            return; // or handle fallback if needed
+          }
+          // If USER is not Logged "allowMe" is user defined variable location below
+          // src\app\api\pages\get-page\route.ts
+          url = apiUrl(`/api/pages/get-page?name=${slug}&key=allowMe`);
+        }
+      } catch (err) {
+        console.error('Token check failed:', err);
+      }
+
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        const data = await res.json();
+
+        let container = data.page || data.pages?.find((page: Page) => page.isHome === true);
+
+        if (!data.page && container?.slug) {
+          const layoutRes = await fetch(apiUrl(`/api/pages/get-page?name=${encodeURIComponent(container.slug)}&key=allowMe`),
+            { cache: 'no-store' }
+          );
+
+          if (layoutRes.ok) {
+            const layoutData = await layoutRes.json();
+            container = layoutData.page || container;
+            data.header = layoutData.header;
+            data.footer = layoutData.footer;
+          }
+        }
+
+        if (!container?.isHome) {
+          console.error('This is not a home page');
+          return;
+        }
+
+        const defaultComponent = container.component;
+        if (Array.isArray(defaultComponent)) {
+          setPageData(defaultComponent);
+          setHeaderData(Array.isArray(data.header?.component) ? data.header.component : []);
+          setFooterData(Array.isArray(data.footer?.component) ? data.footer.component : []);
+          slug = container?.slug;
+        } else {
+          console.error('Invalid component format:', defaultComponent);
+        }
+      } catch (err) {
+        console.error('Failed to fetch page data:', err);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (!pageData.length) return <div>Loading...</div>;
+
+  const sidebarHeader = hasVerticalHeader(headerData);
+
+  if (sidebarHeader) {
+    return (
+      <ActiveThemeScope>
+        <div className="flex min-h-screen">
+          <aside className="w-64 flex-shrink-0 sticky top-0 self-start h-screen overflow-y-auto">
+            {headerData.map((element) => renderFromJson(element))}
+          </aside>
+          <div className="flex-1 flex flex-col min-h-screen">
+            <main className="flex-1">
+              {pageData.map((element) => renderFromJson(element))}
+            </main>
+            {footerData.map((element) => renderFromJson(element))}
+          </div>
+        </div>
+      </ActiveThemeScope>
+    );
+  }
+
+  return (
+    <ActiveThemeScope>
+      <div>
+        {headerData.map((element) => renderFromJson(element))}
+        {pageData.map((element) => renderFromJson(element))}
+        {footerData.map((element) => renderFromJson(element))}
+      </div>
+    </ActiveThemeScope>
+  );
+};
+
+export default Default;
