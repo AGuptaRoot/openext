@@ -1,0 +1,45 @@
+{
+  "fields": [
+    {
+      "key": "trip_purpose",
+      "label": "Trip Purpose",
+      "type": "select",
+      "required": true,
+      "placeholder": "Select purpose",
+      "options": [
+        { "label": "Business", "value": "Business" },
+        { "label": "Leisure / Holiday", "value": "Leisure / Holiday" },
+        { "label": "Family Visit", "value": "Family Visit" },
+        { "label": "Honeymoon", "value": "Honeymoon" },
+        { "label": "Medical", "value": "Medical" },
+        { "label": "Education", "value": "Education" },
+        { "label": "Pilgrimage", "value": "Pilgrimage" },
+        { "label": "Group Travel", "value": "Group Travel" },
+        { "label": "Other", "value": "Other" }
+      ],
+      "matchValues": ["Business", "Leisure / Holiday", "Honeymoon", "Group Travel"],
+      "matchEnabled": true
+    },
+    {
+      "key": "travel_priority",
+      "label": "Travel Priority",
+      "type": "radio",
+      "options": [
+        { "label": "Low", "value": "Low" },
+        { "label": "Medium", "value": "Medium" },
+        { "label": "High", "value": "High" },
+        { "label": "Urgent", "value": "Urgent" }
+      ],
+      "matchValues": ["High", "Urgent"],
+      "matchEnabled": true
+    },
+    {
+      "key": "budget_per_person",
+      "label": "Budget per Person",
+      "type": "number",
+      "placeholder": "e.g. 25000",
+      "matchNumberMin": 5000,
+      "matchEnabled": true
+    }
+  ]
+}

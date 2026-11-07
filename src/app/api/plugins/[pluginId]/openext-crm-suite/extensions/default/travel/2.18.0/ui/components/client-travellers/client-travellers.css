@@ -1,0 +1,16 @@
+/* <x-travel-client-travellers-v1> — colours only from the --tvx-* variables (ui/style.css). */
+.tvx-cl-tr { gap: 12px; }
+.tvx-cl-tr-scroll { overflow-x: auto; }
+.tvx-cl-tr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tvx-cl-tr-table th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--tvx-text-3); padding: 8px 10px; border-bottom: 1px solid var(--tvx-border); white-space: nowrap; }
+.tvx-cl-tr-table td { padding: 10px; border-bottom: 1px solid var(--tvx-border-soft); color: var(--tvx-text); vertical-align: middle; }
+.tvx-cl-tr-table tr:last-child td { border-bottom: 0; }
+.tvx-cl-tr-name { font-weight: 600; text-align: left; }
+.tvx-pill.is-danger { background: var(--tvx-danger-bg); border-color: var(--tvx-danger-border); color: var(--tvx-danger-text); }
+@media (max-width: 640px) {
+  .tvx-cl-tr-table thead { display: none; }
+  .tvx-cl-tr-table tr { display: block; padding: 10px 0; border-bottom: 1px solid var(--tvx-border-soft); }
+  .tvx-cl-tr-table tr:last-child { border-bottom: 0; }
+  .tvx-cl-tr-table td { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border: 0; }
+  .tvx-cl-tr-table td::before { content: attr(data-label); font-size: 11px; color: var(--tvx-text-3); }
+}

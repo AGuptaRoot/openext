@@ -1,0 +1,43 @@
+/* Check availability dialog (opened from <x-travel-lead-requirements-v1>). Colours: --tvx-* only. */
+.tvx-av-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-start; justify-content: center; padding: 32px 16px; overflow-y: auto; background: rgba(9, 9, 11, 0.55); }
+.tvx-av-panel { width: 100%; max-width: 680px; display: flex; flex-direction: column; border: 1px solid var(--tvx-border); border-radius: 12px; background: var(--tvx-surface); color: var(--tvx-text); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); }
+.tvx-av-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--tvx-border-soft); }
+.tvx-av-body { display: flex; flex-direction: column; gap: 16px; padding: 16px 20px; min-width: 0; }
+.tvx-av-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--tvx-border-soft); background: var(--tvx-surface-2); border-radius: 0 0 12px 12px; }
+.tvx-av-summary { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; background: var(--tvx-surface-2); }
+.tvx-av-dl { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12px; }
+.tvx-av-dl dt { color: var(--tvx-text-3); font-weight: 600; }
+.tvx-av-dl dd { margin: 0; color: var(--tvx-text); overflow-wrap: anywhere; }
+.tvx-av-form { display: flex; flex-direction: column; gap: 12px; }
+.tvx-av-currency { text-transform: uppercase; }
+.tvx-av-file { font: inherit; font-size: 12px; color: var(--tvx-text-2); max-width: 100%; }
+.tvx-av-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+/* Response: segmented radios (the radio stays focusable; the label is the button). */
+.tvx-av-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.tvx-av-seg-item { position: relative; display: inline-flex; align-items: center; border: 1px solid var(--tvx-border); border-radius: 8px; background: var(--tvx-input-bg); cursor: pointer; }
+.tvx-av-seg-item input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.tvx-av-seg-item span { padding: 7px 12px; font-size: 12px; font-weight: 600; color: var(--tvx-text-2); }
+.tvx-av-seg-item:has(input:checked) { border-color: var(--tvx-accent); background: var(--tvx-info-bg); }
+.tvx-av-seg-item:has(input:checked) span { color: var(--tvx-info-text); }
+.tvx-av-seg-item:has(input:focus-visible) { outline: 2px solid var(--tvx-accent); outline-offset: 2px; }
+
+/* History */
+.tvx-av-history { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--tvx-border-soft); }
+.tvx-av-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tvx-av-item { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; background: var(--tvx-surface); }
+.tvx-av-item.is-latest { border-color: var(--tvx-border); background: var(--tvx-surface-2); }
+.tvx-av-item p { margin: 0; }
+.tvx-av-item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tvx-av-provider { font-size: 13px; font-weight: 700; color: var(--tvx-heading); overflow-wrap: anywhere; margin-right: auto; }
+.tvx-av-price { font-size: 12px; font-weight: 600; color: var(--tvx-text); }
+.tvx-av-notes { font-size: 12px; color: var(--tvx-text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.tvx-av-item .tvx-pill { white-space: normal; }
+
+/* Phones: full screen. */
+@media (max-width: 640px) {
+  .tvx-av-overlay { padding: 0; align-items: stretch; }
+  .tvx-av-panel { max-width: none; min-height: 100%; border-radius: 0; border: 0; }
+  .tvx-av-foot { border-radius: 0; }
+  .tvx-av-head, .tvx-av-body, .tvx-av-foot { padding-left: 16px; padding-right: 16px; }
+}

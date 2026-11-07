@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Send Email</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <h1>Send Email</h1>
+    <p class="subtitle">Compose and send emails through your configured SMTP server.</p>
+
+    <div id="config-alert" class="alert warning" hidden>
+      SMTP is not configured yet. Open <strong>SMTP Settings</strong> in the sidebar and save your
+      mail server credentials first.
+    </div>
+
+    <div class="card">
+      <h2>Compose message</h2>
+      <form id="send-form">
+        <label for="to">To</label>
+        <input id="to" name="to" type="email" placeholder="recipient@example.com" required />
+
+        <label for="subject">Subject</label>
+        <input id="subject" name="subject" type="text" placeholder="Email subject" required />
+
+        <label for="text">Message (plain text)</label>
+        <textarea
+          id="text"
+          name="text"
+          placeholder="Write your message here…"
+          required
+        ></textarea>
+        <p class="hint">HTML is optional. Plain text is used when HTML is not provided.</p>
+
+        <label for="html">HTML body (optional)</label>
+        <textarea
+          id="html"
+          name="html"
+          placeholder="<p>Hello,</p><p>Your HTML content…</p>"
+        ></textarea>
+
+        <div class="toolbar">
+          <button type="submit" id="send-btn">Send email</button>
+          <span class="status" id="status"></span>
+        </div>
+      </form>
+    </div>
+
+    <script src="./shared.js"></script>
+    <script>
+      const statusEl = document.getElementById('status');
+      const configAlert = document.getElementById('config-alert');
+      const sendBtn = document.getElementById('send-btn');
+
+      function setStatus(message, type) {
+        statusEl.textContent = message;
+        statusEl.className = 'status' + (type ? ' ' + type : '');
+      }
+
+      async function loadSettings() {
+        const data = await EmailPlugin.api('/settings');
+        const configured = data.settings && data.settings.isConfigured;
+        configAlert.hidden = configured;
+        sendBtn.disabled = !configured;
+        return configured;
+      }
+
+      document.getElementById('send-form').addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        setStatus('Sending…');
+        sendBtn.disabled = true;
+
+        const payload = {
+          to: document.getElementById('to').value.trim(),
+          subject: document.getElementById('subject').value.trim(),
+          text: document.getElementById('text').value.trim(),
+          html: document.getElementById('html').value.trim(),
+        };
+
+        try {
+          await EmailPlugin.api('/mail/send', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          });
+          document.getElementById('subject').value = '';
+          document.getElementById('text').value = '';
+          document.getElementById('html').value = '';
+          setStatus('Email sent successfully', 'success');
+        } catch (error) {
+          setStatus(error.message, 'error');
+        } finally {
+          sendBtn.disabled = !(await loadSettings());
+        }
+      });
+
+      loadSettings().catch(function (error) {
+        setStatus(error.message, 'error');
+      });
+    </script>
+  </body>
+</html>

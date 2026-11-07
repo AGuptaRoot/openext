@@ -1,0 +1,65 @@
+{
+  "pages": [
+    {
+      "id": "travellers",
+      "label": "Travellers",
+      "icon": "plane",
+      "kind": "mount",
+      "slot": "page.travellers",
+      "permission": "crm.leads.read",
+      "order": 5,
+      "description": "Everyone travelling on your travel leads, with passport and Aadhaar status.",
+      "showInQuickActions": false,
+      "audience": "staff"
+    },
+    {
+      "id": "services",
+      "label": "Services & Forms",
+      "icon": "layers",
+      "kind": "mount",
+      "slot": "page.travel_services",
+      "permission": "crm.settings.manage",
+      "order": 10,
+      "description": "Travel services offered on leads and the requirement form staff fill in for each one.",
+      "showInQuickActions": false,
+      "audience": "staff"
+    },
+    {
+      "id": "bookings",
+      "label": "Bookings",
+      "icon": "calendar-check",
+      "kind": "mount",
+      "slot": "page.bookings",
+      "permission": "x.travel.bookings.read",
+      "order": 7,
+      "description": "Bookings made from accepted quotations: confirm services with providers and issue vouchers.",
+      "showInQuickActions": false,
+      "audience": "staff"
+    },
+    {
+      "id": "itinerary",
+      "label": "Itinerary",
+      "icon": "map",
+      "kind": "mount",
+      "slot": "page.itinerary",
+      "permission": "crm.leads.read",
+      "order": 8,
+      "description": "Day-by-day plan generated from a quotation (opened from a quotation or booking).",
+      "showInQuickActions": false,
+      "showInSidebar": false,
+      "audience": "staff"
+    },
+    {
+      "id": "my-bookings",
+      "label": "Bookings",
+      "icon": "plane",
+      "kind": "mount",
+      "slot": "page.portal_bookings",
+      "permission": "crm.finance.read",
+      "audience": "portal",
+      "order": 6,
+      "description": "Your trips, payment status, tickets and vouchers.",
+      "showInQuickActions": true
+    }
+  ]
+}

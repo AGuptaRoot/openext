@@ -1,0 +1,366 @@
+/* ==========================================================================
+   S3 Media Storage Plugin - Styles
+   Optimized for native DOM mount (.s3-plugin-root) and standalone fallback (body)
+   ========================================================================== */
+
+.s3-plugin-root,
+body {
+  font-family: var(--font-body, "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  margin: 0;
+  padding: 24px;
+  background: #f8fafc;
+  color: #0f172a;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.s3-plugin-root *,
+.s3-plugin-root *::before,
+.s3-plugin-root *::after {
+  box-sizing: border-box;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Header & Typography */
+.s3-plugin-root h1,
+.s3-plugin-root .s3-title,
+h1 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.s3-plugin-root .subtitle,
+.subtitle {
+  margin: 0 0 24px;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* Cards & Containers */
+.s3-plugin-root .card,
+.card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.15s ease;
+}
+
+.s3-plugin-root .card:hover,
+.card:hover {
+  border-color: #cbd5e1;
+}
+
+.s3-plugin-root .card h2,
+.card h2 {
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* Form Controls */
+.s3-plugin-root label,
+label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #334155;
+}
+
+.s3-plugin-root input[type='text'],
+.s3-plugin-root input[type='password'],
+.s3-plugin-root input[type='file'],
+input[type='text'],
+input[type='password'],
+input[type='file'] {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: #0f172a;
+  background-color: #ffffff;
+  margin-bottom: 14px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.s3-plugin-root input[type='text']:focus,
+.s3-plugin-root input[type='password']:focus,
+.s3-plugin-root input[type='file']:focus,
+input[type='text']:focus,
+input[type='password']:focus,
+input[type='file']:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+/* Buttons */
+.s3-plugin-root button,
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.s3-plugin-root button:hover,
+button:hover {
+  background: #1d4ed8;
+}
+
+.s3-plugin-root button.secondary,
+button.secondary {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.s3-plugin-root button.secondary:hover,
+button.secondary:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.s3-plugin-root button.danger,
+button.danger {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  padding: 6px 12px;
+  font-size: 0.825rem;
+}
+
+.s3-plugin-root button.danger:hover,
+button.danger:hover {
+  background: #fecaca;
+  border-color: #fca5a5;
+}
+
+.s3-plugin-root button:disabled,
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Toolbar & Status */
+.s3-plugin-root .toolbar,
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.s3-plugin-root .status,
+.status {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.s3-plugin-root .status.error,
+.status.error {
+  color: #b91c1c;
+}
+
+.s3-plugin-root .status.success,
+.status.success {
+  color: #15803d;
+}
+
+/* Alerts */
+.s3-plugin-root .alert,
+.alert {
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.s3-plugin-root .alert.warning,
+.alert.warning {
+  background: #fefce8;
+  color: #854d0e;
+  border: 1px solid #fef08a;
+}
+
+.s3-plugin-root .alert.info,
+.alert.info {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.s3-plugin-root .alert.success,
+.alert.success {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+/* Media Grid & Items */
+.s3-plugin-root .file-placeholder,
+.file-placeholder {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 500;
+  word-break: break-all;
+  background: #f8fafc;
+  color: #475569;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.s3-plugin-root .grid,
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 16px;
+}
+
+.s3-plugin-root .media-item,
+.media-item {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.s3-plugin-root .media-item:hover,
+.media-item:hover {
+  transform: translateY(-2px);
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.08);
+}
+
+.s3-plugin-root .media-item img,
+.media-item img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  background: #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.s3-plugin-root .media-body,
+.media-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: space-between;
+}
+
+.s3-plugin-root .media-name,
+.media-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 10px;
+  word-break: break-all;
+  line-height: 1.35;
+}
+
+.s3-plugin-root .media-actions,
+.media-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.s3-plugin-root .media-actions button,
+.media-actions button {
+  padding: 5px 10px;
+  font-size: 0.775rem;
+  flex: 1 1 auto;
+}
+
+.s3-plugin-root .empty,
+.empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 48px 16px;
+  font-size: 0.925rem;
+}
+
+/* Utilities & Misc */
+.s3-plugin-root code,
+code {
+  font-size: 0.85em;
+  background: #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+}
+
+.s3-plugin-root .hint,
+.hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: -8px 0 14px;
+}
+
+.s3-plugin-root .form-grid,
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0 16px;
+}
+
+.s3-plugin-root .badge,
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.s3-plugin-root .badge.ok,
+.badge.ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.s3-plugin-root .badge.pending,
+.badge.pending {
+  background: #fef9c3;
+  color: #854d0e;
+}

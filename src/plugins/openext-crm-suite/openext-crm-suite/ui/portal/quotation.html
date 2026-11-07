@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Client Proposal Review &amp; Signoff | OpenNext CRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --primary-light: #eff6ff;
+      --success: #059669;
+      --success-dark: #047857;
+      --success-light: #ecfdf5;
+      --danger: #dc2626;
+      --danger-dark: #b91c1c;
+      --danger-light: #fef2f2;
+      --warning: #d97706;
+      --warning-light: #fffbeb;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --border-subtle: #f1f5f9;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
+      --shadow-lg: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .portal-container {
+      max-width: 900px;
+      margin: 32px auto;
+      padding: 0 20px 80px;
+    }
+
+    /* Top Brand & Status Bar */
+    .portal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .brand-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: #eff6ff;
+      color: var(--primary);
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 800;
+      border: 1px solid #bfdbfe;
+    }
+
+    /* Status Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .badge-accepted { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge-pending { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+    .badge-rejected { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .badge-paid { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 32px;
+      margin-bottom: 20px;
+    }
+
+    /* Status Banners */
+    .status-banner {
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      border: 1px solid transparent;
+    }
+
+    .status-banner.banner-success {
+      background: var(--success-light);
+      border-color: #a7f3d0;
+      color: #065f46;
+    }
+
+    .status-banner.banner-danger {
+      background: var(--danger-light);
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+
+    .status-banner.banner-info {
+      background: var(--primary-light);
+      border-color: #bfdbfe;
+      color: #1e40af;
+    }
+
+    .status-banner-icon {
+      font-size: 1.5rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .status-banner-content h4 {
+      margin: 0 0 4px;
+      font-size: 0.98rem;
+      font-weight: 700;
+    }
+
+    .status-banner-content p {
+      margin: 0;
+      font-size: 0.86rem;
+      opacity: 0.9;
+    }
+
+    /* Proposal Header & Hero */
+    .quote-hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .quote-hero-left h1 {
+      margin: 0 0 6px;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    .quote-ref-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--primary);
+      background: #eff6ff;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #dbeafe;
+    }
+
+    .quote-rev-chip {
+      font-size: 0.72rem;
+      font-weight: 700;
+      background: #e0e7ff;
+      color: #4338ca;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .quote-hero-right {
+      text-align: right;
+    }
+
+    .quote-hero-right .total-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .quote-hero-right .total-val {
+      font-size: 1.85rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    /* Meta Grid */
+    .quote-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      padding: 18px 20px;
+      background: #f8fafc;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      margin-bottom: 28px;
+    }
+
+    .meta-item h5 {
+      margin: 0 0 4px;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .meta-item p {
+      margin: 0;
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: var(--text);
+    }
+
+    /* Deliverables Table */
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      margin-bottom: 24px;
+    }
+
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .items-table th {
+      padding: 12px 16px;
+      background: #f1f5f9;
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #475569;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .items-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+      font-size: 0.88rem;
+    }
+
+    .items-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .num-col { text-align: right; }
+    .center-col { text-align: center; }
+
+    .item-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+
+    /* Totals Summary */
+    .totals-wrapper {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 24px;
+    }
+
+    .totals-box {
+      width: 100%;
+      max-width: 340px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .total-row.discount-row {
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    .total-row.grand-row {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text);
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+      margin-top: 2px;
+    }
+
+    /* Razorpay Payment Card */
+    .payment-card {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 12px -2px rgba(37, 99, 235, 0.08);
+    }
+
+    .payment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .payment-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #1d4ed8;
+      letter-spacing: 0.05em;
+    }
+
+    .payment-amount {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #1e3a8a;
+      margin: 4px 0 2px;
+    }
+
+    .payment-note {
+      font-size: 0.82rem;
+      color: #2563eb;
+      margin-top: 2px;
+    }
+
+    .payment-subtitle {
+      font-size: 0.84rem;
+      color: #475569;
+      margin-top: 2px;
+    }
+
+    /* Notes & Terms Box */
+    .info-box {
+      margin-bottom: 16px;
+      padding: 16px 20px;
+      background: #f8fafc;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+
+    .info-box h5 {
+      margin: 0 0 6px;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .info-box p {
+      margin: 0;
+      font-size: 0.88rem;
+      color: #334155;
+      line-height: 1.5;
+      white-space: pre-line;
+    }
+
+    /* Action Panel */
+    .action-panel {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      align-items: center;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 11px 22px;
+      border-radius: var(--radius-sm);
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+
+    .btn:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-dark);
+      border-color: var(--primary-dark);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #ffffff;
+      border-color: var(--success);
+    }
+    .btn-success:hover:not(:disabled) {
+      background: var(--success-dark);
+      border-color: var(--success-dark);
+    }
+
+    .btn-danger {
+      background: #fff;
+      color: var(--danger);
+      border-color: #fecaca;
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: #fef2f2;
+      border-color: #f87171;
+    }
+
+    .btn-secondary {
+      background: #ffffff;
+      color: #334155;
+      border-color: var(--border);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    /* Modals */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal.active { display: flex; }
+
+    .modal-content {
+      background: #ffffff;
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 540px;
+      padding: 30px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border);
+    }
+
+    .modal-header {
+      margin-bottom: 20px;
+    }
+
+    .modal-header h3 {
+      margin: 0 0 6px;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .modal-header p {
+      margin: 0;
+      font-size: 0.86rem;
+      color: var(--text-muted);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #334155;
+    }
+
+    .form-group input, .form-group textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.92rem;
+      color: var(--text);
+      background: #ffffff;
+      transition: border-color 0.15s ease;
+    }
+
+    .form-group input:focus, .form-group textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .sig-input {
+      font-family: 'JetBrains Mono', monospace !important;
+      font-size: 1.05rem !important;
+      font-weight: 700 !important;
+      color: #1e40af !important;
+      background: #f8fafc !important;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    @media (max-width: 640px) {
+      .portal-container { padding: 12px 12px 60px; margin: 16px auto; }
+      .card { padding: 20px; }
+      .quote-hero { flex-direction: column; align-items: flex-start; }
+      .quote-hero-right { text-align: left; }
+      .action-panel { flex-direction: column; width: 100%; }
+      .action-panel .btn { width: 100%; }
+      .payment-header { flex-direction: column; align-items: flex-start; }
+      .payment-header .btn { width: 100%; }
+      .totals-wrapper { justify-content: stretch; }
+      .totals-box { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="portal-container" id="portal-app">
+    <div id="portal-loading" style="text-align:center; padding:90px 20px;">
+      <div style="font-size:2.5rem; margin-bottom:12px;">📄</div>
+      <h3 style="color:var(--text); margin:0 0 6px;">Loading Proposal</h3>
+      <p style="color:var(--text-muted); margin:0; font-size:0.9rem;">Fetching quotation scope, pricing, and sign-off terms…</p>
+    </div>
+  </div>
+
+  <!-- ACCEPT & E-SIGN MODAL -->
+  <div class="modal" id="modal-accept">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>✍️ Electronic Proposal Signoff</h3>
+        <p>By signing, you officially accept this quotation and authorize the scope of work, deliverables, and payment terms.</p>
+      </div>
+      
+      <form id="form-accept-proposal">
+        <div class="form-group">
+          <label>Authorized Signer Full Name *</label>
+          <input type="text" id="sign-name" required placeholder="e.g. Rahul Sharma" />
+        </div>
+        <div class="form-group">
+          <label>Official Email Address</label>
+          <input type="email" id="sign-email" placeholder="e.g. rahul@company.com" />
+        </div>
+        <div class="form-group">
+          <label>Legal Electronic Signature *</label>
+          <input type="text" id="sign-sig" class="sig-input" required placeholder="/s/ Full Legal Name" />
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Type your full legal name prefixed with /s/ (e.g. /s/ Rahul Sharma)</div>
+        </div>
+        <div class="form-group">
+          <label>Purchase Order # / Reference Notes (Optional)</label>
+          <textarea id="sign-comments" rows="2" placeholder="e.g. PO-2026-904"></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-accept')">Cancel</button>
+          <button type="submit" class="btn btn-success" id="btn-submit-accept">✓ Confirm &amp; Sign Proposal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- REVISE / CHANGES MODAL -->
+  <div class="modal" id="modal-reject">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>✕ Request Adjustments / Scope Feedback</h3>
+        <p>Provide revision feedback for our account team. We will revise the deliverables or pricing and update your proposal.</p>
+      </div>
+      
+      <form id="form-reject-proposal">
+        <div class="form-group">
+          <label>Your Name</label>
+          <input type="text" id="reject-name" placeholder="Your name" />
+        </div>
+        <div class="form-group">
+          <label>Requested Changes / Feedback *</label>
+          <textarea id="reject-reason" required rows="4" placeholder="Clarify the line items, quantity, scope adjustments, or timeline changes needed…"></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-reject')">Cancel</button>
+          <button type="submit" class="btn btn-danger" id="btn-submit-reject">Submit Revision Request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    let quotationData = null;
+    let quotationCompany = null;
+    let quotationRazorpay = null;
+    let quotationPaymentTerms = null;
+
+    let razorpayScriptPromise = null;
+    function loadRazorpayCheckoutScript() {
+      if (window.Razorpay) return Promise.resolve(window.Razorpay);
+      if (razorpayScriptPromise) return razorpayScriptPromise;
+      razorpayScriptPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        script.onload = () => resolve(window.Razorpay);
+        script.onerror = () => {
+          razorpayScriptPromise = null;
+          reject(new Error('Failed to load Razorpay checkout SDK. Please verify your network connection.'));
+        };
+        document.head.appendChild(script);
+      });
+      return razorpayScriptPromise;
+    }
+
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('active');
+    }
+
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('active');
+    }
+
+    function getCurrencySymbol(curr) {
+      if (!curr) return '₹';
+      const c = String(curr).toUpperCase().trim();
+      if (c === 'INR') return '₹';
+      if (c === 'USD') return '$';
+      if (c === 'EUR') return '€';
+      if (c === 'GBP') return '£';
+      return c + ' ';
+    }
+
+    function formatMoney(amount, curr) {
+      const sym = getCurrencySymbol(curr);
+      const val = Number(amount) || 0;
+      return sym + val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    async function loadPortal() {
+      const container = document.getElementById('portal-app');
+      if (!token) {
+        container.innerHTML = `
+          <div class="card" style="text-align:center; padding:60px 20px;">
+            <div style="font-size:3rem; margin-bottom:12px;">⚠️</div>
+            <h2 style="color:var(--danger); margin:0 0 8px;">Invalid Proposal Link</h2>
+            <p style="color:var(--text-muted); margin:0;">No secure token was provided in the URL. Please use the link provided by your sales representative.</p>
+          </div>
+        `;
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/plugins/openext-crm-suite/quotations/public/' + encodeURIComponent(token));
+        const json = await res.json();
+
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || 'Proposal not found');
+        }
+
+        quotationData = json.data;
+        quotationCompany = json.company || {};
+        quotationRazorpay = json.razorpay || { configured: false, available: false };
+        quotationPaymentTerms = json.paymentTerms || null;
+
+        renderPortal(quotationData, quotationCompany, quotationRazorpay, quotationPaymentTerms);
+      } catch (err) {
+        if (err.message === 'Proposal not found') {
+          window.location.href = '/login';
+          return;
+        }
+        container.innerHTML = `
+          <div class="card" style="text-align:center; padding:60px 20px;">
+            <div style="font-size:3rem; margin-bottom:12px;">⚠️</div>
+            <h2 style="color:var(--danger); margin:0 0 8px;">Unable to Load Proposal</h2>
+            <p style="color:var(--text-muted); margin:0;">${escapeHtml(err.message)}</p>
+          </div>
+        `;
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function renderPortal(q, comp, razorpay = {}, paymentTerms = null) {
+      const container = document.getElementById('portal-app');
+      const isAccepted = q.status === 'Accepted' || q.status === 'Converted';
+      const isRejected = q.status === 'Rejected';
+      const isSigned = Boolean(q.acceptedMetadata && q.acceptedMetadata.signature);
+
+      const curr = q.currency || comp.currency || 'INR';
+      const sym = getCurrencySymbol(curr);
+      const totalFormatted = formatMoney(q.grandTotal || 0, curr);
+
+      const isAdvance = paymentTerms ? Boolean(paymentTerms.isAdvance) : false;
+      const isBalance = Boolean(paymentTerms && paymentTerms.isBalance);
+      const paymentAccepts = Boolean(paymentTerms && paymentTerms.paymentAccepts);
+      const paymentStatus = paymentTerms && paymentTerms.paymentStatus ? paymentTerms.paymentStatus : '';
+      // Labels and amounts come from the server's payment records (paymentTerms), never worked out here.
+      const stage = paymentTerms && paymentTerms.stage ? paymentTerms.stage : '';
+      const advanceSatisfied = Boolean(paymentTerms && paymentTerms.advanceSatisfied);
+      const advanceRequired = Number(paymentTerms && paymentTerms.advanceRequired) || 0;
+      const advancePaid = Number(paymentTerms && paymentTerms.advancePaid) || 0;
+      const invoiceNo = paymentTerms && paymentTerms.invoiceNo ? paymentTerms.invoiceNo : '';
+      const payLabel = isAdvance
+        ? 'Pay Advance ' + formatMoney(Number(paymentTerms && paymentTerms.payableAmount) || 0, q.currency || 'INR')
+        : isBalance ? 'Pay Remaining Balance' : 'Pay Now';
+      const payableAmount = paymentTerms && paymentTerms.payableAmount != null
+        ? Number(paymentTerms.payableAmount)
+        : (Number(q.grandTotal) || 0);
+      const remainingBalance = paymentTerms && paymentTerms.remainingBalance != null
+        ? Math.max(0, Number(paymentTerms.remainingBalance) - payableAmount)
+        : Math.max(0, (Number(q.grandTotal) || 0) - payableAmount);
+      const isPaid = Boolean(paymentTerms && paymentTerms.isPaid);
+      const paidAmount = Number(paymentTerms && paymentTerms.paidAmount) || 0;
+      const proformaNo = paymentTerms && paymentTerms.proformaNo ? paymentTerms.proformaNo : '';
+
+      // Status Pill
+      let statusBadge = '<span class="badge badge-pending">● Pending Review</span>';
+      if (isAccepted) {
+        statusBadge = '<span class="badge badge-accepted">✓ Accepted</span>';
+      } else if (isRejected) {
+        statusBadge = '<span class="badge badge-rejected">✕ Changes Requested</span>';
+      }
+
+      // Banner Notifications
+      let bannerHtml = '';
+      if (paymentAccepts && paymentStatus && advanceRequired > 0 && stage !== 'Paid') {
+        // Advance workflow: the quotation asks for the advance only; the rest is payable on the Tax Invoice.
+        bannerHtml += `
+          <div class="status-banner ${advanceSatisfied ? 'banner-success' : ''}" id="payment-status">
+            <span class="status-banner-icon">💳</span>
+            <div class="status-banner-content">
+              <h4>Payment status: ${escapeHtml(stage || paymentStatus)}</h4>
+              <p>Quotation total <strong>${formatMoney(paymentTerms.total || 0, curr)}</strong> •
+                 Advance required <strong>${formatMoney(advanceRequired, curr)}</strong> •
+                 Advance paid <strong>${formatMoney(advancePaid, curr)}</strong> •
+                 Remaining contract amount <strong>${formatMoney(paymentTerms.remainingBalance || 0, curr)}</strong></p>
+              ${advanceSatisfied && !invoiceNo
+                ? `<p>Advance payment received. ${formatMoney(advancePaid, curr)} paid. ${formatMoney(paymentTerms.remainingBalance || 0, curr)} will be payable after the Tax Invoice is issued.</p>`
+                : invoiceNo
+                  ? `<p>Tax Invoice ${escapeHtml(invoiceNo)} has been issued. Balance due ${formatMoney(paymentTerms.invoiceBalance || 0, curr)} is payable on the Tax Invoice.</p>`
+                  : '<p>Your advance payment confirms your acceptance of this quotation.</p>'}
+            </div>
+          </div>
+        `;
+      } else if (paymentAccepts && paymentStatus) {
+        bannerHtml += `
+          <div class="status-banner ${paymentStatus === 'Paid' ? 'banner-success' : ''}" id="payment-status">
+            <span class="status-banner-icon">💳</span>
+            <div class="status-banner-content">
+              <h4>Payment status: ${escapeHtml(paymentStatus)}</h4>
+              <p>Quotation total <strong>${formatMoney(paymentTerms.total || 0, curr)}</strong> •
+                 Paid <strong>${formatMoney(paidAmount, curr)}</strong> •
+                 Balance <strong>${formatMoney(paymentTerms.remainingBalance || 0, curr)}</strong></p>
+              ${paymentStatus === 'Paid' ? '' : invoiceNo
+                ? `<p>Tax Invoice ${escapeHtml(invoiceNo)} has been issued: the balance is payable on the Tax Invoice.</p>`
+                : '<p>Your payment confirms your acceptance of this quotation.</p>'}
+            </div>
+          </div>
+        `;
+      }
+      if (isPaid && !paymentAccepts) {
+        bannerHtml += `
+          <div class="status-banner banner-success">
+            <span class="status-banner-icon">💳</span>
+            <div class="status-banner-content">
+              <h4>Payment Received via Razorpay</h4>
+              <p>Received: <strong>${formatMoney(paidAmount, curr)}</strong> online via Razorpay${proformaNo ? ` • Proforma #${escapeHtml(proformaNo)}` : ''}</p>
+            </div>
+          </div>
+        `;
+      }
+
+      if (isSigned) {
+        bannerHtml += `
+          <div class="status-banner banner-success">
+            <span class="status-banner-icon">✅</span>
+            <div class="status-banner-content">
+              <h4>Proposal Accepted &amp; Electronically Signed</h4>
+              <p>
+                Signed by <strong>${escapeHtml(q.acceptedMetadata.acceptedBy || 'Client')}</strong> on ${new Date(q.acceptedMetadata.acceptedAt).toLocaleString()}
+                <span style="font-family:'JetBrains Mono', monospace; margin-left:6px; font-weight:700;">(${escapeHtml(q.acceptedMetadata.signature)})</span>
+              </p>
+            </div>
+          </div>
+        `;
+      } else if (isRejected) {
+        bannerHtml += `
+          <div class="status-banner banner-danger">
+            <span class="status-banner-icon">✕</span>
+            <div class="status-banner-content">
+              <h4>Changes Requested / Feedback Recorded</h4>
+              <p>
+                Recorded by <strong>${escapeHtml(q.rejectedMetadata?.rejectedBy || 'Client')}</strong>:
+                "${escapeHtml(q.rejectedMetadata?.reason || 'Revisions requested')}"
+              </p>
+            </div>
+          </div>
+        `;
+      }
+
+      // Can Pay Online
+      // From the server's payment records: open until the quotation is paid in full.
+      const canPayOnline = Boolean(
+        razorpay?.configured &&
+        !isRejected &&
+        !isPaid &&
+        (paymentTerms && paymentTerms.canPay !== undefined
+          ? paymentTerms.canPay
+          : !isAccepted && (q.grandTotal || 0) > 0)
+      );
+
+      // Razorpay Payment Card
+      let paymentCardHtml = '';
+      if (canPayOnline) {
+        paymentCardHtml = `
+          <div class="payment-card">
+            <div class="payment-header">
+              <div>
+                <div class="payment-tag">
+                  <span>💳</span>
+                  <span>Online Payment (${isBalance ? 'Remaining Balance Due' : isAdvance ? 'Advance Payment Due' : 'Full Payment Due'})</span>
+                </div>
+                <div class="payment-amount">
+                  ${formatMoney(payableAmount, curr)}
+                </div>
+                ${isAdvance ? `
+                  <div class="payment-subtitle">
+                    Advance confirms your booking • The remaining <strong>${formatMoney(remainingBalance, curr)}</strong> is payable after the Tax Invoice is issued
+                  </div>
+                ` : `
+                  <div class="payment-subtitle">
+                    Complete proposal signoff and payment online in one step
+                  </div>
+                `}
+                <div class="payment-note">
+                  ✓ Instant confirmation • Cards, Net Banking, UPI (Google Pay, PhonePe, Paytm)
+                </div>
+              </div>
+              <div>
+                <button type="button" class="btn btn-primary" id="btn-pay-razorpay" style="padding:13px 26px; font-size:0.96rem; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
+                  💳 ${payLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Items Rows
+      const lineItems = Array.isArray(q.lineItems) ? q.lineItems : [];
+      const lineItemsHtml = lineItems.map((item, idx) => {
+        const title = escapeHtml(item.name || item.itemName || item.description || `Item #${idx + 1}`);
+        const desc = (item.description && item.name && item.description !== item.name) ? escapeHtml(item.description) : '';
+        const qty = Number(item.qty) || 1;
+        const rate = Number(item.rate) || 0;
+        const tax = Number(item.tax) || 0;
+        const amount = Number(item.amount) || (qty * rate);
+
+        return `
+          <tr>
+            <td style="width:36px; color:var(--text-muted); font-size:0.8rem;" class="center-col">${idx + 1}</td>
+            <td>
+              <strong>${title}</strong>
+              ${desc ? `<div class="item-desc">${desc}</div>` : ''}
+            </td>
+            <td class="num-col" style="width:70px;">${qty}</td>
+            <td class="num-col" style="width:120px;">${formatMoney(rate, curr)}</td>
+            <td class="num-col" style="width:90px;">${tax}%</td>
+            <td class="num-col" style="width:130px;"><strong>${formatMoney(amount, curr)}</strong></td>
+          </tr>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="portal-header">
+          <div class="brand-title">
+            <span class="brand-icon">📈</span>
+            <span>${escapeHtml(comp.name || 'OpenNext CRM')}</span>
+          </div>
+          <div>
+            ${statusBadge}
+          </div>
+        </div>
+
+        ${bannerHtml}
+
+        <div class="card">
+          <!-- Proposal Header -->
+          <div class="quote-hero">
+            <div class="quote-hero-left">
+              <h1>${escapeHtml(q.title || 'Quotation & Project Scope')}</h1>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                <span class="quote-ref-badge">${escapeHtml(q.quotationNo || 'QUO')}</span>
+                ${q.version > 1 ? `<span class="quote-rev-chip">Rev v${q.version}</span>` : ''}
+              </div>
+            </div>
+            <div class="quote-hero-right">
+              <div class="total-label">Total Payable</div>
+              <div class="total-val">${totalFormatted}</div>
+            </div>
+          </div>
+
+          <!-- Metadata Grid -->
+          <div class="quote-meta-grid">
+            <div class="meta-item">
+              <h5>Proposal Prepared For</h5>
+              <p>${escapeHtml(q.customerLabel || q.clientName || 'Client')}</p>
+            </div>
+            <div class="meta-item">
+              <h5>Issue Date</h5>
+              <p>${q.issueDate ? new Date(q.issueDate).toLocaleDateString() : 'Today'}</p>
+            </div>
+            <div class="meta-item">
+              <h5>Valid Until</h5>
+              <p>${q.expiryDate ? new Date(q.expiryDate).toLocaleDateString() : '30 Days from Issue'}</p>
+            </div>
+            <div class="meta-item">
+              <h5>Payment Structure</h5>
+              <p>${isAdvance ? `Advance (${paymentTerms?.advancePercent || 0}%)` : 'Full on Acceptance'}</p>
+            </div>
+          </div>
+
+          <!-- Items Table -->
+          <div class="section-title">
+            <span>📦</span> Itemized Deliverables &amp; Pricing
+          </div>
+          <div class="table-wrapper">
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th class="center-col">#</th>
+                  <th>Scope Description</th>
+                  <th class="num-col">Qty</th>
+                  <th class="num-col">Unit Rate</th>
+                  <th class="num-col">GST / Tax</th>
+                  <th class="num-col">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${lineItemsHtml || '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">No line items provided.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Totals Summary -->
+          <div class="totals-wrapper">
+            <div class="totals-box">
+              <div class="total-row">
+                <span>Subtotal</span>
+                <span>${formatMoney(q.subtotal || 0, curr)}</span>
+              </div>
+              ${(q.discountAmount || q.discountPercent) ? `
+                <div class="total-row discount-row">
+                  <span>Discount (${q.discountPercent || 0}%)</span>
+                  <span>-${formatMoney(q.discountAmount || 0, curr)}</span>
+                </div>
+              ` : ''}
+              ${q.shippingCharge ? `
+                <div class="total-row">
+                  <span>Shipping / Logistics</span>
+                  <span>${formatMoney(q.shippingCharge, curr)}</span>
+                </div>
+              ` : ''}
+              <div class="total-row">
+                <span>Estimated Tax (GST)</span>
+                <span>${formatMoney(q.taxTotal || 0, curr)}</span>
+              </div>
+              <div class="total-row grand-row">
+                <span>Total Payable</span>
+                <span>${totalFormatted}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Razorpay Payment Box -->
+          ${paymentCardHtml}
+
+          <!-- Recipient Notes -->
+          ${q.recipientNotes ? `
+            <div class="info-box">
+              <h5>Note for Recipient</h5>
+              <p>${escapeHtml(q.recipientNotes)}</p>
+            </div>
+          ` : ''}
+
+          <!-- Terms & Conditions -->
+          ${q.terms ? `
+            <div class="info-box">
+              <h5>Terms &amp; Conditions</h5>
+              <p>${escapeHtml(q.terms)}</p>
+            </div>
+          ` : ''}
+
+          <!-- Bottom Actions Panel -->
+          <div class="action-panel">
+            <button type="button" class="btn btn-secondary" onclick="window.print()">
+              🖨️ Print / Save PDF
+            </button>
+            ${canPayOnline ? `
+              <button type="button" class="btn btn-primary" id="btn-action-pay-razorpay">
+                💳 ${payLabel}
+              </button>
+            ` : ''}
+            ${(!isAccepted && !isRejected) ? `
+              <button type="button" class="btn btn-danger" onclick="openModal('modal-reject')">
+                ✕ Request Changes
+              </button>
+              ${paymentAccepts ? '' : `
+              <button type="button" class="btn btn-success" onclick="openModal('modal-accept')">
+                ✓ Accept &amp; E-Sign
+              </button>`}
+            ` : ''}
+          </div>
+        </div>
+      `;
+
+      // Attach event listeners
+      if (canPayOnline) {
+        document.getElementById('btn-pay-razorpay')?.addEventListener('click', initiateRazorpayPayment);
+        document.getElementById('btn-action-pay-razorpay')?.addEventListener('click', initiateRazorpayPayment);
+      }
+    }
+
+    async function initiateRazorpayPayment() {
+      const btn = document.getElementById('btn-pay-razorpay');
+      const actionBtn = document.getElementById('btn-action-pay-razorpay');
+      const originalText = btn ? btn.innerHTML : '';
+      const originalActionText = actionBtn ? actionBtn.innerHTML : '';
+
+      if (btn) { btn.disabled = true; btn.innerHTML = 'Connecting to Razorpay…'; }
+      if (actionBtn) { actionBtn.disabled = true; actionBtn.innerHTML = 'Connecting…'; }
+
+      try {
+        await loadRazorpayCheckoutScript();
+        const res = await fetch('/api/plugins/openext-crm-suite/quotations/public/' + encodeURIComponent(token) + '/razorpay/order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || 'Failed to initiate payment gateway');
+        }
+
+        const orderData = json.data;
+        const options = {
+          key: orderData.keyId,
+          amount: orderData.amount,
+          currency: orderData.currency || 'INR',
+          name: orderData.businessName || quotationCompany?.name || 'OpenNext CRM',
+          description: orderData.isAdvance
+            ? 'Advance Deposit for ' + (quotationData?.quotationNo || 'Quotation')
+            : 'Payment for ' + (quotationData?.quotationNo || 'Quotation'),
+          order_id: orderData.order.id,
+          handler: async function (response) {
+            try {
+              if (btn) btn.innerHTML = 'Verifying payment…';
+              if (actionBtn) actionBtn.innerHTML = 'Verifying…';
+
+              const confirmRes = await fetch('/api/plugins/openext-crm-suite/quotations/public/' + encodeURIComponent(token) + '/razorpay/confirm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature
+                })
+              });
+              const confirmJson = await confirmRes.json();
+              if (!confirmRes.ok || !confirmJson.success) {
+                throw new Error(confirmJson.error || 'Payment verification failed');
+              }
+              alert('Payment confirmed successfully! Thank you.');
+              await loadPortal();
+            } catch (err) {
+              alert('Payment verification issue: ' + err.message);
+              if (btn) { btn.disabled = false; btn.innerHTML = originalText; }
+              if (actionBtn) { actionBtn.disabled = false; actionBtn.innerHTML = originalActionText; }
+            }
+          },
+          prefill: {
+            name: quotationData?.customerLabel || '',
+            email: quotationData?.leadEmail || quotationData?.clientEmail || ''
+          },
+          theme: {
+            color: '#2563eb'
+          },
+          modal: {
+            ondismiss: function () {
+              if (btn) { btn.disabled = false; btn.innerHTML = originalText; }
+              if (actionBtn) { actionBtn.disabled = false; actionBtn.innerHTML = originalActionText; }
+            }
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } catch (err) {
+        alert(err.message);
+        if (btn) { btn.disabled = false; btn.innerHTML = originalText; }
+        if (actionBtn) { actionBtn.disabled = false; actionBtn.innerHTML = originalActionText; }
+      }
+    }
+
+    document.getElementById('form-accept-proposal')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('sign-name').value.trim();
+      const email = document.getElementById('sign-email').value.trim();
+      const signature = document.getElementById('sign-sig').value.trim();
+      const comments = document.getElementById('sign-comments').value.trim();
+
+      const btn = document.getElementById('btn-submit-accept');
+      btn.disabled = true;
+      btn.textContent = 'Submitting Signoff…';
+
+      try {
+        const res = await fetch('/api/plugins/openext-crm-suite/quotations/public/' + encodeURIComponent(token) + '/accept', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, signature, comments })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.error || 'Failed to accept proposal');
+
+        closeModal('modal-accept');
+        await loadPortal();
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
+        btn.textContent = '✓ Confirm & Sign Proposal';
+      }
+    });
+
+    document.getElementById('form-reject-proposal')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('reject-name').value.trim();
+      const reason = document.getElementById('reject-reason').value.trim();
+
+      const btn = document.getElementById('btn-submit-reject');
+      btn.disabled = true;
+      btn.textContent = 'Submitting Request…';
+
+      try {
+        const res = await fetch('/api/plugins/openext-crm-suite/quotations/public/' + encodeURIComponent(token) + '/reject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, reason })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.error || 'Failed to submit changes');
+
+        closeModal('modal-reject');
+        await loadPortal();
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
+        btn.textContent = 'Submit Revision Request';
+      }
+    });
+
+    loadPortal();
+  </script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+{
+  "id": "email_plugin",
+  "name": "Email Service",
+  "version": "1.0.1",
+  "description": "Configure SMTP and send emails from the CMS dashboard. Includes test connection and delivery logs.",
+  "author": "OpenNext CMS",
+  "type": "email",
+  "kind": "system",
+  "icon": "✉️",
+  "adminEntry": "ui/admin/mount.js",
+  "adminMount": "ui/admin/mount.js",
+  "adminNav": [
+    {
+      "id": "send",
+      "label": "Send Email",
+      "entry": "ui/admin/mount.js",
+      "icon": "mail"
+    },
+    {
+      "id": "settings",
+      "label": "SMTP Settings",
+      "entry": "ui/admin/mount.js",
+      "icon": "settings"
+    },
+    {
+      "id": "logs",
+      "label": "Logs",
+      "entry": "ui/admin/mount.js",
+      "icon": "list"
+    }
+  ],
+  "styles": [
+    "ui/admin/styles.css"
+  ],
+  "serverEntry": "api/index.js",
+  "migrations": [
+    "api/migrations"
+  ],
+  "models": [
+    "api/models"
+  ],
+  "permissions": [
+    "email.read",
+    "email.send",
+    "email.configure"
+  ],
+  "installHook": "api/hooks/install.js",
+  "uninstallHook": "api/hooks/uninstall.js",
+  "dependencies": [
+    "nodemailer"
+  ]
+}

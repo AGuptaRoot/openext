@@ -1,0 +1,14 @@
+{
+  "name": "FieldSuggestion",
+  "label": "Field Suggestion",
+  "pluralLabel": "Field Suggestions",
+  "titleField": "value",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "field_key": { "type": "text", "label": "Field", "required": true, "index": true },
+    "value": { "type": "text", "label": "Value", "required": true },
+    "field_value": { "type": "text", "label": "Field and value", "required": true, "unique": true },
+    "uses": { "type": "number", "label": "Times used" },
+    "last_used_at": { "type": "text", "label": "Last used" }
+  }
+}

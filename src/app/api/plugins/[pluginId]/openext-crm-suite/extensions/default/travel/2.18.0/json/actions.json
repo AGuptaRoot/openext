@@ -1,0 +1,56 @@
+{
+  "actions": [
+    {
+      "id": "create-booking",
+      "page": "quotationDetail",
+      "label": "Create Booking",
+      "icon": "plane",
+      "kind": "route",
+      "route": "/bookings/from-quotation",
+      "permission": "x.travel.bookings.write",
+      "when": {
+        "status": [
+          "Accepted",
+          "Converted"
+        ]
+      },
+      "confirm": "Create a booking from this accepted quotation? One booking service is made for every line.",
+      "order": 10
+    },
+    {
+      "id": "generate-itinerary",
+      "page": "quotationDetail",
+      "label": "Generate itinerary",
+      "icon": "map",
+      "kind": "route",
+      "route": "/itineraries/from-quotation",
+      "permission": "crm.leads.write",
+      "when": {
+        "status": [
+          "Draft",
+          "Sent",
+          "Accepted",
+          "Expired",
+          "Converted"
+        ]
+      },
+      "order": 20
+    },
+    {
+      "id": "open-booking",
+      "page": "invoiceDetail",
+      "label": "Open Booking",
+      "icon": "plane",
+      "kind": "route",
+      "route": "/bookings/for-invoice",
+      "permission": "x.travel.bookings.read",
+      "when": {
+        "status": [
+          "Paid",
+          "Partially Paid"
+        ]
+      },
+      "order": 30
+    }
+  ]
+}

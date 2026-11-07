@@ -1,0 +1,387 @@
+{
+  "lead": [
+    {
+      "id": "traveller_details",
+      "sectionLabel": "Traveller Details",
+      "whenRequestTypeKey": "travel_enquiry",
+      "fields": [
+        {
+          "key": "adults",
+          "label": "Adults",
+          "type": "number",
+          "required": true,
+          "min": 0,
+          "max": 500,
+          "default": 1,
+          "width": "quarter"
+        },
+        {
+          "key": "children",
+          "label": "Children",
+          "type": "number",
+          "min": 0,
+          "max": 500,
+          "width": "quarter",
+          "helpText": "Age 2–11"
+        },
+        {
+          "key": "infants",
+          "label": "Infants",
+          "type": "number",
+          "min": 0,
+          "max": 500,
+          "width": "quarter",
+          "helpText": "Under 2"
+        },
+        {
+          "key": "total_travellers",
+          "label": "Total Travellers",
+          "type": "number",
+          "width": "quarter",
+          "formula": {
+            "op": "sum",
+            "of": [
+              "adults",
+              "children",
+              "infants"
+            ]
+          },
+          "helpText": "Calculated"
+        }
+      ]
+    },
+    {
+      "id": "travel_information",
+      "sectionLabel": "Travel Information",
+      "whenRequestTypeKey": "travel_enquiry",
+      "fields": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "select",
+          "optionsFrom": "settings.from_places",
+          "placeholder": "Type or select origin",
+          "helpText": "Managed in Settings → Travel",
+          "searchable": true,
+          "required": true
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "select",
+          "optionsFrom": "settings.to_places",
+          "placeholder": "Type or select arrival",
+          "helpText": "Managed in Settings → Travel",
+          "searchable": true,
+          "required": true
+        },
+        {
+          "key": "destination",
+          "label": "Destination",
+          "type": "select",
+          "optionsFrom": "settings.destinations",
+          "placeholder": "Type or select destination",
+          "helpText": "Retired in 2.16.0: kept only for older leads; not shown or asked any more (To is the arrival).",
+          "searchable": true,
+          "hidden": true
+        },
+        {
+          "key": "travel_start_date",
+          "label": "Travel Start Date",
+          "type": "date",
+          "minDate": "today"
+        },
+        {
+          "key": "travel_end_date",
+          "label": "Travel End Date",
+          "type": "date",
+          "minField": "travel_start_date"
+        },
+        {
+          "key": "number_of_days",
+          "label": "Number of Days",
+          "type": "number",
+          "formula": {
+            "op": "days_between",
+            "from": "travel_start_date",
+            "to": "travel_end_date",
+            "inclusive": true
+          },
+          "helpText": "Calculated from the dates"
+        },
+        {
+          "key": "travel_month",
+          "label": "Travel Month",
+          "type": "text",
+          "formula": {
+            "op": "month_of",
+            "of": "travel_start_date"
+          },
+          "helpText": "Calculated from the start date"
+        },
+        {
+          "key": "date_flexibility",
+          "label": "Date Flexibility",
+          "type": "select",
+          "default": "Fixed",
+          "options": [
+            "Fixed",
+            "±1 Day",
+            "±2 Days",
+            "±3 Days",
+            "Flexible"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "required_services",
+      "sectionLabel": "Required Services",
+      "whenRequestTypeKey": "travel_enquiry",
+      "fields": [
+        {
+          "key": "required_services",
+          "label": "Required Services",
+          "type": "multiselect",
+          "width": "full",
+          "optionsFrom": {
+            "setting": "services",
+            "value": "key",
+            "label": "name",
+            "enabledKey": "enabled"
+          },
+          "helpText": "Services come from the Services & Forms page. Each one opens its own form in the Travel Requirement tab."
+        }
+      ]
+    }
+  ],
+  "opportunity": [
+    {
+      "id": "trip_details",
+      "sectionLabel": "Trip Details",
+      "fields": [
+        {
+          "key": "from_city",
+          "label": "From",
+          "type": "select",
+          "optionsFrom": "settings.from_places",
+          "placeholder": "Select origin",
+          "width": "half",
+          "helpText": "Managed in Settings → Travel"
+        },
+        {
+          "key": "destination",
+          "label": "Destination",
+          "type": "text",
+          "width": "half"
+        },
+        {
+          "key": "trip_type",
+          "label": "Trip type",
+          "type": "select",
+          "options": [
+            "Domestic",
+            "International"
+          ],
+          "width": "half"
+        },
+        {
+          "key": "trip_purpose",
+          "label": "Trip purpose",
+          "type": "select",
+          "options": [
+            "Leisure",
+            "Honeymoon",
+            "Family",
+            "Corporate",
+            "Pilgrimage",
+            "Adventure",
+            "Other"
+          ],
+          "width": "half"
+        },
+        {
+          "key": "travel_start_date",
+          "label": "Travel start date",
+          "type": "date",
+          "width": "half"
+        },
+        {
+          "key": "travel_end_date",
+          "label": "Travel end date",
+          "type": "date",
+          "width": "half",
+          "minField": "travel_start_date"
+        },
+        {
+          "key": "nights",
+          "label": "Nights",
+          "type": "number",
+          "width": "quarter",
+          "formula": {
+            "op": "days_between",
+            "from": "travel_start_date",
+            "to": "travel_end_date"
+          },
+          "helpText": "Calculated from the dates"
+        },
+        {
+          "key": "days",
+          "label": "Days",
+          "type": "number",
+          "width": "quarter",
+          "formula": {
+            "op": "days_between",
+            "from": "travel_start_date",
+            "to": "travel_end_date",
+            "inclusive": true
+          },
+          "helpText": "Calculated from the dates"
+        },
+        {
+          "key": "date_flexibility",
+          "label": "Date flexibility",
+          "type": "select",
+          "options": [
+            "Fixed",
+            "± 1–2 days",
+            "± 1 week",
+            "Flexible"
+          ],
+          "default": "Fixed",
+          "width": "half"
+        }
+      ]
+    },
+    {
+      "id": "trip_travellers",
+      "sectionLabel": "Travellers",
+      "fields": [
+        {
+          "key": "adults",
+          "label": "Adults",
+          "type": "number",
+          "min": 0,
+          "max": 500,
+          "width": "quarter"
+        },
+        {
+          "key": "children",
+          "label": "Children",
+          "type": "number",
+          "min": 0,
+          "max": 500,
+          "width": "quarter",
+          "helpText": "Age 2–11"
+        },
+        {
+          "key": "infants",
+          "label": "Infants",
+          "type": "number",
+          "min": 0,
+          "max": 500,
+          "width": "quarter",
+          "helpText": "Under 2"
+        },
+        {
+          "key": "total_travellers",
+          "label": "Total travellers (planned)",
+          "type": "number",
+          "width": "quarter",
+          "formula": {
+            "op": "sum",
+            "of": [
+              "adults",
+              "children",
+              "infants"
+            ]
+          },
+          "helpText": "Head count planned on the lead (adults + children + infants)"
+        }
+      ],
+      "countCheck": {
+        "actualFact": "travellers_added",
+        "expectedField": "total_travellers",
+        "checkLabel": "Travellers added match the head count",
+        "over": {
+          "tone": "info",
+          "text": "Travellers added on the lead ({actual}) are more than planned ({expected}). Update the counts above if the group has grown."
+        },
+        "under": {
+          "tone": "warning",
+          "text": "Only {actual} of {expected} planned travellers are added on the lead. Add the rest on the lead before quoting."
+        }
+      }
+    },
+    {
+      "id": "trip_budget",
+      "sectionLabel": "Budget",
+      "fields": [
+        {
+          "key": "budget_min",
+          "label": "Budget from",
+          "type": "currency",
+          "min": 0,
+          "width": "half",
+          "hidden": true
+        },
+        {
+          "key": "budget_max",
+          "label": "Budget up to",
+          "type": "currency",
+          "min": 0,
+          "width": "half",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "id": "trip_notes",
+      "sectionLabel": "Special Requests & Notes",
+      "fields": [
+        {
+          "key": "special_requests",
+          "label": "Special requests",
+          "type": "textarea",
+          "width": "full",
+          "placeholder": "e.g. sea-view room, wheelchair at the airport"
+        },
+        {
+          "key": "internal_notes",
+          "label": "Internal notes",
+          "type": "textarea",
+          "width": "full",
+          "helpText": "For your team only; never printed.",
+          "internal": true
+        }
+      ]
+    }
+  ],
+  "quotation": [
+    {
+      "id": "trip_pricing",
+      "sectionLabel": "Trip & Pricing",
+      "fields": [
+        {
+          "key": "travellers",
+          "label": "Travellers for price per person",
+          "type": "number",
+          "min": 0,
+          "max": 500,
+          "width": "half",
+          "helpText": "Grand total ÷ travellers is shown as the price per person (Settings → Travel).",
+          "hidden": true
+        },
+        {
+          "key": "special_requests",
+          "label": "Special requests",
+          "type": "textarea",
+          "width": "full",
+          "helpText": "Internal to this quotation version.",
+          "internal": true,
+          "hidden": true
+        }
+      ]
+    }
+  ]
+}

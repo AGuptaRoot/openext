@@ -1,0 +1,2287 @@
+{
+  "tab": {
+    "label": "Travel",
+    "icon": "plane",
+    "eyebrow": "Travel masters",
+    "description": "Locations offered in the From, To and Destination fields of a travel lead (From / To can also be imported from CSV below). Services and their forms are managed on the Services & Forms page.",
+    "slot": "settings.travel.admin"
+  },
+  "fields": [
+    {
+      "key": "from_places",
+      "label": "From Locations",
+      "type": "list",
+      "default": [
+        "Surat"
+      ],
+      "placeholder": "e.g. Surat",
+      "helpText": "Origins offered in the From field of a travel lead."
+    },
+    {
+      "key": "to_places",
+      "label": "To Locations",
+      "type": "list",
+      "default": [
+        "Mumbai",
+        "Delhi"
+      ],
+      "placeholder": "e.g. Mumbai",
+      "helpText": "Arrival points offered in the To field of a travel lead."
+    },
+    {
+      "key": "destinations",
+      "label": "Destinations",
+      "type": "list",
+      "default": [
+        "Goa",
+        "Dubai"
+      ],
+      "placeholder": "e.g. Goa",
+      "helpText": "Destinations offered on every travel lead."
+    },
+    {
+      "key": "nationalities",
+      "label": "Nationalities",
+      "type": "list",
+      "default": [
+        "Indian",
+        "Nepalese",
+        "Bangladeshi",
+        "Sri Lankan",
+        "American",
+        "British",
+        "Canadian",
+        "Australian",
+        "Emirati",
+        "Singaporean"
+      ],
+      "placeholder": "e.g. Indian",
+      "helpText": "Offered in the Nationality field of a traveller. Passport OCR picks the matching one (IND → Indian)."
+    },
+    {
+      "key": "traveller_relations",
+      "label": "Traveller Relations",
+      "type": "list",
+      "default": [
+        "Family member",
+        "Employee"
+      ],
+      "placeholder": "e.g. Family member",
+      "helpText": "Offered in the Relation field of a traveller (how the traveller is related to the lead)."
+    },
+    {
+      "key": "ready_all_services_complete",
+      "label": "Lead is ready when every required service is Complete",
+      "type": "checkbox",
+      "default": true,
+      "helpText": "Off: one Complete service is enough. A ready lead can get an opportunity and moves to Qualified (see CRM Settings → Qualification Match)."
+    },
+    {
+      "key": "ready_min_travellers",
+      "label": "Travellers needed before a lead is ready",
+      "type": "number",
+      "default": 1,
+      "min": 0,
+      "max": 500,
+      "helpText": "How many travellers the lead must have."
+    },
+    {
+      "key": "ready_requires_availability",
+      "label": "Lead is ready only after availability is checked",
+      "type": "checkbox",
+      "default": false,
+      "section": "Availability",
+      "helpText": "On: every Complete requirement also needs a current (not expired) Available, Held or On Request availability check before the lead is ready."
+    },
+    {
+      "key": "availability_default_validity_days",
+      "label": "Availability check: days a quote stays valid",
+      "type": "number",
+      "default": 3,
+      "min": 1,
+      "max": 30,
+      "section": "Availability",
+      "helpText": "Pre-fills \"Valid until\" in the Check availability dialog (the agent can change it)."
+    },
+    {
+      "key": "quotation_inclusions",
+      "label": "Quotation: inclusions",
+      "type": "textarea",
+      "default": "",
+      "section": "Quotation texts",
+      "helpText": "Printed on every travel quotation. One item per line."
+    },
+    {
+      "key": "quotation_exclusions",
+      "label": "Quotation: exclusions",
+      "type": "textarea",
+      "default": "",
+      "section": "Quotation texts",
+      "helpText": "Printed on every travel quotation. One item per line."
+    },
+    {
+      "key": "quotation_cancellation_policy",
+      "label": "Quotation: cancellation policy",
+      "type": "textarea",
+      "default": "",
+      "section": "Quotation texts"
+    },
+    {
+      "key": "quotation_show_travellers",
+      "label": "Quotation: list the travellers (names only)",
+      "type": "checkbox",
+      "default": true,
+      "section": "Quotation texts"
+    },
+    {
+      "key": "opportunity_lead_only",
+      "label": "Opportunities start from a lead",
+      "type": "checkbox",
+      "default": true,
+      "section": "Sales forms",
+      "helpText": "On: a new opportunity must be linked to a travel lead (the Client option is hidden and the server refuses one without a lead)."
+    },
+    {
+      "key": "expected_close_days_before_trip",
+      "label": "Opportunity: expected close (days before the trip)",
+      "type": "number",
+      "default": 7,
+      "min": 0,
+      "max": 365,
+      "section": "Sales forms",
+      "helpText": "Expected close date = travel start date minus these days (never before tomorrow; no start date: today + 14 days)."
+    },
+    {
+      "key": "validity_from_holds",
+      "label": "Quotation: valid till the earliest supplier hold",
+      "type": "checkbox",
+      "default": true,
+      "section": "Sales forms",
+      "helpText": "On: \"Valid till\" starts at the earliest Held availability among the quoted services. Off, or without holds: today + the days below."
+    },
+    {
+      "key": "quotation_validity_days",
+      "label": "Quotation: days a quotation stays valid",
+      "type": "number",
+      "default": 7,
+      "min": 1,
+      "max": 90,
+      "section": "Sales forms"
+    },
+    {
+      "key": "show_price_per_person",
+      "label": "Quotation: show price per person",
+      "type": "checkbox",
+      "default": true,
+      "section": "Sales forms",
+      "helpText": "Grand total ÷ the quotation's travellers, shown with the totals."
+    },
+    {
+      "key": "services",
+      "label": "Services & Requirement Forms",
+      "type": "json",
+      "hidden": true,
+      "default": [
+        {
+          "key": "domestic_air_ticket",
+          "name": "Domestic Air Ticket",
+          "description": "Domestic flight booking requirements",
+          "enabled": true,
+          "order": 10,
+          "fields": [
+            {
+              "key": "from_city_airport",
+              "label": "From City / Airport",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 10,
+              "enabled": true
+            },
+            {
+              "key": "to_city_airport",
+              "label": "To City / Airport",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 20,
+              "enabled": true
+            },
+            {
+              "key": "journey_type",
+              "label": "Journey Type",
+              "type": "radio",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "One Way",
+                  "value": "One Way"
+                },
+                {
+                  "label": "Round Trip",
+                  "value": "Round Trip"
+                },
+                {
+                  "label": "Multi City",
+                  "value": "Multi City"
+                }
+              ],
+              "order": 30,
+              "enabled": true
+            },
+            {
+              "key": "departure_date",
+              "label": "Departure Date",
+              "type": "date",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 40,
+              "enabled": true
+            },
+            {
+              "key": "return_date",
+              "label": "Return Date",
+              "type": "date",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 50,
+              "enabled": true
+            },
+            {
+              "key": "travel_class",
+              "label": "Travel Class",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Economy",
+                  "value": "Economy"
+                },
+                {
+                  "label": "Premium Economy",
+                  "value": "Premium Economy"
+                },
+                {
+                  "label": "Business",
+                  "value": "Business"
+                },
+                {
+                  "label": "First Class",
+                  "value": "First Class"
+                }
+              ],
+              "order": 60,
+              "enabled": true
+            },
+            {
+              "key": "preferred_airline",
+              "label": "Preferred Airline",
+              "type": "text",
+              "required": false,
+              "placeholder": "e.g. IndiGo, Air India",
+              "helpText": "",
+              "options": [],
+              "order": 70,
+              "enabled": true
+            },
+            {
+              "key": "departure_time_preference",
+              "label": "Departure Time Preference",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Morning",
+                  "value": "Morning"
+                },
+                {
+                  "label": "Afternoon",
+                  "value": "Afternoon"
+                },
+                {
+                  "label": "Evening",
+                  "value": "Evening"
+                },
+                {
+                  "label": "Night",
+                  "value": "Night"
+                },
+                {
+                  "label": "Any",
+                  "value": "Any"
+                }
+              ],
+              "order": 80,
+              "enabled": true
+            },
+            {
+              "key": "direct_flight_preferred",
+              "label": "Direct Flight Preferred",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                }
+              ],
+              "order": 90,
+              "enabled": true
+            },
+            {
+              "key": "baggage_requirement",
+              "label": "Baggage Requirement",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 100,
+              "enabled": true
+            },
+            {
+              "key": "special_request",
+              "label": "Special Request",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 110,
+              "enabled": true
+            }
+          ],
+          "requiresPassport": false,
+          "pricing": "per_person",
+          "taxRate": 5
+        },
+        {
+          "key": "international_air_ticket",
+          "name": "International Air Ticket",
+          "description": "International flight booking requirements",
+          "enabled": true,
+          "order": 20,
+          "fields": [
+            {
+              "key": "from_city_airport",
+              "label": "From City / Airport",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 10,
+              "enabled": true
+            },
+            {
+              "key": "to_city_airport",
+              "label": "To City / Airport",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 20,
+              "enabled": true
+            },
+            {
+              "key": "journey_type",
+              "label": "Journey Type",
+              "type": "radio",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "One Way",
+                  "value": "One Way"
+                },
+                {
+                  "label": "Round Trip",
+                  "value": "Round Trip"
+                },
+                {
+                  "label": "Multi City",
+                  "value": "Multi City"
+                }
+              ],
+              "order": 30,
+              "enabled": true
+            },
+            {
+              "key": "departure_date",
+              "label": "Departure Date",
+              "type": "date",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 40,
+              "enabled": true
+            },
+            {
+              "key": "return_date",
+              "label": "Return Date",
+              "type": "date",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 50,
+              "enabled": true
+            },
+            {
+              "key": "travel_class",
+              "label": "Travel Class",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Economy",
+                  "value": "Economy"
+                },
+                {
+                  "label": "Premium Economy",
+                  "value": "Premium Economy"
+                },
+                {
+                  "label": "Business",
+                  "value": "Business"
+                },
+                {
+                  "label": "First Class",
+                  "value": "First Class"
+                }
+              ],
+              "order": 60,
+              "enabled": true
+            },
+            {
+              "key": "preferred_airline",
+              "label": "Preferred Airline",
+              "type": "text",
+              "required": false,
+              "placeholder": "e.g. IndiGo, Air India",
+              "helpText": "",
+              "options": [],
+              "order": 70,
+              "enabled": true
+            },
+            {
+              "key": "nationality",
+              "label": "Nationality",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 80,
+              "enabled": true
+            },
+            {
+              "key": "passport_available",
+              "label": "Passport Available",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                }
+              ],
+              "order": 90,
+              "enabled": true
+            },
+            {
+              "key": "visa_status",
+              "label": "Visa Status",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Not Required",
+                  "value": "Not Required"
+                },
+                {
+                  "label": "Required",
+                  "value": "Required"
+                },
+                {
+                  "label": "Available",
+                  "value": "Available"
+                },
+                {
+                  "label": "Applied",
+                  "value": "Applied"
+                },
+                {
+                  "label": "Not Applied",
+                  "value": "Not Applied"
+                },
+                {
+                  "label": "Unknown",
+                  "value": "Unknown"
+                }
+              ],
+              "order": 100,
+              "enabled": true
+            },
+            {
+              "key": "transit_preference",
+              "label": "Transit Preference",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Direct Only",
+                  "value": "Direct Only"
+                },
+                {
+                  "label": "One Stop Allowed",
+                  "value": "One Stop Allowed"
+                },
+                {
+                  "label": "Multiple Stops Allowed",
+                  "value": "Multiple Stops Allowed"
+                },
+                {
+                  "label": "No Preference",
+                  "value": "No Preference"
+                }
+              ],
+              "order": 110,
+              "enabled": true
+            },
+            {
+              "key": "meal_preference",
+              "label": "Meal Preference",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Vegetarian",
+                  "value": "Vegetarian"
+                },
+                {
+                  "label": "Non-Vegetarian",
+                  "value": "Non-Vegetarian"
+                },
+                {
+                  "label": "Jain",
+                  "value": "Jain"
+                },
+                {
+                  "label": "Vegan",
+                  "value": "Vegan"
+                },
+                {
+                  "label": "Any",
+                  "value": "Any"
+                }
+              ],
+              "order": 120,
+              "enabled": true
+            },
+            {
+              "key": "special_request",
+              "label": "Special Request",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 130,
+              "enabled": true
+            }
+          ],
+          "requiresPassport": true,
+          "pricing": "per_person",
+          "taxRate": 5
+        },
+        {
+          "key": "railway_ticket",
+          "name": "Railway Ticket",
+          "description": "Train booking requirements",
+          "enabled": true,
+          "order": 30,
+          "fields": [
+            {
+              "key": "from_station",
+              "label": "From Station",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 10,
+              "enabled": true
+            },
+            {
+              "key": "to_station",
+              "label": "To Station",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 20,
+              "enabled": true
+            },
+            {
+              "key": "journey_date",
+              "label": "Journey Date",
+              "type": "date",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 30,
+              "enabled": true
+            },
+            {
+              "key": "return_date",
+              "label": "Return Date",
+              "type": "date",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 40,
+              "enabled": true
+            },
+            {
+              "key": "journey_type",
+              "label": "Journey Type",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "One Way",
+                  "value": "One Way"
+                },
+                {
+                  "label": "Round Trip",
+                  "value": "Round Trip"
+                }
+              ],
+              "order": 50,
+              "enabled": true
+            },
+            {
+              "key": "travel_class",
+              "label": "Travel Class",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Sleeper",
+                  "value": "Sleeper"
+                },
+                {
+                  "label": "3A",
+                  "value": "3A"
+                },
+                {
+                  "label": "2A",
+                  "value": "2A"
+                },
+                {
+                  "label": "1A",
+                  "value": "1A"
+                },
+                {
+                  "label": "Chair Car",
+                  "value": "Chair Car"
+                },
+                {
+                  "label": "Executive Chair Car",
+                  "value": "Executive Chair Car"
+                },
+                {
+                  "label": "General",
+                  "value": "General"
+                }
+              ],
+              "order": 60,
+              "enabled": true
+            },
+            {
+              "key": "preferred_train",
+              "label": "Preferred Train",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 70,
+              "enabled": true
+            },
+            {
+              "key": "berth_preference",
+              "label": "Berth Preference",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Lower",
+                  "value": "Lower"
+                },
+                {
+                  "label": "Middle",
+                  "value": "Middle"
+                },
+                {
+                  "label": "Upper",
+                  "value": "Upper"
+                },
+                {
+                  "label": "Side Lower",
+                  "value": "Side Lower"
+                },
+                {
+                  "label": "Side Upper",
+                  "value": "Side Upper"
+                },
+                {
+                  "label": "No Preference",
+                  "value": "No Preference"
+                }
+              ],
+              "order": 80,
+              "enabled": true
+            },
+            {
+              "key": "quota",
+              "label": "Quota",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "General",
+                  "value": "General"
+                },
+                {
+                  "label": "Tatkal",
+                  "value": "Tatkal"
+                },
+                {
+                  "label": "Premium Tatkal",
+                  "value": "Premium Tatkal"
+                },
+                {
+                  "label": "Other",
+                  "value": "Other"
+                }
+              ],
+              "order": 90,
+              "enabled": true
+            },
+            {
+              "key": "special_request",
+              "label": "Special Request",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 100,
+              "enabled": true
+            }
+          ],
+          "requiresPassport": false,
+          "pricing": "per_person",
+          "taxRate": 5
+        },
+        {
+          "key": "bus_ticket",
+          "name": "Bus Ticket",
+          "description": "Bus booking requirements",
+          "enabled": true,
+          "order": 40,
+          "fields": [
+            {
+              "key": "from",
+              "label": "From",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 10,
+              "enabled": true
+            },
+            {
+              "key": "to",
+              "label": "To",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 20,
+              "enabled": true
+            },
+            {
+              "key": "journey_date",
+              "label": "Journey Date",
+              "type": "date",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 30,
+              "enabled": true
+            },
+            {
+              "key": "return_date",
+              "label": "Return Date",
+              "type": "date",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 40,
+              "enabled": true
+            },
+            {
+              "key": "journey_type",
+              "label": "Journey Type",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "One Way",
+                  "value": "One Way"
+                },
+                {
+                  "label": "Round Trip",
+                  "value": "Round Trip"
+                }
+              ],
+              "order": 50,
+              "enabled": true
+            },
+            {
+              "key": "bus_type",
+              "label": "Bus Type",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "AC",
+                  "value": "AC"
+                },
+                {
+                  "label": "Non-AC",
+                  "value": "Non-AC"
+                },
+                {
+                  "label": "Sleeper",
+                  "value": "Sleeper"
+                },
+                {
+                  "label": "Semi-Sleeper",
+                  "value": "Semi-Sleeper"
+                },
+                {
+                  "label": "Volvo",
+                  "value": "Volvo"
+                },
+                {
+                  "label": "Luxury",
+                  "value": "Luxury"
+                },
+                {
+                  "label": "Other",
+                  "value": "Other"
+                }
+              ],
+              "order": 60,
+              "enabled": true
+            },
+            {
+              "key": "boarding_point",
+              "label": "Boarding Point",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 70,
+              "enabled": true
+            },
+            {
+              "key": "dropping_point",
+              "label": "Dropping Point",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 80,
+              "enabled": true
+            },
+            {
+              "key": "seat_preference",
+              "label": "Seat Preference",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Window",
+                  "value": "Window"
+                },
+                {
+                  "label": "Aisle",
+                  "value": "Aisle"
+                },
+                {
+                  "label": "Lower",
+                  "value": "Lower"
+                },
+                {
+                  "label": "Upper",
+                  "value": "Upper"
+                },
+                {
+                  "label": "No Preference",
+                  "value": "No Preference"
+                }
+              ],
+              "order": 90,
+              "enabled": true
+            },
+            {
+              "key": "preferred_operator",
+              "label": "Preferred Operator",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 100,
+              "enabled": true
+            },
+            {
+              "key": "special_request",
+              "label": "Special Request",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 110,
+              "enabled": true
+            }
+          ],
+          "requiresPassport": false,
+          "pricing": "per_person",
+          "taxRate": 5
+        },
+        {
+          "key": "hotel",
+          "name": "Hotel",
+          "description": "Hotel / accommodation requirements",
+          "enabled": true,
+          "order": 50,
+          "fields": [
+            {
+              "key": "city_destination",
+              "label": "City / Destination",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 10,
+              "enabled": true
+            },
+            {
+              "key": "check_in_date",
+              "label": "Check-In Date",
+              "type": "date",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 20,
+              "enabled": true
+            },
+            {
+              "key": "check_out_date",
+              "label": "Check-Out Date",
+              "type": "date",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 30,
+              "enabled": true
+            },
+            {
+              "key": "number_of_nights",
+              "label": "Number of Nights",
+              "type": "number",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 40,
+              "enabled": true
+            },
+            {
+              "key": "star_category",
+              "label": "Star Category",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "1 Star",
+                  "value": "1 Star"
+                },
+                {
+                  "label": "2 Star",
+                  "value": "2 Star"
+                },
+                {
+                  "label": "3 Star",
+                  "value": "3 Star"
+                },
+                {
+                  "label": "4 Star",
+                  "value": "4 Star"
+                },
+                {
+                  "label": "5 Star",
+                  "value": "5 Star"
+                },
+                {
+                  "label": "Luxury",
+                  "value": "Luxury"
+                },
+                {
+                  "label": "Any",
+                  "value": "Any"
+                }
+              ],
+              "order": 50,
+              "enabled": true
+            },
+            {
+              "key": "package",
+              "label": "Package",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "EP",
+                  "value": "EP"
+                },
+                {
+                  "label": "CP",
+                  "value": "CP"
+                },
+                {
+                  "label": "MAP",
+                  "value": "MAP"
+                },
+                {
+                  "label": "AP",
+                  "value": "AP"
+                }
+              ],
+              "order": 60,
+              "enabled": true
+            },
+            {
+              "key": "preferred_hotel",
+              "label": "Preferred Hotel",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 70,
+              "enabled": true
+            },
+            {
+              "key": "room_type",
+              "label": "Room Type",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Standard",
+                  "value": "Standard"
+                },
+                {
+                  "label": "Deluxe",
+                  "value": "Deluxe"
+                },
+                {
+                  "label": "Executive",
+                  "value": "Executive"
+                },
+                {
+                  "label": "Suite",
+                  "value": "Suite"
+                },
+                {
+                  "label": "Family Room",
+                  "value": "Family Room"
+                },
+                {
+                  "label": "Other",
+                  "value": "Other"
+                }
+              ],
+              "order": 80,
+              "enabled": true
+            },
+            {
+              "key": "meal_plan",
+              "label": "Meal Plan",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Room Only",
+                  "value": "Room Only"
+                },
+                {
+                  "label": "Breakfast",
+                  "value": "Breakfast"
+                },
+                {
+                  "label": "Breakfast + Dinner",
+                  "value": "Breakfast + Dinner"
+                },
+                {
+                  "label": "Half Board",
+                  "value": "Half Board"
+                },
+                {
+                  "label": "Full Board",
+                  "value": "Full Board"
+                },
+                {
+                  "label": "All Inclusive",
+                  "value": "All Inclusive"
+                }
+              ],
+              "order": 90,
+              "enabled": true
+            },
+            {
+              "key": "number_of_rooms",
+              "label": "Number of Rooms",
+              "type": "number",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 100,
+              "enabled": true
+            },
+            {
+              "key": "transport_required",
+              "label": "Transport Required",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                }
+              ],
+              "order": 110,
+              "enabled": true
+            },
+            {
+              "key": "budget_per_night",
+              "label": "Budget Per Night",
+              "type": "number",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 120,
+              "enabled": true
+            },
+            {
+              "key": "special_hotel_requirements",
+              "label": "Special Hotel Requirements",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 130,
+              "enabled": true
+            }
+          ],
+          "requiresPassport": false,
+          "pricing": "per_room_night",
+          "taxRate": 12
+        },
+        {
+          "key": "transport",
+          "name": "Transport",
+          "description": "Transfer and transport requirements",
+          "enabled": true,
+          "order": 60,
+          "fields": [
+            {
+              "key": "pickup_location",
+              "label": "Pickup Location",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 10,
+              "enabled": true
+            },
+            {
+              "key": "drop_location",
+              "label": "Drop Location",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 20,
+              "enabled": true
+            },
+            {
+              "key": "pickup_date",
+              "label": "Pickup Date",
+              "type": "date",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 30,
+              "enabled": true
+            },
+            {
+              "key": "pickup_time",
+              "label": "Pickup Time",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 40,
+              "enabled": true
+            },
+            {
+              "key": "return_date",
+              "label": "Return Date",
+              "type": "date",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 50,
+              "enabled": true
+            },
+            {
+              "key": "return_time",
+              "label": "Return Time",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 60,
+              "enabled": true
+            },
+            {
+              "key": "transfer_type",
+              "label": "Transfer Type",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Airport Transfer",
+                  "value": "Airport Transfer"
+                },
+                {
+                  "label": "Railway Transfer",
+                  "value": "Railway Transfer"
+                },
+                {
+                  "label": "Hotel Transfer",
+                  "value": "Hotel Transfer"
+                },
+                {
+                  "label": "Local",
+                  "value": "Local"
+                },
+                {
+                  "label": "Outstation",
+                  "value": "Outstation"
+                },
+                {
+                  "label": "Point-to-Point",
+                  "value": "Point-to-Point"
+                }
+              ],
+              "order": 70,
+              "enabled": true
+            },
+            {
+              "key": "vehicle_type",
+              "label": "Vehicle Type",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Sedan",
+                  "value": "Sedan"
+                },
+                {
+                  "label": "SUV",
+                  "value": "SUV"
+                },
+                {
+                  "label": "MUV",
+                  "value": "MUV"
+                },
+                {
+                  "label": "Tempo Traveller",
+                  "value": "Tempo Traveller"
+                },
+                {
+                  "label": "Mini Bus",
+                  "value": "Mini Bus"
+                },
+                {
+                  "label": "Bus",
+                  "value": "Bus"
+                },
+                {
+                  "label": "Luxury Vehicle",
+                  "value": "Luxury Vehicle"
+                },
+                {
+                  "label": "Other",
+                  "value": "Other"
+                }
+              ],
+              "order": 80,
+              "enabled": true
+            },
+            {
+              "key": "number_of_vehicles",
+              "label": "Number of Vehicles",
+              "type": "number",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 90,
+              "enabled": true
+            },
+            {
+              "key": "ac_required",
+              "label": "AC Required",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                }
+              ],
+              "order": 100,
+              "enabled": true
+            },
+            {
+              "key": "trip_type",
+              "label": "Trip Type",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "One Way",
+                  "value": "One Way"
+                },
+                {
+                  "label": "Round Trip",
+                  "value": "Round Trip"
+                }
+              ],
+              "order": 110,
+              "enabled": true
+            },
+            {
+              "key": "special_instructions",
+              "label": "Special Instructions",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 120,
+              "enabled": true
+            }
+          ],
+          "requiresPassport": false,
+          "pricing": "per_unit",
+          "taxRate": 5
+        },
+        {
+          "key": "excursion",
+          "name": "Excursion",
+          "description": "Sightseeing and activity requirements",
+          "enabled": true,
+          "order": 70,
+          "fields": [
+            {
+              "key": "city_destination",
+              "label": "City / Destination",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 10,
+              "enabled": true
+            },
+            {
+              "key": "activity_name",
+              "label": "Excursion / Activity Name",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 20,
+              "enabled": true
+            },
+            {
+              "key": "activity_date",
+              "label": "Activity Date",
+              "type": "date",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 30,
+              "enabled": true
+            },
+            {
+              "key": "participants",
+              "label": "Participants",
+              "type": "number",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 40,
+              "enabled": true
+            },
+            {
+              "key": "tour_type",
+              "label": "Tour Type",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Private",
+                  "value": "Private"
+                },
+                {
+                  "label": "Shared",
+                  "value": "Shared"
+                }
+              ],
+              "order": 50,
+              "enabled": true
+            },
+            {
+              "key": "guide_required",
+              "label": "Guide Required",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                }
+              ],
+              "order": 60,
+              "enabled": true
+            },
+            {
+              "key": "pickup_required",
+              "label": "Pickup Required",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                }
+              ],
+              "order": 70,
+              "enabled": true
+            },
+            {
+              "key": "preferred_time",
+              "label": "Preferred Time",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 80,
+              "enabled": true
+            },
+            {
+              "key": "tickets_included",
+              "label": "Tickets Included",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                },
+                {
+                  "label": "Unknown",
+                  "value": "Unknown"
+                }
+              ],
+              "order": 90,
+              "enabled": true
+            },
+            {
+              "key": "special_requirements",
+              "label": "Special Requirements",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 100,
+              "enabled": true
+            }
+          ],
+          "requiresPassport": false,
+          "pricing": "per_person",
+          "taxRate": 18
+        },
+        {
+          "key": "package",
+          "name": "Package",
+          "description": "Package tour requirements",
+          "enabled": true,
+          "order": 80,
+          "fields": [
+            {
+              "key": "destination",
+              "label": "Destination",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 10,
+              "enabled": true
+            },
+            {
+              "key": "package_type",
+              "label": "Package Type",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Domestic",
+                  "value": "Domestic"
+                },
+                {
+                  "label": "International",
+                  "value": "International"
+                },
+                {
+                  "label": "Honeymoon",
+                  "value": "Honeymoon"
+                },
+                {
+                  "label": "Family",
+                  "value": "Family"
+                },
+                {
+                  "label": "Group",
+                  "value": "Group"
+                },
+                {
+                  "label": "Corporate",
+                  "value": "Corporate"
+                },
+                {
+                  "label": "Custom",
+                  "value": "Custom"
+                }
+              ],
+              "order": 20,
+              "enabled": true
+            },
+            {
+              "key": "departure_date",
+              "label": "Departure Date",
+              "type": "date",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 30,
+              "enabled": true
+            },
+            {
+              "key": "number_of_days",
+              "label": "Number of Days",
+              "type": "number",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 40,
+              "enabled": true
+            },
+            {
+              "key": "number_of_nights",
+              "label": "Number of Nights",
+              "type": "number",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 50,
+              "enabled": true
+            },
+            {
+              "key": "hotel_category",
+              "label": "Hotel Category",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "3 Star",
+                  "value": "3 Star"
+                },
+                {
+                  "label": "4 Star",
+                  "value": "4 Star"
+                },
+                {
+                  "label": "5 Star",
+                  "value": "5 Star"
+                },
+                {
+                  "label": "Luxury",
+                  "value": "Luxury"
+                },
+                {
+                  "label": "Any",
+                  "value": "Any"
+                }
+              ],
+              "order": 60,
+              "enabled": true
+            },
+            {
+              "key": "meal_preference",
+              "label": "Meal Preference",
+              "type": "multiselect",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Vegetarian",
+                  "value": "Vegetarian"
+                },
+                {
+                  "label": "Non-Vegetarian",
+                  "value": "Non-Vegetarian"
+                },
+                {
+                  "label": "Jain",
+                  "value": "Jain"
+                },
+                {
+                  "label": "Vegan",
+                  "value": "Vegan"
+                }
+              ],
+              "order": 70,
+              "enabled": true
+            },
+            {
+              "key": "transport_required",
+              "label": "Transport Required",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                }
+              ],
+              "order": 80,
+              "enabled": true
+            },
+            {
+              "key": "sightseeing_required",
+              "label": "Sightseeing Required",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                }
+              ],
+              "order": 90,
+              "enabled": true
+            },
+            {
+              "key": "flight_required",
+              "label": "Flight Required",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                }
+              ],
+              "order": 100,
+              "enabled": true
+            },
+            {
+              "key": "visa_required",
+              "label": "Visa Required",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                }
+              ],
+              "order": 110,
+              "enabled": true
+            },
+            {
+              "key": "package_budget",
+              "label": "Package Budget",
+              "type": "number",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 120,
+              "enabled": true
+            },
+            {
+              "key": "preferred_package",
+              "label": "Preferred Package",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 130,
+              "enabled": true
+            },
+            {
+              "key": "special_requirements",
+              "label": "Special Requirements",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 140,
+              "enabled": true
+            }
+          ],
+          "requiresPassport": false,
+          "pricing": "per_person",
+          "taxRate": 5
+        },
+        {
+          "key": "rent_a_cab",
+          "name": "Rent A Cab",
+          "description": "Cab rental requirements",
+          "enabled": true,
+          "order": 90,
+          "fields": [
+            {
+              "key": "pickup_location",
+              "label": "Pickup Location",
+              "type": "text",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 10,
+              "enabled": true
+            },
+            {
+              "key": "drop_location",
+              "label": "Drop Location",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 20,
+              "enabled": true
+            },
+            {
+              "key": "start_date",
+              "label": "Start Date",
+              "type": "date",
+              "required": true,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 30,
+              "enabled": true
+            },
+            {
+              "key": "start_time",
+              "label": "Start Time",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 40,
+              "enabled": true
+            },
+            {
+              "key": "end_date",
+              "label": "End Date",
+              "type": "date",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 50,
+              "enabled": true
+            },
+            {
+              "key": "end_time",
+              "label": "End Time",
+              "type": "text",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 60,
+              "enabled": true
+            },
+            {
+              "key": "trip_type",
+              "label": "Trip Type",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Local",
+                  "value": "Local"
+                },
+                {
+                  "label": "Outstation",
+                  "value": "Outstation"
+                },
+                {
+                  "label": "Airport Transfer",
+                  "value": "Airport Transfer"
+                },
+                {
+                  "label": "Railway Transfer",
+                  "value": "Railway Transfer"
+                },
+                {
+                  "label": "One Way",
+                  "value": "One Way"
+                },
+                {
+                  "label": "Round Trip",
+                  "value": "Round Trip"
+                }
+              ],
+              "order": 70,
+              "enabled": true
+            },
+            {
+              "key": "vehicle_type",
+              "label": "Vehicle Type",
+              "type": "select",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Sedan",
+                  "value": "Sedan"
+                },
+                {
+                  "label": "SUV",
+                  "value": "SUV"
+                },
+                {
+                  "label": "MUV",
+                  "value": "MUV"
+                },
+                {
+                  "label": "Tempo Traveller",
+                  "value": "Tempo Traveller"
+                },
+                {
+                  "label": "Other",
+                  "value": "Other"
+                }
+              ],
+              "order": 80,
+              "enabled": true
+            },
+            {
+              "key": "number_of_vehicles",
+              "label": "Number of Vehicles",
+              "type": "number",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 90,
+              "enabled": true
+            },
+            {
+              "key": "ac_preference",
+              "label": "AC Preference",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "AC",
+                  "value": "AC"
+                },
+                {
+                  "label": "Non-AC",
+                  "value": "Non-AC"
+                }
+              ],
+              "order": 100,
+              "enabled": true
+            },
+            {
+              "key": "estimated_distance",
+              "label": "Estimated Distance",
+              "type": "number",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 110,
+              "enabled": true
+            },
+            {
+              "key": "driver_required",
+              "label": "Driver Required",
+              "type": "radio",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [
+                {
+                  "label": "Yes",
+                  "value": "Yes"
+                },
+                {
+                  "label": "No",
+                  "value": "No"
+                }
+              ],
+              "order": 120,
+              "enabled": true
+            },
+            {
+              "key": "special_instructions",
+              "label": "Special Instructions",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "",
+              "helpText": "",
+              "options": [],
+              "order": 130,
+              "enabled": true
+            }
+          ],
+          "requiresPassport": false,
+          "pricing": "per_unit",
+          "taxRate": 5
+        }
+      ],
+      "helpText": "Edited on the Services & Forms page."
+    },
+    {
+      "key": "aadhaar_storage",
+      "label": "Aadhaar number storage",
+      "type": "select",
+      "options": [
+        {
+          "label": "Last 4 digits only (recommended)",
+          "value": "last4"
+        },
+        {
+          "label": "Full number, encrypted",
+          "value": "full"
+        }
+      ],
+      "default": "last4",
+      "helpText": "Indian rules limit keeping full Aadhaar numbers. Keep the full number only if your process really needs it."
+    },
+    {
+      "key": "timezone",
+      "label": "Time zone",
+      "type": "text",
+      "default": "Asia/Kolkata",
+      "maxLength": 60,
+      "section": "General",
+      "helpText": "IANA name, e.g. Asia/Kolkata or Asia/Dubai. Decides \"today\" for passport expiry and age checks (and the end of a day for availability holds)."
+    },
+    {
+      "key": "booking_prefix",
+      "label": "Booking number prefix",
+      "type": "text",
+      "default": "BK",
+      "maxLength": 10,
+      "section": "Bookings & vouchers",
+      "helpText": "Booking numbers are <prefix>-0001, -0002 … (letters, digits and \"-\")."
+    },
+    {
+      "key": "voucher_prefix_hotel",
+      "label": "Hotel voucher prefix",
+      "type": "text",
+      "default": "HTV",
+      "maxLength": 10,
+      "section": "Bookings & vouchers"
+    },
+    {
+      "key": "voucher_prefix_transport",
+      "label": "Transport voucher prefix",
+      "type": "text",
+      "default": "TPV",
+      "maxLength": 10,
+      "section": "Bookings & vouchers"
+    },
+    {
+      "key": "voucher_prefix_excursion",
+      "label": "Excursion voucher prefix",
+      "type": "text",
+      "default": "EXV",
+      "maxLength": 10,
+      "section": "Bookings & vouchers"
+    },
+    {
+      "key": "voucher_terms_hotel",
+      "label": "Hotel voucher terms",
+      "type": "textarea",
+      "default": "Check-in and check-out times as per hotel policy. Please carry a government photo ID for every guest.",
+      "maxLength": 3000,
+      "section": "Bookings & vouchers",
+      "helpText": "Printed at the bottom of every hotel voucher."
+    },
+    {
+      "key": "voucher_terms_transport",
+      "label": "Transport voucher terms",
+      "type": "textarea",
+      "default": "Please be at the pick-up point on time. Waiting beyond 30 minutes may be charged by the operator.",
+      "maxLength": 3000,
+      "section": "Bookings & vouchers",
+      "helpText": "Printed at the bottom of every transport voucher."
+    },
+    {
+      "key": "voucher_terms_excursion",
+      "label": "Excursion voucher terms",
+      "type": "textarea",
+      "default": "Timings may change with weather and local conditions. Please carry this voucher and a photo ID.",
+      "maxLength": 3000,
+      "section": "Bookings & vouchers",
+      "helpText": "Printed at the bottom of every excursion voucher."
+    },
+    {
+      "key": "confirmation_evidence",
+      "label": "Confirming a service needs",
+      "type": "select",
+      "options": [
+        { "label": "A confirmation reference or an evidence file", "value": "reference_or_file" },
+        { "label": "A confirmation reference", "value": "reference" },
+        { "label": "An evidence file", "value": "file" },
+        { "label": "Nothing extra", "value": "none" }
+      ],
+      "default": "reference_or_file",
+      "section": "Bookings & vouchers",
+      "helpText": "What the agent must enter in Confirm Service before a booking service can be Confirmed."
+    },
+    {
+      "key": "auto_create_booking_on_accept",
+      "label": "Create the booking automatically once the quotation is accepted and paid",
+      "type": "checkbox",
+      "default": true,
+      "section": "Bookings & vouchers",
+      "helpText": "On: the booking is made as soon as the accepted quotation is paid enough — the advance or the full amount, as set in Settings → General (Allow Booking Creation After Advance Payment). Off: use Create Booking on the quotation (the same payment rule applies)."
+    },
+    {
+      "key": "voucher_requires_full_payment",
+      "label": "Vouchers only after full payment",
+      "type": "checkbox",
+      "default": true,
+      "section": "Bookings & vouchers",
+      "helpText": "On: a hotel, transport or excursion voucher is issued only for a Confirmed service of a booking whose quotation is paid in full (verified payments)."
+    },
+    {
+      "key": "allow_early_completion",
+      "label": "Allow completing a booking before the trip ends",
+      "type": "checkbox",
+      "default": false,
+      "section": "Bookings & vouchers",
+      "helpText": "Off: Mark completed is possible once the travel end date has passed (in the workspace time zone)."
+    }
+  ]
+}

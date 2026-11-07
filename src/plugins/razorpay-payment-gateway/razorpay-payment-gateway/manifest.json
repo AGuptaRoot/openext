@@ -1,0 +1,39 @@
+{
+  "id": "razorpay-payment-gateway",
+  "name": "Razorpay Payment Gateway",
+  "version": "1.2.0",
+  "description": "Connect your Razorpay account (Key ID + Secret). Other plugins can create orders and verify payments through this gateway.",
+  "author": "OpenNext CMS",
+  "type": "payments",
+  "kind": "system",
+  "icon": "💳",
+  "adminMount": "ui/admin/mount.js",
+  "adminNav": [
+    {
+      "id": "payments",
+      "label": "Payments",
+      "entry": "ui/admin/mount.js",
+      "icon": "credit-card"
+    }
+  ],
+  "styles": [
+    "ui/admin/styles.css"
+  ],
+  "serverEntry": "api/index.js",
+  "migrations": [
+    "api/migrations"
+  ],
+  "models": [
+    "api/models"
+  ],
+  "permissions": [
+    "payments.read",
+    "payments.configure",
+    "payments.create_order",
+    "payments.verify",
+    "payments.integrate"
+  ],
+  "installHook": "api/hooks/install.js",
+  "uninstallHook": "api/hooks/uninstall.js",
+  "dependencies": []
+}

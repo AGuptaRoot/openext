@@ -1,0 +1,9 @@
+/* <x-travel-contact-travellers-v1> (sits in a narrow side card on the contact page) */
+.tvx-ct-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.tvx-ct-count { font-size: 22px; font-weight: 700; color: var(--tvx-heading); line-height: 1; }
+.tvx-ct-label { font-size: 12px; font-weight: 600; color: var(--tvx-text-2); }
+.tvx-ct-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tvx-ct-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; padding: 8px 10px; }
+.tvx-ct-text { display: flex; flex-direction: column; min-width: 0; }
+.tvx-ct-name { font-size: 13px; font-weight: 600; color: var(--tvx-text); overflow-wrap: anywhere; }
+.tvx-ct-open { height: 28px; padding: 0 10px; }

@@ -1,0 +1,31 @@
+/* Shared booking UI (ui/shared/booking-ui.js): dialog, status pills. Colours only from --tvx-* variables. */
+.tvx-bx [hidden] { display: none !important; }
+.tvx-bx-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-start; justify-content: center; padding: 48px 16px 16px; background: rgba(9, 9, 11, .55); overflow-y: auto; }
+.tvx-bx-dialog { width: 100%; max-width: 560px; max-height: calc(100vh - 64px); overflow-y: auto; border: 1px solid var(--tvx-border); border-radius: 12px; background: var(--tvx-surface); color: var(--tvx-text); padding: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 50px rgba(0, 0, 0, .3); }
+.tvx-bx-dialog.is-wide { max-width: 860px; }
+.tvx-bx-dialog-title { margin: 0; font-size: 15px; font-weight: 700; color: var(--tvx-heading); }
+.tvx-bx-dialog-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.tvx-bx-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.tvx-bx-dialog-actions[hidden] { display: none; }
+.tvx-bx-dialog .tvx-msg[hidden] { display: none; }
+.tvx-bx-dialog[aria-busy="true"] { cursor: progress; }
+.tvx-bx-readonly { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); gap: 4px 12px; margin: 0; padding: 10px 12px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; background: var(--tvx-surface-2); font-size: 12px; }
+.tvx-bx-readonly dt { color: var(--tvx-text-3); font-weight: 600; }
+.tvx-bx-readonly dd { margin: 0; color: var(--tvx-text); overflow-wrap: anywhere; }
+
+.tvx-bx-pill { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; border: 1px solid var(--tvx-border-soft); padding: 2px 9px; font-size: 11px; font-weight: 700; line-height: 16px; white-space: nowrap; }
+.tvx-bx-pill.is-neutral { background: var(--tvx-surface-3); color: var(--tvx-text-3); }
+.tvx-bx-pill.is-info { background: var(--tvx-info-bg); border-color: var(--tvx-info-border); color: var(--tvx-info-text); }
+.tvx-bx-pill.is-ok { background: var(--tvx-ok-bg); border-color: var(--tvx-ok-border); color: var(--tvx-ok-text); }
+.tvx-bx-pill.is-warn { background: var(--tvx-warn-bg); border-color: var(--tvx-warn-border); color: var(--tvx-warn-text); }
+.tvx-bx-pill.is-danger { background: var(--tvx-danger-bg); border-color: var(--tvx-danger-border); color: var(--tvx-danger-text); }
+
+.tvx-bx-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tvx-bx-checks li { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; padding: 8px 10px; }
+.tvx-bx-checks input { margin-top: 2px; accent-color: var(--tvx-accent); width: 15px; height: 15px; flex: none; }
+.tvx-bx-checks label { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--tvx-text); cursor: pointer; min-width: 0; }
+.tvx-bx-checks .tvx-muted { overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .tvx-bx-overlay { padding: 16px 8px; }
+  .tvx-bx-dialog { padding: 16px; max-height: calc(100vh - 32px); }
+}

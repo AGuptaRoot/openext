@@ -1,0 +1,130 @@
+{
+  "name": "Traveller",
+  "label": "Traveller",
+  "pluralLabel": "Travellers",
+  "titleField": "first_name",
+  "permissions": {
+    "read": "crm.settings.manage",
+    "write": "crm.settings.manage"
+  },
+  "fields": {
+    "lead_id": {
+      "type": "ref",
+      "ref": "Lead",
+      "label": "Lead",
+      "required": true,
+      "index": true
+    },
+    "contact_id": {
+      "type": "text",
+      "label": "Contact"
+    },
+    "profile_id": {
+      "type": "text",
+      "label": "Profile (the same person on several leads)",
+      "index": true
+    },
+    "first_name": {
+      "type": "text",
+      "label": "First name",
+      "required": true
+    },
+    "last_name": {
+      "type": "text",
+      "label": "Last name"
+    },
+    "phone": {
+      "type": "text",
+      "label": "Phone",
+      "index": true
+    },
+    "email": {
+      "type": "text",
+      "label": "Email"
+    },
+    "dob": {
+      "type": "date",
+      "label": "Date of birth"
+    },
+    "year_of_birth": {
+      "type": "number",
+      "label": "Year of birth"
+    },
+    "gender": {
+      "type": "select",
+      "label": "Gender",
+      "options": [
+        "Male",
+        "Female",
+        "Other"
+      ]
+    },
+    "nationality": {
+      "type": "text",
+      "label": "Nationality"
+    },
+    "relation": {
+      "type": "text",
+      "label": "Relation"
+    },
+    "age_category": {
+      "type": "select",
+      "label": "Age category",
+      "options": [
+        "Adult",
+        "Child",
+        "Infant"
+      ]
+    },
+    "passport_number_enc": {
+      "type": "text",
+      "label": "Passport number (encrypted)"
+    },
+    "passport_number_hash": {
+      "type": "text",
+      "label": "Passport number fingerprint",
+      "index": true
+    },
+    "passport_last4": {
+      "type": "text",
+      "label": "Passport number, last 4"
+    },
+    "passport_issue_date": {
+      "type": "date",
+      "label": "Passport issue date"
+    },
+    "passport_expiry_date": {
+      "type": "date",
+      "label": "Passport expiry date"
+    },
+    "passport_country": {
+      "type": "text",
+      "label": "Passport country"
+    },
+    "passport_file_id": {
+      "type": "text",
+      "label": "Passport image"
+    },
+    "aadhaar_number_enc": {
+      "type": "text",
+      "label": "Aadhaar number (encrypted)"
+    },
+    "aadhaar_last4": {
+      "type": "text",
+      "label": "Aadhaar number, last 4"
+    },
+    "aadhaar_number_hash": {
+      "type": "text",
+      "label": "Aadhaar number fingerprint",
+      "index": true
+    },
+    "aadhaar_file_id": {
+      "type": "text",
+      "label": "Aadhaar image"
+    },
+    "ocr_used": {
+      "type": "checkbox",
+      "label": "Filled with OCR"
+    }
+  }
+}

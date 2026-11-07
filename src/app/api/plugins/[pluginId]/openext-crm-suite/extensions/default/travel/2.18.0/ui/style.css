@@ -1,0 +1,175 @@
+/* Travel Agency extension — every class is prefixed tvx- so nothing leaks into the CRM. */
+
+/*
+ * Theme: every colour is a --tvx-* variable. Light values on .tvx-root (and any element marked
+ * data-tvx-theme="light"); dark values on data-tvx-theme="dark", which ui/shared/element.js sets from
+ * ctx.theme / ctx.onThemeChange (our own attribute, not data-theme, so the CRM's dark-mode detection
+ * never sees our elements). Components use only these variables.
+ */
+.tvx-root, [data-tvx-theme="light"] {
+  --tvx-text: #18181b;
+  --tvx-heading: #09090b;
+  --tvx-text-2: #3f3f46;
+  --tvx-text-3: #52525b;
+  --tvx-muted: #6b6b75;
+  --tvx-surface: #fff;
+  --tvx-surface-2: #fafafa;
+  --tvx-surface-3: #f4f4f5;
+  --tvx-input-bg: #fff;
+  --tvx-border: #d4d4d8;
+  --tvx-border-soft: #e4e4e7;
+  --tvx-accent: #2563eb;
+  --tvx-accent-hover: #1d4ed8;
+  --tvx-on-accent: #fff;
+  --tvx-link: #2563eb;
+  --tvx-link-strong: #1d4ed8;
+  --tvx-info-text: #1e40af;
+  --tvx-info-bg: #eff6ff;
+  --tvx-info-border: #93c5fd;
+  --tvx-danger: #e11d48;
+  --tvx-danger-text: #be123c;
+  --tvx-danger-bg: #fff1f2;
+  --tvx-danger-border: #fecdd3;
+  --tvx-warn-strong: #b45309;
+  --tvx-warn-text: #92400e;
+  --tvx-warn-bg: #fffbeb;
+  --tvx-warn-border: #fde68a;
+  --tvx-ok-text: #065f46;
+  --tvx-ok-bg: #ecfdf5;
+  --tvx-ok-border: #a7f3d0;
+  color-scheme: light;
+}
+[data-tvx-theme="dark"] {
+  --tvx-text: #f4f4f5;
+  --tvx-heading: #fafafa;
+  --tvx-text-2: #e4e4e7;
+  --tvx-text-3: #d4d4d8;
+  --tvx-muted: #a1a1aa;
+  --tvx-surface: #18181b;
+  --tvx-surface-2: #1f1f23;
+  --tvx-surface-3: #27272a;
+  --tvx-input-bg: #27272a;
+  --tvx-border: #52525b;
+  --tvx-border-soft: #3f3f46;
+  --tvx-accent: #2563eb;
+  --tvx-accent-hover: #1d4ed8;
+  --tvx-on-accent: #fff;
+  --tvx-link: #93c5fd;
+  --tvx-link-strong: #bfdbfe;
+  --tvx-info-text: #bfdbfe;
+  --tvx-info-bg: rgba(37, 99, 235, 0.18);
+  --tvx-info-border: #1e40af;
+  --tvx-danger: #fb7185;
+  --tvx-danger-text: #fda4af;
+  --tvx-danger-bg: rgba(225, 29, 72, 0.15);
+  --tvx-danger-border: #9f1239;
+  --tvx-warn-strong: #fbbf24;
+  --tvx-warn-text: #fcd34d;
+  --tvx-warn-bg: rgba(245, 158, 11, 0.14);
+  --tvx-warn-border: #92400e;
+  --tvx-ok-text: #6ee7b7;
+  --tvx-ok-bg: rgba(16, 185, 129, 0.14);
+  --tvx-ok-border: #065f46;
+  color-scheme: dark;
+}
+.tvx-root { font: inherit; color: var(--tvx-text); display: flex; flex-direction: column; gap: 16px; }
+.tvx-root *, .tvx-root *::before, .tvx-root *::after { box-sizing: border-box; }
+
+.tvx-card { border: 1px solid var(--tvx-border); border-radius: 12px; background: var(--tvx-surface); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.tvx-card-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.tvx-h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--tvx-heading); }
+.tvx-h4 { margin: 0; font-size: 13px; font-weight: 700; color: var(--tvx-heading); }
+.tvx-sub { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--tvx-muted); }
+.tvx-muted { margin: 0; font-size: 12px; color: var(--tvx-muted); }
+.tvx-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--tvx-muted); }
+.tvx-mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+.tvx-warn { margin: 0; font-size: 11px; font-weight: 600; color: var(--tvx-warn-strong); }
+.tvx-dirty { font-size: 11px; font-weight: 600; color: var(--tvx-warn-strong); }
+.tvx-loading { color: var(--tvx-muted); font-size: 12px; text-align: center; }
+
+.tvx-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.tvx-row-gap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* Form grid */
+.tvx-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 14px 16px; }
+@media (min-width: 640px) { .tvx-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .tvx-grid:not(.tvx-grid-2) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.tvx-col-full { grid-column: 1 / -1; }
+.tvx-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tvx-label { font-size: 12px; font-weight: 600; color: var(--tvx-text-2); }
+.tvx-req { color: var(--tvx-danger); margin-left: 2px; }
+.tvx-help { margin: 0; font-size: 11px; color: var(--tvx-muted); }
+.tvx-input { height: 36px; width: 100%; border: 1px solid var(--tvx-border); border-radius: 8px; background: var(--tvx-input-bg); padding: 0 12px; font: inherit; font-size: 13px; color: var(--tvx-text); outline: none; }
+.tvx-input:focus { border-color: var(--tvx-accent); box-shadow: 0 0 0 1px var(--tvx-accent); }
+.tvx-input:disabled { background: var(--tvx-surface-2); color: var(--tvx-text-3); }
+.tvx-textarea { height: auto; min-height: 76px; padding: 8px 12px; resize: vertical; }
+
+.tvx-choices { display: flex; flex-wrap: wrap; gap: 6px 16px; padding-top: 6px; }
+.tvx-choice, .tvx-check, .tvx-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--tvx-text-2); cursor: pointer; user-select: none; }
+.tvx-choice input, .tvx-check input, .tvx-switch input { accent-color: var(--tvx-accent); width: 14px; height: 14px; }
+
+.tvx-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tvx-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--tvx-border-soft); border-radius: 999px; background: var(--tvx-input-bg); padding: 4px 12px; font: inherit; font-size: 12px; font-weight: 600; color: var(--tvx-text-2); cursor: pointer; }
+.tvx-chip.is-on { border-color: var(--tvx-info-border); background: var(--tvx-info-bg); color: var(--tvx-link-strong); }
+.tvx-chip.is-static { cursor: default; padding-right: 6px; }
+.tvx-chip:disabled { cursor: default; opacity: .75; }
+.tvx-chip-x { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 0; border-radius: 999px; background: var(--tvx-surface-3); color: var(--tvx-muted); font-size: 13px; line-height: 1; cursor: pointer; }
+.tvx-chip-x:hover { background: var(--tvx-text); color: var(--tvx-surface); }
+.tvx-chip.is-stale { border-style: dashed; color: var(--tvx-warn-text); }
+.tvx-link-btn { border: 0; background: none; padding: 0; font: inherit; font-size: 12px; font-weight: 600; color: var(--tvx-link); text-decoration: underline; cursor: pointer; }
+.tvx-link-btn:disabled { opacity: .5; cursor: default; }
+
+/* Buttons */
+.tvx-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; white-space: nowrap; }
+.tvx-btn:disabled { opacity: .45; cursor: not-allowed; }
+.tvx-btn-primary { background: var(--tvx-accent); color: var(--tvx-on-accent); }
+.tvx-btn-primary:hover:not(:disabled) { background: var(--tvx-accent-hover); }
+.tvx-btn-ghost { background: var(--tvx-input-bg); border-color: var(--tvx-border-soft); color: var(--tvx-text-2); }
+.tvx-btn-ghost:hover:not(:disabled) { background: var(--tvx-surface-2); }
+.tvx-btn-danger { background: var(--tvx-input-bg); border-color: var(--tvx-danger-border); color: var(--tvx-danger); }
+.tvx-btn-danger:hover:not(:disabled) { background: var(--tvx-danger-bg); }
+.tvx-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; background: var(--tvx-input-bg); color: var(--tvx-text-3); font-size: 13px; cursor: pointer; }
+.tvx-icon-btn:disabled { opacity: .35; cursor: default; }
+.tvx-icon-danger:hover:not(:disabled) { color: var(--tvx-danger); border-color: var(--tvx-danger-border); }
+
+/* Messages and pills */
+.tvx-msg { border-radius: 8px; padding: 10px 12px; font-size: 12px; border: 1px solid; }
+.tvx-msg-success { background: var(--tvx-ok-bg); border-color: var(--tvx-ok-border); color: var(--tvx-ok-text); }
+.tvx-msg-error { background: var(--tvx-danger-bg); border-color: var(--tvx-danger-border); color: var(--tvx-danger-text); }
+.tvx-msg-warn { background: var(--tvx-warn-bg); border-color: var(--tvx-warn-border); color: var(--tvx-warn-text); }
+.tvx-pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; border: 1px solid var(--tvx-border-soft); padding: 3px 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.tvx-pill em { font-style: normal; font-weight: 600; opacity: .8; }
+.tvx-pill.is-none { background: var(--tvx-surface-3); color: var(--tvx-text-3); }
+.tvx-pill.is-draft { background: var(--tvx-warn-bg); border-color: var(--tvx-warn-border); color: var(--tvx-warn-text); }
+.tvx-pill.is-done { background: var(--tvx-ok-bg); border-color: var(--tvx-ok-border); color: var(--tvx-ok-text); }
+/* Availability badges (T3): Available / Held / On Request / Expired or Unavailable */
+.tvx-pill.is-av-ok { background: var(--tvx-ok-bg); border-color: var(--tvx-ok-border); color: var(--tvx-ok-text); }
+.tvx-pill.is-av-info { background: var(--tvx-info-bg); border-color: var(--tvx-info-border); color: var(--tvx-info-text); }
+.tvx-pill.is-av-warn { background: var(--tvx-warn-bg); border-color: var(--tvx-warn-border); color: var(--tvx-warn-text); }
+.tvx-pill.is-av-bad { background: var(--tvx-danger-bg); border-color: var(--tvx-danger-border); color: var(--tvx-danger-text); }
+
+/* Empty states (both components) */
+.tvx-empty { align-items: center; text-align: center; padding: 32px 20px; }
+.tvx-empty p { margin: 0; }
+.tvx-empty-title { font-size: 13px; font-weight: 700; color: var(--tvx-text); }
+
+/* Shared bits used by several components */
+.tvx-divider-top { padding-top: 12px; border-top: 1px solid var(--tvx-border-soft); }
+.tvx-btn:focus-visible, .tvx-icon-btn:focus-visible, .tvx-chip:focus-visible, .tvx-link-btn:focus-visible { outline: 2px solid var(--tvx-accent); outline-offset: 2px; }
+
+/* Searchable combobox */
+.tvx-combobox { position: relative; width: 100%; }
+.tvx-combobox-input-wrap { position: relative; display: flex; align-items: center; width: 100%; }
+.tvx-combobox-input { padding-right: 48px; }
+.tvx-combobox-input.tvx-suggest-input { padding-right: 12px; }
+.tvx-combobox-arrow { position: absolute; right: 12px; pointer-events: none; color: var(--tvx-muted); font-size: 11px; }
+.tvx-combobox-clear { position: absolute; right: 26px; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 0; border-radius: 999px; background: var(--tvx-surface-3); color: var(--tvx-muted); font-size: 13px; line-height: 1; cursor: pointer; padding: 0; }
+.tvx-combobox-clear:hover { background: var(--tvx-text); color: var(--tvx-surface); }
+.tvx-combobox-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50; max-height: 220px; overflow-y: auto; background: var(--tvx-surface); border: 1px solid var(--tvx-border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 4px; display: flex; flex-direction: column; gap: 2px; }
+.tvx-combobox-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: 6px; font: inherit; font-size: 12px; color: var(--tvx-text); cursor: pointer; border: 0; background: none; text-align: left; width: 100%; }
+.tvx-combobox-item:hover, .tvx-combobox-item.is-active { background: var(--tvx-surface-3); color: var(--tvx-accent); font-weight: 600; }
+.tvx-combobox-check { color: var(--tvx-accent); font-size: 11px; }
+.tvx-combobox-add { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 6px; font: inherit; font-size: 12px; font-weight: 600; color: var(--tvx-accent); background: var(--tvx-info-bg); border: 1px dashed var(--tvx-info-border); cursor: pointer; text-align: left; width: 100%; margin-top: 2px; }
+.tvx-combobox-add:hover { background: var(--tvx-info-bg); opacity: 0.9; }
+.tvx-combobox-add-plus { font-weight: 700; font-size: 14px; }
+.tvx-combobox-empty { padding: 8px 10px; font-size: 12px; color: var(--tvx-muted); text-align: center; }

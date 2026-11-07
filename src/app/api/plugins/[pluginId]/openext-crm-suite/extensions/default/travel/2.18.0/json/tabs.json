@@ -1,0 +1,85 @@
+{
+  "leadDetail": [
+    {
+      "id": "travel-requirement",
+      "label": "Travel Requirement",
+      "kind": "mount",
+      "slot": "lead.tab.travel_requirement",
+      "permission": "crm.leads.read",
+      "order": 20
+    },
+    {
+      "id": "travellers",
+      "label": "Travellers",
+      "kind": "mount",
+      "slot": "lead.tab.travellers",
+      "permission": "crm.leads.read",
+      "order": 30
+    },
+    {
+      "id": "bookings",
+      "label": "Bookings",
+      "kind": "mount",
+      "slot": "lead.tab.bookings",
+      "permission": "x.travel.bookings.read",
+      "order": 40
+    }
+  ],
+  "opportunityDetail": [
+    {
+      "id": "trip",
+      "label": "Trip",
+      "kind": "mount",
+      "slot": "opportunity.tab.trip",
+      "permission": "crm.leads.read",
+      "order": 10
+    }
+  ],
+  "quotationDetail": [
+    {
+      "id": "travel",
+      "label": "Booking & itinerary",
+      "kind": "mount",
+      "slot": "quotation.tab.travel",
+      "permission": "crm.leads.read",
+      "order": 10
+    }
+  ],
+  "contactDetail": [
+    {
+      "id": "travellers",
+      "label": "Travellers",
+      "kind": "mount",
+      "slot": "contact.tab.travellers",
+      "permission": "crm.leads.read",
+      "order": 10
+    }
+  ],
+  "clientDetail": [
+    {
+      "id": "travel_requirement",
+      "label": "Travel Requirement",
+      "kind": "mount",
+      "slot": "client.tab.travel_requirement",
+      "permission": "crm.leads.read",
+      "order": 5
+    },
+    {
+      "id": "bookings",
+      "label": "Bookings",
+      "kind": "mount",
+      "slot": "client.tab.bookings",
+      "permission": "x.travel.bookings.read",
+      "order": 10
+    },
+    {
+      "id": "travellers",
+      "label": "Travellers",
+      "kind": "mount",
+      "slot": "client.tab.travellers",
+      "permission": "crm.leads.read",
+      "order": 20,
+      "countRoute": "/clients/:client_id/travellers"
+    }
+  ]
+}

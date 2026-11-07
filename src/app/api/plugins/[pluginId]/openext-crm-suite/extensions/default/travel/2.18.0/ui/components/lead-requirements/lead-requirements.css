@@ -1,0 +1,16 @@
+/* <x-travel-lead-requirements-v1> */
+.tvx-req-summary { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.tvx-req-list { display: flex; flex-direction: column; gap: 16px; }
+.tvx-req-group { display: flex; flex-direction: column; gap: 10px; }
+.tvx-req-card.is-new { border-style: dashed; }
+.tvx-req-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 12px; border-bottom: 1px solid var(--tvx-border-soft); padding-bottom: 12px; }
+.tvx-req-title { min-width: 0; flex: 1 1 200px; }
+.tvx-req-title .tvx-h4 { overflow-wrap: anywhere; }
+.tvx-req-pills { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 100%; }
+.tvx-req-pills .tvx-pill { white-space: normal; }
+.tvx-req-label { max-width: 360px; }
+.tvx-req-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--tvx-border-soft); padding-top: 12px; }
+.tvx-req-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.tvx-req-add { align-self: flex-start; border-style: dashed; }
+.tvx-req-saved { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--tvx-text); }
+.tvx-req-saved .tvx-label { font-size: 12px; }

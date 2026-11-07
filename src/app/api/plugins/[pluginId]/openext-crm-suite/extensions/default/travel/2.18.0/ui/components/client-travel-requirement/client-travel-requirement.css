@@ -1,0 +1,24 @@
+/* <x-travel-client-travel-requirement-v1> — colours only from the --tvx-* variables (ui/style.css). */
+.tvx-ctr { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.tvx-ctr-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.tvx-ctr-step { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--tvx-text-3); }
+.tvx-ctr-step-n { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--tvx-border); font-size: 11px; }
+.tvx-ctr-step.is-on { color: var(--tvx-heading); }
+.tvx-ctr-step.is-on .tvx-ctr-step-n { background: var(--tvx-heading); border-color: var(--tvx-heading); color: var(--tvx-surface); }
+.tvx-ctr-step.is-done .tvx-ctr-step-n { background: var(--tvx-ok-bg); border-color: var(--tvx-ok-border); color: var(--tvx-ok-text); }
+.tvx-ctr-card, .tvx-ctr-form, .tvx-ctr-done { gap: 14px; }
+.tvx-ctr-fields { min-width: 0; }
+.tvx-ctr-forms { display: flex; flex-direction: column; gap: 14px; }
+.tvx-ctr-trip .tvx-muted { margin: 0; }
+.tvx-ctr-form-title { margin: 0; font-size: 14px; font-weight: 700; color: var(--tvx-heading); }
+.tvx-ctr-actions { justify-content: flex-end; }
+.tvx-ctr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.tvx-ctr-kv { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--tvx-surface-2); font-size: 13px; min-width: 0; }
+.tvx-ctr-kv .tvx-muted { font-size: 11px; }
+.tvx-ctr-kv strong { overflow-wrap: anywhere; }
+.tvx-ctr-services { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.tvx-ctr-services li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--tvx-border-soft); font-size: 13px; }
+.tvx-ctr-services li:first-child { border-top: 0; }
+@media (max-width: 640px) {
+  .tvx-ctr-actions { flex-direction: column-reverse; align-items: stretch; }
+}

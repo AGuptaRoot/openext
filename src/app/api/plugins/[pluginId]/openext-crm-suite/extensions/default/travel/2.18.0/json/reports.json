@@ -1,0 +1,192 @@
+{
+  "title": "Travel Reports",
+  "subtitle": "Sales, bookings, revenue and travel operations performance",
+  "keepCoreTabs": [
+    "activity-location",
+    "ageing",
+    "payment-reconciliation",
+    "income-expense"
+  ],
+  "filters": [
+    {
+      "key": "range",
+      "label": "Date Range",
+      "type": "daterange",
+      "default": "this_month"
+    },
+    {
+      "key": "owner",
+      "label": "Sales Person",
+      "type": "select",
+      "source": "users"
+    },
+    {
+      "key": "source",
+      "label": "Lead Source",
+      "type": "select",
+      "source": "leadSources"
+    },
+    {
+      "key": "destination",
+      "label": "Destination",
+      "type": "select",
+      "optionsRoute": "/reports/options",
+      "optionsKey": "destinations"
+    },
+    {
+      "key": "service",
+      "label": "Travel Service",
+      "type": "select",
+      "optionsRoute": "/reports/options",
+      "optionsKey": "services"
+    },
+    {
+      "key": "stage",
+      "label": "Opportunity Stage",
+      "type": "select",
+      "source": "pipelineStages"
+    },
+    {
+      "key": "booking_status",
+      "label": "Booking Status",
+      "type": "select",
+      "optionsRoute": "/reports/options",
+      "optionsKey": "booking_statuses"
+    },
+    {
+      "key": "payment_status",
+      "label": "Payment Status",
+      "type": "select",
+      "options": [
+        {
+          "value": "Unpaid",
+          "label": "Unpaid"
+        },
+        {
+          "value": "Advance Paid",
+          "label": "Advance Paid"
+        },
+        {
+          "value": "Partially Paid",
+          "label": "Partially Paid"
+        },
+        {
+          "value": "Paid",
+          "label": "Paid"
+        },
+        {
+          "value": "Overdue",
+          "label": "Overdue"
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "kpis",
+      "kind": "kpis",
+      "title": "",
+      "route": "/reports/sales",
+      "permission": "crm.leads.read"
+    },
+    {
+      "id": "revenue",
+      "kind": "table",
+      "title": "Revenue & Collections",
+      "subtitle": "Verified payments only; an advance moved onto the tax invoice is counted once.",
+      "route": "/reports/sales",
+      "permission": "crm.finance.read",
+      "export": true,
+      "tab": "revenue"
+    },
+    {
+      "id": "service-performance",
+      "kind": "table",
+      "title": "Travel Service Performance",
+      "subtitle": "Every service of Services & Forms.",
+      "route": "/reports/sales",
+      "permission": "crm.leads.read",
+      "export": true,
+      "tab": "services"
+    },
+    {
+      "id": "payment-status",
+      "kind": "table",
+      "title": "Payment Status",
+      "subtitle": "Accepted quotations by payment; Paid means nothing is due.",
+      "route": "/reports/sales",
+      "permission": "crm.finance.read",
+      "export": true,
+      "tab": "payments"
+    },
+    {
+      "id": "lead-sources",
+      "kind": "table",
+      "title": "Lead Source Performance",
+      "route": "/reports/sales",
+      "permission": "crm.leads.read",
+      "export": true,
+      "tab": "sources"
+    },
+    {
+      "id": "sales-people",
+      "kind": "table",
+      "title": "Sales Person Performance",
+      "subtitle": "Click a sales person to open their activities.",
+      "route": "/reports/sales",
+      "permission": "crm.leads.read",
+      "export": true,
+      "tab": "people"
+    },
+    {
+      "id": "upcoming-trips",
+      "kind": "table",
+      "title": "Upcoming Trips",
+      "subtitle": "Trips starting soon and what still needs attention.",
+      "route": "/reports/operations",
+      "permission": "x.travel.bookings.read",
+      "export": true,
+      "tab": "upcoming",
+      "periods": [
+        {
+          "value": "7",
+          "label": "Next 7 Days"
+        },
+        {
+          "value": "15",
+          "label": "Next 15 Days"
+        },
+        {
+          "value": "30",
+          "label": "Next 30 Days"
+        }
+      ]
+    }
+  ],
+  "tabs": [
+    {
+      "id": "revenue",
+      "label": "Revenue & Collections"
+    },
+    {
+      "id": "services",
+      "label": "Travel Service Performance"
+    },
+    {
+      "id": "payments",
+      "label": "Payment Status"
+    },
+    {
+      "id": "sources",
+      "label": "Lead Source Performance"
+    },
+    {
+      "id": "people",
+      "label": "Sales Person Performance"
+    },
+    {
+      "id": "upcoming",
+      "label": "Upcoming Trips"
+    }
+  ]
+}

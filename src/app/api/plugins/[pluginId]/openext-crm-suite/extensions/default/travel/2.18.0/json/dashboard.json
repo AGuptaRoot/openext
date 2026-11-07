@@ -1,0 +1,89 @@
+{
+  "title": "Travel Dashboard",
+  "subtitle": "Quick overview of your travel sales and bookings",
+  "actions": [
+    {
+      "label": "+ New Travel Lead",
+      "link": "/leads/create",
+      "permission": "crm.leads.write"
+    }
+  ],
+  "filters": [
+    {
+      "key": "scope",
+      "label": "View",
+      "type": "select",
+      "default": "team",
+      "options": [
+        {
+          "value": "mine",
+          "label": "My Dashboard"
+        },
+        {
+          "value": "team",
+          "label": "Team Dashboard"
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "kpis",
+      "kind": "kpis",
+      "title": "",
+      "route": "/dashboard/overview",
+      "permission": "crm.leads.read"
+    },
+    {
+      "id": "action-required",
+      "kind": "list",
+      "title": "Action Required",
+      "route": "/dashboard/overview",
+      "permission": "crm.leads.read"
+    },
+    {
+      "id": "passport-alerts",
+      "kind": "list",
+      "title": "Passport Alerts",
+      "route": "/dashboard/overview",
+      "permission": "crm.leads.read"
+    },
+    {
+      "id": "upcoming-trips",
+      "kind": "list",
+      "title": "Upcoming Trips",
+      "route": "/dashboard/overview",
+      "permission": "x.travel.bookings.read"
+    },
+    {
+      "id": "pipeline",
+      "kind": "steps",
+      "title": "Travel Pipeline",
+      "route": "/dashboard/overview",
+      "permission": "crm.leads.read",
+      "width": "half"
+    },
+    {
+      "id": "payments",
+      "kind": "progress",
+      "title": "Payments",
+      "route": "/dashboard/overview",
+      "permission": "crm.finance.read",
+      "width": "half"
+    },
+    {
+      "id": "booking-attention",
+      "kind": "groups",
+      "title": "Booking Attention",
+      "route": "/dashboard/overview",
+      "permission": "x.travel.bookings.read"
+    },
+    {
+      "id": "recent-activity",
+      "kind": "list",
+      "title": "Recent Activity",
+      "route": "/dashboard/overview",
+      "permission": "x.travel.bookings.read"
+    }
+  ]
+}

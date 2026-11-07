@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SMTP Settings</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <h1>SMTP Settings</h1>
+    <p class="subtitle">
+      Configure your outgoing mail server. Credentials are stored securely in the CMS database.
+    </p>
+
+    <div class="card">
+      <h2>Mail server</h2>
+      <form id="settings-form">
+        <div class="form-grid">
+          <div>
+            <label for="host">SMTP host</label>
+            <input id="host" name="host" type="text" placeholder="smtp.gmail.com" required />
+          </div>
+          <div>
+            <label for="port">Port</label>
+            <input id="port" name="port" type="number" min="1" max="65535" value="587" required />
+          </div>
+        </div>
+
+        <div class="checkbox-row">
+          <input id="secure" name="secure" type="checkbox" />
+          <label for="secure">Use SSL/TLS (typically port 465)</label>
+        </div>
+
+        <div class="form-grid">
+          <div>
+            <label for="user">Username</label>
+            <input id="user" name="user" type="text" placeholder="smtp-user@example.com" />
+          </div>
+          <div>
+            <label for="password">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="Leave blank to keep saved password"
+              autocomplete="new-password"
+            />
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div>
+            <label for="fromName">From name</label>
+            <input id="fromName" name="fromName" type="text" placeholder="My Website" />
+          </div>
+          <div>
+            <label for="fromEmail">From email</label>
+            <input
+              id="fromEmail"
+              name="fromEmail"
+              type="email"
+              placeholder="noreply@example.com"
+              required
+            />
+          </div>
+        </div>
+
+        <label for="recipientEmail">Website recipient email</label>
+        <input
+          id="recipientEmail"
+          name="recipientEmail"
+          type="email"
+          placeholder="owner@example.com"
+        />
+
+        <label for="replyTo">Reply-to (optional)</label>
+        <input id="replyTo" name="replyTo" type="email" placeholder="support@example.com" />
+
+        <div class="toolbar">
+          <button type="submit" id="save-btn">Save &amp; verify</button>
+          <button type="button" class="secondary" id="test-btn">Test connection</button>
+          <span class="status" id="status"></span>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Status</h2>
+      <p id="connection-status">Loading…</p>
+      <p class="hint">
+        Common ports: <code>587</code> (STARTTLS), <code>465</code> (SSL), <code>25</code> (legacy).
+      </p>
+    </div>
+
+    <script src="./shared.js"></script>
+    <script>
+      const statusEl = document.getElementById('status');
+      const connectionStatus = document.getElementById('connection-status');
+      let hasSavedPassword = false;
+
+      function setStatus(message, type) {
+        statusEl.textContent = message;
+        statusEl.className = 'status' + (type ? ' ' + type : '');
+      }
+
+      function readFormPayload(includeEmptyPassword) {
+        return {
+          host: document.getElementById('host').value.trim(),
+          port: parseInt(document.getElementById('port').value, 10),
+          secure: document.getElementById('secure').checked,
+          user: document.getElementById('user').value.trim(),
+          password: document.getElementById('password').value,
+          fromName: document.getElementById('fromName').value.trim(),
+          fromEmail: document.getElementById('fromEmail').value.trim(),
+          recipientEmail: document.getElementById('recipientEmail').value.trim(),
+          replyTo: document.getElementById('replyTo').value.trim(),
+          useSaved: includeEmptyPassword && !document.getElementById('password').value.trim(),
+        };
+      }
+
+      function renderConnection(settings, connection) {
+        if (settings && settings.isConfigured) {
+          const badge = connection && connection.ok ? 'ok' : 'fail';
+          const label = connection && connection.ok ? 'Connected' : 'Not verified';
+          connectionStatus.innerHTML =
+            '<span class="badge ' +
+            badge +
+            '">' +
+            label +
+            '</span> Sending as <strong>' +
+            EmailPlugin.escapeHtml(settings.fromEmail) +
+            '</strong> via <code>' +
+            EmailPlugin.escapeHtml(settings.host) +
+            ':' +
+            EmailPlugin.escapeHtml(settings.port) +
+            '</code>';
+        } else {
+          connectionStatus.textContent = 'SMTP is not configured yet.';
+        }
+      }
+
+      async function loadSettings() {
+        const data = await EmailPlugin.api('/settings');
+        const settings = data.settings || {};
+
+        document.getElementById('host').value = settings.host || '';
+        document.getElementById('port').value = settings.port || 587;
+        document.getElementById('secure').checked = Boolean(settings.secure);
+        document.getElementById('fromName').value = settings.fromName || '';
+        document.getElementById('fromEmail').value = settings.fromEmail || '';
+        document.getElementById('recipientEmail').value = settings.recipientEmail || '';
+        document.getElementById('replyTo').value = settings.replyTo || '';
+
+        hasSavedPassword = Boolean(settings.hasCredentials);
+        if (settings.userPreview) {
+          document.getElementById('user').placeholder = 'Saved: ' + settings.userPreview;
+        }
+
+        renderConnection(settings, null);
+        return settings;
+      }
+
+      document.getElementById('settings-form').addEventListener('submit', async function (event) {
+        event.preventDefault();
+        setStatus('Saving…');
+
+        const payload = readFormPayload(false);
+        if (!payload.password && !hasSavedPassword) {
+          setStatus('Password is required for first-time setup', 'error');
+          return;
+        }
+        if (!payload.password) {
+          delete payload.password;
+        }
+
+        try {
+          const data = await EmailPlugin.api('/settings', {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+          });
+          document.getElementById('password').value = '';
+          hasSavedPassword = true;
+          setStatus(data.message || 'Settings saved', data.connection && data.connection.ok ? 'success' : 'error');
+          renderConnection(data.settings, data.connection);
+        } catch (error) {
+          setStatus(error.message, 'error');
+        }
+      });
+
+      document.getElementById('test-btn').addEventListener('click', async function () {
+        setStatus('Testing SMTP…');
+
+        const payload = readFormPayload(true);
+        if (payload.password) {
+          delete payload.useSaved;
+        } else {
+          delete payload.password;
+        }
+
+        try {
+          const data = await EmailPlugin.api('/settings/test', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          });
+          setStatus(data.connection.message, data.connection.ok ? 'success' : 'error');
+        } catch (error) {
+          setStatus(error.message, 'error');
+        }
+      });
+
+      loadSettings().catch(function (error) {
+        connectionStatus.textContent = error.message;
+      });
+    </script>
+  </body>
+</html>

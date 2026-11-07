@@ -1,0 +1,28 @@
+{
+  "name": "Itinerary",
+  "label": "Itinerary",
+  "pluralLabel": "Itineraries",
+  "titleField": "title",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "quotation_id": { "type": "ref", "ref": "Quotation", "label": "Quotation", "required": true, "index": true },
+    "quotation_no": { "type": "text", "label": "Quotation number" },
+    "quotation_version": { "type": "number", "label": "Quotation version" },
+    "lead_id": { "type": "ref", "ref": "Lead", "label": "Lead", "index": true },
+    "booking_id": { "type": "text", "label": "Booking", "index": true },
+    "title": { "type": "text", "label": "Title" },
+    "start_date": { "type": "date", "label": "Start date" },
+    "end_date": { "type": "date", "label": "End date" },
+    "version": { "type": "number", "label": "Version" },
+    "quotation_version_key": { "type": "text", "label": "Quotation and version", "unique": true },
+    "status": { "type": "select", "label": "Status", "options": ["Draft", "Final", "Superseded"], "default": "Draft" },
+    "days": { "type": "json", "label": "Days" },
+    "unscheduled": { "type": "json", "label": "Included services" },
+    "notes": { "type": "textarea", "label": "Notes" },
+    "file_id": { "type": "text", "label": "PDF" },
+    "generated_at": { "type": "date", "label": "Generated at" },
+    "edited": { "type": "checkbox", "label": "Edited" },
+    "finalized_at": { "type": "date", "label": "Finalized at" },
+    "snapshot": { "type": "json", "label": "Guest and travellers when finalized" }
+  }
+}

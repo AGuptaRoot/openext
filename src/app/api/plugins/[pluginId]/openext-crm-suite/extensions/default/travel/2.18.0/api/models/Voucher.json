@@ -1,0 +1,32 @@
+{
+  "name": "Voucher",
+  "label": "Voucher",
+  "pluralLabel": "Vouchers",
+  "titleField": "number",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "number": { "type": "text", "label": "Voucher number", "index": true },
+    "booking_id": { "type": "text", "label": "Booking", "required": true, "index": true },
+    "booking_service_id": { "type": "text", "label": "Booking service", "required": true, "index": true },
+    "service_version": { "type": "text", "label": "Service and version", "required": true, "unique": true },
+    "type": { "type": "select", "label": "Type", "options": ["hotel", "transport", "excursion"] },
+    "version": { "type": "number", "label": "Version" },
+    "status": {
+      "type": "select",
+      "label": "Status",
+      "options": ["Draft", "Issued", "Sent", "Used", "Cancelled", "Superseded"],
+      "default": "Draft"
+    },
+    "outdated": { "type": "checkbox", "label": "Service details changed after issue" },
+    "file_id": { "type": "text", "label": "PDF" },
+    "issued_at": { "type": "date", "label": "Issued at" },
+    "issued_by": { "type": "text", "label": "Issued by" },
+    "sent_at": { "type": "date", "label": "Sent at" },
+    "sent_channel": { "type": "text", "label": "Sent by" },
+    "sent_to": { "type": "text", "label": "Sent to" },
+    "used_at": { "type": "date", "label": "Used at" },
+    "cancel_reason": { "type": "textarea", "label": "Cancel reason" },
+    "superseded_by": { "type": "text", "label": "Superseded by" },
+    "snapshot": { "type": "json", "label": "Printed content" }
+  }
+}

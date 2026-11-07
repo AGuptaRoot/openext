@@ -1,0 +1,12 @@
+{
+  "name": "ClientEnquiry",
+  "label": "Client enquiry",
+  "pluralLabel": "Client enquiries",
+  "titleField": "client_id",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "client_id": { "type": "text", "label": "Client", "required": true, "index": true },
+    "lead_id": { "type": "ref", "ref": "Lead", "label": "Enquiry (lead)", "required": true, "index": true },
+    "created_by": { "type": "text", "label": "Started by" }
+  }
+}

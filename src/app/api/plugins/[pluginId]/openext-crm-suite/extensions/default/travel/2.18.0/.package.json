@@ -1,0 +1,558 @@
+{
+  "extensionId": "travel",
+  "version": "2.18.0",
+  "checksum": "b1f8b44e88d3dcac66c39bdfa2599b28f8fca296a20bb620c0dbe2902a08aaed",
+  "writtenAt": "2026-11-07T08:33:05.016Z",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "1807323d3333010167f9e63be75d3a221a01ed7abc285b8a18fc53c741fb997b",
+      "size": 31548
+    },
+    {
+      "path": "api/models/AvailabilityCheck.json",
+      "sha256": "d21cb9819bafb63f5d19b9583cb6040ac8395945f577c474806ec646cb3844d2",
+      "size": 1530
+    },
+    {
+      "path": "api/models/Booking.json",
+      "sha256": "3817f795212b9e2803381341f2285a34a023cd9f6d9cbd28cdf972a3b4a7cfa5",
+      "size": 1828
+    },
+    {
+      "path": "api/models/BookingService.json",
+      "sha256": "aab8925b162b6a5ae709de4b36d8e0edfdf6871c8592468c58e3721e899b72cd",
+      "size": 2275
+    },
+    {
+      "path": "api/models/ClientEnquiry.json",
+      "sha256": "0754f3c995fdaab2b6409778577ed2b9617ab03ecf1b12f553c96cda398a050b",
+      "size": 486
+    },
+    {
+      "path": "api/models/FieldSuggestion.json",
+      "sha256": "b13f1f7c9ac862a9b2e9bd73f7964a3f5d1e050427d868b4f977e22eedc75a14",
+      "size": 605
+    },
+    {
+      "path": "api/models/Itinerary.json",
+      "sha256": "b3d37b1013e01b877d00c94aa9736ee84d8da922931e7396d7e03a680610cadc",
+      "size": 1591
+    },
+    {
+      "path": "api/models/QuotationTravel.json",
+      "sha256": "d1ec4fe8a816d8730ba9a5a42146889f287eb831867bfb7b3bddb5fd92353575",
+      "size": 1325
+    },
+    {
+      "path": "api/models/ServiceConfirmation.json",
+      "sha256": "5a2771370f38c5f588027e32d91cc9d1b53be4c3318150f82cc7649f3d8b2255",
+      "size": 1145
+    },
+    {
+      "path": "api/models/TravelLocation.json",
+      "sha256": "e4c5effae895a3ac99b607705108e0ec802f84b568b1539c8cb8a352ee7695dc",
+      "size": 852
+    },
+    {
+      "path": "api/models/TravelRequirement.json",
+      "sha256": "df81e3d84538890505d6ad1afade9a0f4aee0ce227722fb6534ba112da995c7f",
+      "size": 910
+    },
+    {
+      "path": "api/models/Traveller.json",
+      "sha256": "c7e89ecacd3b073791f94ee7c2a6e10f06f4bf169cee76886dac4f10d361e52c",
+      "size": 2687
+    },
+    {
+      "path": "api/models/TripPlan.json",
+      "sha256": "f60190ef6059dda866356184ed31bffe75615ee7f0f5756b4107c3e667c839ce",
+      "size": 1791
+    },
+    {
+      "path": "api/models/Voucher.json",
+      "sha256": "486fad4b2551b44402f332bbb0ca506039e13e8cee2730f83caf337a27104019",
+      "size": 1604
+    },
+    {
+      "path": "api/routes/availability.js",
+      "sha256": "c30a1ecaa6f5467261f24244809bdc95bfce510bf190a59c756abdd2ffcc78c4",
+      "size": 12678
+    },
+    {
+      "path": "api/routes/booking-services.js",
+      "sha256": "0a7e2ae5a8d3133d4c610801b99d76f275cdd884356bd84ae81d456f88f76232",
+      "size": 15552
+    },
+    {
+      "path": "api/routes/bookings.js",
+      "sha256": "020c1d966616d6fcb5b6d6228221b0e9a9b0eb42110bdaace412469b74b27a07",
+      "size": 34755
+    },
+    {
+      "path": "api/routes/client-requirement.js",
+      "sha256": "4e79f7064dda3741f20eb0d9cb75d2e70fd8003ec1ec8b04614d45ceabec218e",
+      "size": 14541
+    },
+    {
+      "path": "api/routes/client-travellers.js",
+      "sha256": "268d90ba87a938c6a99234062346088bdae3e6233ae5a216ea22df67a77e1d0e",
+      "size": 3845
+    },
+    {
+      "path": "api/routes/dashboard.js",
+      "sha256": "f3882a5226f5accd90109a2848f818c4b589a279da1a382b40de909da2123d2d",
+      "size": 14467
+    },
+    {
+      "path": "api/routes/dates.js",
+      "sha256": "38b119cbe71980a8f60f2dd97a85f16489768b30fbac1460be2765f46a1d53b7",
+      "size": 5524
+    },
+    {
+      "path": "api/routes/field-suggestions.js",
+      "sha256": "11cebca26cd01a307f2c1148aa7002ea1f8eaf8dd3d7d14b82f9b7acfd69d364",
+      "size": 1434
+    },
+    {
+      "path": "api/routes/itineraries.js",
+      "sha256": "522c0e197621b0ca124879090719d2d49b9ad357bd6f58c3cce36c206bb20860",
+      "size": 19206
+    },
+    {
+      "path": "api/routes/locations.js",
+      "sha256": "43d7d50a7160a80e55c2d73bdc790a8fe03e7de15ced89c71b3444226c49c722",
+      "size": 1793
+    },
+    {
+      "path": "api/routes/ocr.js",
+      "sha256": "16526a7038b35ddce28f2b3a7db806143d38688227c94d6832500f93716ba7b0",
+      "size": 1577
+    },
+    {
+      "path": "api/routes/portal.js",
+      "sha256": "6c7acf59a85d9c0cb87ed94311669bc90eff18b0f7d5bb57bbf32e8b8067b8e8",
+      "size": 9598
+    },
+    {
+      "path": "api/routes/reports.js",
+      "sha256": "9c4ea9fdc9332932ac72d6e58c7162a243e00501a9688819e9e033fa6d9ebee4",
+      "size": 30557
+    },
+    {
+      "path": "api/routes/requirements.js",
+      "sha256": "112adec0c52146838dec53564a6a7227a7004b3363e7e297248bee12ad83f321",
+      "size": 12189
+    },
+    {
+      "path": "api/routes/sales.js",
+      "sha256": "773f715b7781beab96be5e52ec3f68518400119fd7f1da6a4a8e7c95e88298da",
+      "size": 4578
+    },
+    {
+      "path": "api/routes/services.js",
+      "sha256": "9cddc0c38d6e3dd92c5d18aa9edfec8c5699b7f35118e0f7d8dc682d1437e302",
+      "size": 921
+    },
+    {
+      "path": "api/routes/traveller-tools.js",
+      "sha256": "63965c6cf808c3f0ba311ff66dce8db29d42210d24c6983f0db50a2456a2997c",
+      "size": 19933
+    },
+    {
+      "path": "api/routes/travellers.js",
+      "sha256": "73412334a99883370519a20b3b4bba83e727d75032353375a0481d36de635088",
+      "size": 20293
+    },
+    {
+      "path": "api/routes/trip-views.js",
+      "sha256": "1bd24386c2f07e437c3720f2f9dd1cda4999c6493a8e050481d3146289f4b987",
+      "size": 4395
+    },
+    {
+      "path": "api/routes/vouchers.js",
+      "sha256": "d23f7bda0e02089b17e3e53a63ae3796d1467974b2b56d176f21fdadd971abea",
+      "size": 10394
+    },
+    {
+      "path": "api/routes/workflow.js",
+      "sha256": "10c8b56bc9c95f189874055d3ada4529e4ff08cfbb1834e28b73e81952598d9b",
+      "size": 704
+    },
+    {
+      "path": "api/routes.json",
+      "sha256": "f3abce5a9bc362d845bf485d390fa66b8ec1bc049fdba3556d9ab591ec72a599",
+      "size": 25010
+    },
+    {
+      "path": "api/services/availability.js",
+      "sha256": "9e2d0a9d962c5d90e495ab0077d1c74fa9d1117e9e1861ca4d6df75008fb2f84",
+      "size": 6614
+    },
+    {
+      "path": "api/services/booking-status.js",
+      "sha256": "5fced8e7da95d415d645d0b64ef5439d93048cbe4a9525f2bbfae4b1f88981a2",
+      "size": 1626
+    },
+    {
+      "path": "api/services/booking-store.js",
+      "sha256": "0bdad053efa650934c80069246f934cfff8dffa162507827113e38d26e9bb25e",
+      "size": 20800
+    },
+    {
+      "path": "api/services/catalog.js",
+      "sha256": "3562136b5714a3ed58c0aa22b951eeeed189e66454173752635a91fde617a43b",
+      "size": 13407
+    },
+    {
+      "path": "api/services/document-ocr.js",
+      "sha256": "0cecf6f882a4ee1a6f23ca915b23338ed292c30d962ea804487c5e2c7567f172",
+      "size": 16981
+    },
+    {
+      "path": "api/services/field-suggestions.js",
+      "sha256": "a58fecb7ffcd0d2d7d05326355ec6bf9fc1bdab4911138e2c677d14a1e14120d",
+      "size": 4226
+    },
+    {
+      "path": "api/services/itinerary.js",
+      "sha256": "cfa6ec8db4d909d28a1df96fc8034c2b81aa5d493440b6bc556b03905f2512f8",
+      "size": 19811
+    },
+    {
+      "path": "api/services/lead-access.js",
+      "sha256": "e27fc8ac212106074dcc45a1e37700fbc53919b87ba290ba3a12875aa14e1691",
+      "size": 2184
+    },
+    {
+      "path": "api/services/passport-alerts.js",
+      "sha256": "976c2a3d82d3168d6ef808a643839251c28d9322e8eada67347bf1de15cfe153",
+      "size": 6440
+    },
+    {
+      "path": "api/services/readiness.js",
+      "sha256": "a253c651f20f31c6a7ec9bc78acdd01c2064809dd180eef0054c0ec3baf0571c",
+      "size": 7196
+    },
+    {
+      "path": "api/services/report-data.js",
+      "sha256": "a7bb046de95b26a81b68091dc981f95abd137220c69347be97a23d0d874cd23c",
+      "size": 10827
+    },
+    {
+      "path": "api/services/requirement-form.js",
+      "sha256": "874bc66ac85a1f8b1c53ecf6f5405b2c2798be4eee9c39c4eef0ac55cb3db42f",
+      "size": 6544
+    },
+    {
+      "path": "api/services/requirement-status.js",
+      "sha256": "84b1a7081b784dee9483f01b171541aa94e8cbd7d69035fdc9241bfb238467e0",
+      "size": 2261
+    },
+    {
+      "path": "api/services/requirement-store.js",
+      "sha256": "7c47345cebbf401dcee0f36baf32edcf844fc2e8c22be7e257ba32a2ea24a4f9",
+      "size": 10232
+    },
+    {
+      "path": "api/services/sales-prefill.js",
+      "sha256": "847a3ba8dd784f028a5353223fe19c9aef60b6ccfad664c4ad10a9aba0a3acfb",
+      "size": 37160
+    },
+    {
+      "path": "api/services/sales-sync.js",
+      "sha256": "4196c49252ca02e3bf228bbe3aaa01ae1e1d85ba80db60a108cea73710aef287",
+      "size": 8459
+    },
+    {
+      "path": "api/services/travel-locations.js",
+      "sha256": "766cc0b6f3931b0e27aeb8015c8fe015915e04e10862b06c125f490e5459c558",
+      "size": 13838
+    },
+    {
+      "path": "api/services/traveller-directory.js",
+      "sha256": "4f295e0b6c36b0fe71c6c1a4c3ed3e84fb16a6d40518cd594a91d1e7e0bd688e",
+      "size": 11954
+    },
+    {
+      "path": "api/services/traveller-rules.js",
+      "sha256": "589d1e669593f9f80c44315582e1c9308c7c9c4da6bab533eea9ac87fac03e84",
+      "size": 14512
+    },
+    {
+      "path": "api/services/traveller-store.js",
+      "sha256": "c900e4e30f47e240cf1e85c82a1aa386036a85eb5154e3cc56e7b8bf2c65f4d8",
+      "size": 23272
+    },
+    {
+      "path": "api/services/trip-dates.js",
+      "sha256": "28d5221311940ddec2e07aa5eab34911a4b024d3a4701712f76197a2ea74bdbf",
+      "size": 5161
+    },
+    {
+      "path": "api/services/voucher-doc.js",
+      "sha256": "20e530ea8e4c9129efc273df8085662a3f2155e39dcce9e5cd70a2f032486710",
+      "size": 12343
+    },
+    {
+      "path": "crm-extension.json",
+      "sha256": "158f5290c8bccfc6b8aed5d4914553ae75d8bf02d3ab45f09b72e1c9574bcc35",
+      "size": 10520
+    },
+    {
+      "path": "json/actions.json",
+      "sha256": "754c326a3804cc2bd93bf8f8d644204ce0854e60d3a2c59f401f55a6a4c50156",
+      "size": 1269
+    },
+    {
+      "path": "json/catalog.json",
+      "sha256": "905e323a8e25afb66bbe29447373d37d9c4e407e003c8cf5b6885d76152969a8",
+      "size": 163
+    },
+    {
+      "path": "json/dashboard.json",
+      "sha256": "c5f626c00c78e0f0ab7890eaa9846648fa0840b347df7dc06c53940194bfa1b4",
+      "size": 2009
+    },
+    {
+      "path": "json/fields.json",
+      "sha256": "d8cabb7e8450ec908e1ec55f2c44a8d104da57193600c529d6cb3ba333079f7f",
+      "size": 10172
+    },
+    {
+      "path": "json/navigation.json",
+      "sha256": "3662a786b9817dfdefed32ca6fd9f6ce5af6f1bd19303dacd645c636b5e5724f",
+      "size": 1903
+    },
+    {
+      "path": "json/reports.json",
+      "sha256": "aabe55594b1917dafd2437a67c60511ee79a184861366f52d79c31fbd30734ba",
+      "size": 4400
+    },
+    {
+      "path": "json/settings.json",
+      "sha256": "bd972f32f35f643119b265fbeb1d095bf95195712967348351f9995a17fd0c92",
+      "size": 66766
+    },
+    {
+      "path": "json/tabs.json",
+      "sha256": "1bb39fb29d7ca83f12d073d4a026faf9c0731cd863f624ef7ee6e034c18e43a6",
+      "size": 1895
+    },
+    {
+      "path": "request-type.json",
+      "sha256": "0e6ebae5e79e96d59c8d2cedf229bf491b6ac88a416a75a1ab0a2016c7950461",
+      "size": 1426
+    },
+    {
+      "path": "ui/components/availability-dialog/availability-dialog.css",
+      "sha256": "d02179645815e2e8f2d7f836a19445ea99915f10a1dce7205af32cb8cfc6007d",
+      "size": 3964
+    },
+    {
+      "path": "ui/components/availability-dialog/availability-dialog.js",
+      "sha256": "d003f0ff7416437372ee4f6bd433863c0ed8f9f7e6be4b551fc29b4cac8c0c3b",
+      "size": 25712
+    },
+    {
+      "path": "ui/components/bookings-page/bookings-page.css",
+      "sha256": "7abb3c0ec1f5d33a95c1ddde883bc578969d1598dc633daf4af4ba6b6db8b9cf",
+      "size": 6231
+    },
+    {
+      "path": "ui/components/bookings-page/bookings-page.js",
+      "sha256": "7b2d04972287f927f22d7cc6868c89db9485c866bede2d6cabf02cc076a47c02",
+      "size": 47810
+    },
+    {
+      "path": "ui/components/client-travel-requirement/client-travel-requirement.css",
+      "sha256": "ae4a932d7debe5ded592dcd1b2961a6692f08abe1cc56034945f6086074f8422",
+      "size": 2090
+    },
+    {
+      "path": "ui/components/client-travel-requirement/client-travel-requirement.js",
+      "sha256": "895718c5293c7b3798fd829ac96e87765b2faa2c84f565449996538e29727b73",
+      "size": 12548
+    },
+    {
+      "path": "ui/components/client-travellers/client-travellers.css",
+      "sha256": "dde2cbb07ca309fbfc53717e15674966ca29352da6a21500b73e5672342ad844",
+      "size": 1309
+    },
+    {
+      "path": "ui/components/client-travellers/client-travellers.js",
+      "sha256": "a734e691d6f2f120ecd7c8874d4b599ea38b7997bdcaecedc5453ba9aa350bea",
+      "size": 4116
+    },
+    {
+      "path": "ui/components/contact-travellers/contact-travellers.css",
+      "sha256": "7859d1cbf4af770f03e0128c61150121c4724ebc4a3365d01ccfe9b7a5c021be",
+      "size": 847
+    },
+    {
+      "path": "ui/components/contact-travellers/contact-travellers.js",
+      "sha256": "87036c7a2b4f6a6de35e0953eb143f2aca78fdb811f47d1ad19eb871a66646dd",
+      "size": 3103
+    },
+    {
+      "path": "ui/components/itinerary-page/itinerary-page.css",
+      "sha256": "08a701989ac5cf96e5b36a243ec13b32d542d5ebb51711bbc6b49154e6a772c1",
+      "size": 12418
+    },
+    {
+      "path": "ui/components/itinerary-page/itinerary-page.js",
+      "sha256": "fe7303a2a9a48b753a5d293b1bedad60c7629ac6fe3955ac968891c45f6a3b43",
+      "size": 35091
+    },
+    {
+      "path": "ui/components/lead-bookings/lead-bookings.css",
+      "sha256": "31d727388ee0976f2987e62ccbd1d6f46c53afd95d81eb398341e40611461cae",
+      "size": 684
+    },
+    {
+      "path": "ui/components/lead-bookings/lead-bookings.js",
+      "sha256": "21203544fd970c6087b674da00fea0cf08778b53a6267ca68427955678d355d9",
+      "size": 4276
+    },
+    {
+      "path": "ui/components/lead-requirements/lead-requirements.css",
+      "sha256": "5aefed350bcc9ed72f89dda7bd25b745b392c08d2721ad84e1e13f61e70ff2c3",
+      "size": 1350
+    },
+    {
+      "path": "ui/components/lead-requirements/lead-requirements.js",
+      "sha256": "10335c188cbc6ad911280b17d4e03f30c3630dc0a54cf21532a8b39ec938ea24",
+      "size": 21443
+    },
+    {
+      "path": "ui/components/lead-travellers/lead-travellers.css",
+      "sha256": "479674d89da0aa4bca0cb4fbf36facadb40595a5ffa019596eaea805c01c454f",
+      "size": 10691
+    },
+    {
+      "path": "ui/components/lead-travellers/lead-travellers.js",
+      "sha256": "03d2f29ca91b1eb579645b8e1b6d24964cdca18e09832b02c05fb38b6815d9f2",
+      "size": 88909
+    },
+    {
+      "path": "ui/components/opportunity-trip/opportunity-trip.css",
+      "sha256": "136efba0660cd9f9dc20431395eff99a84a7fabdafa7c1c8a94662fa7a43f966",
+      "size": 1034
+    },
+    {
+      "path": "ui/components/opportunity-trip/opportunity-trip.js",
+      "sha256": "2699998b366ae351ca1f76e9468843874a1d6f3ece9776cad1f652ecb3daf5e1",
+      "size": 4725
+    },
+    {
+      "path": "ui/components/portal-bookings/portal-bookings.css",
+      "sha256": "d834ad15d3a9bee64755faffb6d0d708a25f1c322f304308bc7fdd4d33a0dfa2",
+      "size": 1880
+    },
+    {
+      "path": "ui/components/portal-bookings/portal-bookings.js",
+      "sha256": "e34dcb7a75edb21b53abe1eae6f8cdd94ba6d958d5f917b2be6eb97a371e4a85",
+      "size": 9466
+    },
+    {
+      "path": "ui/components/quotation-travel/quotation-travel.css",
+      "sha256": "41655222ab264f60cdc7164e8ac2ab69cfbc79352780e1e784bbfff20edd99b6",
+      "size": 661
+    },
+    {
+      "path": "ui/components/quotation-travel/quotation-travel.js",
+      "sha256": "5aede18825e8d722e9a3579c4ee5265b3a622853f64bd59dffe0b1157d7e245e",
+      "size": 5130
+    },
+    {
+      "path": "ui/components/service-form-builder/service-form-builder.css",
+      "sha256": "4dfc6803dc9282ae546a27984285ac74ed5e947f4373cde70793eecadffb7051",
+      "size": 8660
+    },
+    {
+      "path": "ui/components/service-form-builder/service-form-builder.js",
+      "sha256": "b3dfdd048a63cdcc6b33a8c09ff6c8bfe027cb3b2a34fa1ffbc341ade8ea1791",
+      "size": 43134
+    },
+    {
+      "path": "ui/components/settings-admin/location-import.js",
+      "sha256": "29aab3d0d54edad0bab021b526c3f02e213131bf8f82c3e66869f6244b69e99d",
+      "size": 12572
+    },
+    {
+      "path": "ui/components/settings-admin/settings-admin.css",
+      "sha256": "1fdc0a19c9627ec70d12968e4a992f0a4fb4d01bef8bb2e91f390ff0d2416417",
+      "size": 1764
+    },
+    {
+      "path": "ui/components/settings-admin/settings-admin.js",
+      "sha256": "9236dfbde395a31dc68d81fcc833344834408b6b4a2788ea4a660ededc55c26b",
+      "size": 5315
+    },
+    {
+      "path": "ui/components/travellers-page/travellers-page.css",
+      "sha256": "3c28604cf902716dac3d6ff74939330fe3b4b7af00dc5c0d8e9aea01088b5d9b",
+      "size": 4002
+    },
+    {
+      "path": "ui/components/travellers-page/travellers-page.js",
+      "sha256": "47224be117b7ef368143a5922a7b387e9f2cc87b77b9d99e6ba3bdf6295d2eb5",
+      "size": 34214
+    },
+    {
+      "path": "ui/mount.js",
+      "sha256": "886999a0123d005ec92cf3022d63d558e1ba4d508825e079652440792bbb3d6d",
+      "size": 4767
+    },
+    {
+      "path": "ui/shared/booking-ui.css",
+      "sha256": "7d7c8b5d541ece58e781de6184a6988cab6d27247359f1f231123b3a75a68a23",
+      "size": 3104
+    },
+    {
+      "path": "ui/shared/booking-ui.js",
+      "sha256": "c75292bdafbe410d85a9199be0985e0faeea63bc7a277c626965f183aab651f6",
+      "size": 12651
+    },
+    {
+      "path": "ui/shared/csv.js",
+      "sha256": "f5cc96c34ce98237af394a769d6ec2441c764064c725e549b1e2337c084b3468",
+      "size": 2043
+    },
+    {
+      "path": "ui/shared/dom.js",
+      "sha256": "053889a728bff8013fdc80f92e157e453d6c7ca1b97aa01d48937654209f1bad",
+      "size": 1987
+    },
+    {
+      "path": "ui/shared/element.js",
+      "sha256": "4ee96bb9f10022de027909d24007c9ca1e7a9f372fc05dd4e1ede38722d1f349",
+      "size": 3803
+    },
+    {
+      "path": "ui/shared/fields.js",
+      "sha256": "4bff1cdf43bee01a9623044f28c79c494dd7d5317ac2e928c9107eb0b6781e32",
+      "size": 26265
+    },
+    {
+      "path": "ui/shared/image-shrink.js",
+      "sha256": "8f1b43903e7edb06cbdbefb69ad83f93418971cd44e920a8428650ed5b2ed493",
+      "size": 3244
+    },
+    {
+      "path": "ui/shared/styles.js",
+      "sha256": "acd57f6c9af03bc59a108c846b9e98005d3fb68f1ce478a190dd17cfcb8d4478",
+      "size": 523
+    },
+    {
+      "path": "ui/shared/traveller-age.js",
+      "sha256": "da1e0c9079a78a6f449c74acc1b321996efeae5c734659acbd32e04a69c76df8",
+      "size": 8154
+    },
+    {
+      "path": "ui/style.css",
+      "sha256": "5aff2e3a35c37c2c4de37a9694e7bc98ab50916b4a95648a956b5033e85d231a",
+      "size": 12092
+    }
+  ]
+}

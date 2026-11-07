@@ -1,0 +1,18 @@
+{
+  "name": "TravelRequirement",
+  "label": "Travel Requirement",
+  "pluralLabel": "Travel Requirements",
+  "titleField": "service_key",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "lead_id": { "type": "ref", "ref": "Lead", "label": "Lead", "required": true, "index": true },
+    "service_key": { "type": "text", "label": "Service", "required": true, "index": true },
+    "service_name": { "type": "text", "label": "Service name" },
+    "instance": { "type": "number", "label": "Instance" },
+    "label": { "type": "text", "label": "Label" },
+    "removed": { "type": "checkbox", "label": "Removed", "index": true },
+    "values": { "type": "json", "label": "Requirement details" },
+    "status": { "type": "select", "label": "Status", "options": ["Draft", "Complete"], "default": "Draft" },
+    "notes": { "type": "textarea", "label": "Notes" }
+  }
+}

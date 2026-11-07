@@ -1,0 +1,13 @@
+/* <x-travel-opportunity-trip-v1> (read-only) */
+.tvx-ot { min-width: 0; }
+.tvx-ot .tvx-msg { margin: 0; }
+.tvx-ot-facts { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: 12px; }
+.tvx-ot-facts dt { color: var(--tvx-text-3); font-weight: 600; }
+.tvx-ot-facts dd { margin: 0; color: var(--tvx-text); overflow-wrap: anywhere; }
+.tvx-ot-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tvx-ot-list li { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.tvx-ot-item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tvx-ot-name { font-size: 13px; font-weight: 600; color: var(--tvx-text); }
+.tvx-ot-list .tvx-muted { overflow-wrap: anywhere; }
+.tvx-ot-list summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--tvx-link); }
+.tvx-ot-list details .tvx-ot-facts { margin-top: 6px; }

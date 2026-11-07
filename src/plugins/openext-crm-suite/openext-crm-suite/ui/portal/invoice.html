@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice Payment Portal | Root CRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #059669;
+      --success-light: #ecfdf5;
+      --danger: #dc2626;
+      --danger-light: #fef2f2;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --radius: 12px;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .portal-container {
+      max-width: 920px;
+      margin: 40px auto;
+      padding: 0 20px 60px;
+    }
+
+    .portal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .brand-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 32px;
+      margin-bottom: 20px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .meta-group h4 {
+      margin: 0 0 6px;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .meta-group p {
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .badge-paid { background: #dcfce7; color: #15803d; }
+    .badge-due { background: #fee2e2; color: #b91c1c; }
+    .badge-partial { background: #fef3c7; color: #b45309; }
+    .badge-neutral { background: #eff6ff; color: #1e40af; }
+
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+
+    .items-table th {
+      text-align: left;
+      padding: 12px 14px;
+      background: #f1f5f9;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #475569;
+    }
+
+    .items-table td {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    .num-col { text-align: right; white-space: nowrap; }
+
+    .totals-box {
+      margin-left: auto;
+      width: min(320px, 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+
+    .total-row.grand,
+    .total-row.balance {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text);
+      border-top: 2px solid var(--border);
+      padding-top: 10px;
+      margin-top: 6px;
+    }
+
+    .total-row.balance { color: var(--danger); }
+
+    .pay-panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 28px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid transparent;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+
+    .btn-primary { background: #0f172a; color: #fff; }
+    .btn-primary:hover { background: #1e293b; }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+
+    .paid-banner {
+      background: var(--success-light);
+      border: 1px solid #a7f3d0;
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 20px;
+      color: #047857;
+      font-weight: 600;
+    }
+
+    .bank-details {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+      font-size: 0.9rem;
+      color: #475569;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 640px) {
+      .card { padding: 20px; }
+      .pay-panel { flex-direction: column; align-items: stretch; }
+      .btn { justify-content: center; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="portal-container" id="portal-app">
+    <div id="portal-loading" style="text-align:center; padding:80px 20px; color:var(--text-muted);">
+      Loading invoice…
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api/plugins/openext-crm-suite';
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    let portalData = null;
+    let authUser = null;
+    let razorpayScriptPromise = null;
+
+    function escapeHtml(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function fmt(amount, currency) {
+      const value = Number(amount || 0);
+      const cur = currency || 'INR';
+      try {
+        return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur }).format(value);
+      } catch {
+        return `${cur} ${value.toFixed(2)}`;
+      }
+    }
+
+    function statusBadge(status, balanceDue) {
+      if (balanceDue <= 0 || status === 'Paid') return '<span class="badge badge-paid">Paid in Full</span>';
+      if (status === 'Partially Paid') return '<span class="badge badge-partial">Partially Paid</span>';
+      if (status === 'Overdue') return '<span class="badge badge-due">Overdue</span>';
+      return `<span class="badge badge-neutral">${status || 'Open'}</span>`;
+    }
+
+    async function checkAuthSession() {
+      try {
+        const res = await fetch(`${API_BASE}/context/me`, { credentials: 'include' });
+        if (!res.ok) return null;
+        const json = await res.json();
+        return json.success && json.data?.userId ? json.data : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function redirectToLogin() {
+      const returnTo = window.location.pathname + window.location.search + window.location.hash;
+      window.location.href = `/login?redirect=${encodeURIComponent(returnTo)}`;
+    }
+
+    function loadRazorpayCheckoutScript() {
+      if (window.Razorpay) return Promise.resolve();
+      if (razorpayScriptPromise) return razorpayScriptPromise;
+      razorpayScriptPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load Razorpay checkout'));
+        document.head.appendChild(script);
+      });
+      return razorpayScriptPromise;
+    }
+
+    async function startPayment() {
+      const btn = document.getElementById('btn-pay-now');
+      if (!btn || !portalData) return;
+
+      // Rule: auth login first, then client pay
+      if (!authUser) {
+        authUser = await checkAuthSession();
+      }
+      if (!authUser) {
+        redirectToLogin();
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Opening secure checkout…';
+
+      try {
+        // Create Razorpay Order (session cookie required)
+        const orderRes = await fetch(`${API_BASE}/invoices/public/${encodeURIComponent(token)}/razorpay/order`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: Number(portalData.invoice.balanceDue || 0) })
+        });
+        const orderJson = await orderRes.json();
+        if (orderRes.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        if (!orderRes.ok || !orderJson.success) {
+          throw new Error(orderJson.error || orderJson.message || 'Could not start payment');
+        }
+
+        const payload = orderJson.data || {};
+        const order = payload.order || {};
+        const keyId = payload.keyId || order.key_id;
+        if (!keyId || !order.id) throw new Error('Invalid payment session');
+
+        await loadRazorpayCheckoutScript();
+
+        await new Promise((resolve, reject) => {
+          const inv = portalData.invoice;
+          const comp = portalData.company || {};
+          const options = {
+            key: keyId,
+            amount: Number(order.amount || payload.amount),
+            currency: String(order.currency || payload.currency || inv.currency || 'INR'),
+            name: payload.businessName || comp.name || 'Invoice Payment',
+            description: `Invoice ${inv.invoiceNo}`,
+            order_id: order.id,
+            prefill: {
+              name: inv.clientName || authUser.username || '',
+              email: authUser.email || inv.customerEmail || '',
+              contact: inv.customerPhone || ''
+            },
+            theme: { color: '#0f172a' },
+            handler: async (response) => {
+              try {
+                const confirmRes = await fetch(`${API_BASE}/invoices/public/${encodeURIComponent(token)}/razorpay/confirm`, {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature
+                  })
+                });
+                const confirmJson = await confirmRes.json();
+                if (confirmRes.status === 401) {
+                  redirectToLogin();
+                  return;
+                }
+                if (!confirmRes.ok || !confirmJson.success) {
+                  throw new Error(confirmJson.error || confirmJson.message || 'Payment verification failed');
+                }
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            },
+            modal: { ondismiss: () => reject(new Error('Payment cancelled')) }
+          };
+
+          const rzp = new window.Razorpay(options);
+          rzp.on('payment.failed', (event) => {
+            reject(new Error(event?.error?.description || event?.error?.reason || 'Payment failed'));
+          });
+          rzp.open();
+        });
+
+        await loadPortal();
+        alert('Payment successful. Thank you!');
+      } catch (err) {
+        if (err.message !== 'Payment cancelled') {
+          alert(err.message || 'Payment failed');
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = authUser ? '💳 Pay Now with Razorpay' : '🔐 Login to Pay';
+        }
+      }
+    }
+
+    function renderPortal(inv, comp, razorpay) {
+      const container = document.getElementById('portal-app');
+      const curr = inv.currency || 'INR';
+      const balanceDue = Number(inv.balanceDue || 0);
+      const canPayOnline = balanceDue > 0 && razorpay?.configured && !['Cancelled', 'Draft', 'Written Off'].includes(inv.status);
+      const lineItems = (inv.lineItems || []).map((li) => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(li.name || li.description || 'Item')}</strong>
+            ${li.description && li.description !== li.name ? `<div style="color:var(--text-muted);font-size:0.85rem;margin-top:4px;">${escapeHtml(li.description)}</div>` : ''}
+          </td>
+          <td class="num-col">${li.qty || 0}</td>
+          <td class="num-col">${fmt(li.rate, curr)}</td>
+          <td class="num-col">${fmt((Number(li.qty || 0) * Number(li.rate || 0)), curr)}</td>
+        </tr>
+      `).join('');
+
+      const bankBlock = '';
+      const userEmail = authUser ? (authUser.email || authUser.username || '') : '';
+      const payButtonHtml = authUser
+        ? `<button type="button" class="btn btn-primary" id="btn-pay-now">💳 Pay Now with Razorpay</button>`
+        : `<button type="button" class="btn btn-primary" id="btn-pay-now">🔐 Login to Pay</button>`;
+
+      const authNoticeHtml = authUser
+        ? `<div style="display:inline-flex; align-items:center; gap:6px; font-size:0.84rem; color:#059669; background:#ecfdf5; border:1px solid #a7f3d0; padding:6px 12px; border-radius:8px;">
+            <span>✓ Logged in as <strong>${escapeHtml(userEmail)}</strong></span>
+           </div>`
+        : `<div style="display:inline-flex; align-items:center; gap:8px; font-size:0.84rem; color:#475569; background:#f1f5f9; border:1px solid #cbd5e1; padding:6px 12px; border-radius:8px;">
+            <span>Login required to pay · <a href="/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}" style="color:#0f172a; font-weight:700; text-decoration:none;">Login</a></span>
+           </div>`;
+
+      container.innerHTML = `
+        <div class="portal-header">
+          <div class="brand-title">${escapeHtml(comp.name || 'Invoice Portal')}</div>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            ${authNoticeHtml}
+            ${statusBadge(inv.status, balanceDue)}
+          </div>
+        </div>
+
+        ${balanceDue <= 0 ? `<div class="paid-banner">✓ This invoice has been paid in full. Thank you for your payment.</div>` : ''}
+
+        <div class="card">
+          <div class="meta-grid">
+            <div class="meta-group">
+              <h4>Invoice Number</h4>
+              <p>${escapeHtml(inv.invoiceNo || '—')}</p>
+            </div>
+            <div class="meta-group">
+              <h4>Bill To</h4>
+              <p>${escapeHtml(inv.clientName || 'Customer')}</p>
+            </div>
+            <div class="meta-group">
+              <h4>Issue Date</h4>
+              <p>${inv.issueDate ? new Date(inv.issueDate).toLocaleDateString() : '—'}</p>
+            </div>
+            <div class="meta-group">
+              <h4>Due Date</h4>
+              <p>${inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—'}</p>
+            </div>
+          </div>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th class="num-col">Qty</th>
+                <th class="num-col">Rate</th>
+                <th class="num-col">Amount</th>
+              </tr>
+            </thead>
+            <tbody>${lineItems || '<tr><td colspan="4">No line items</td></tr>'}</tbody>
+          </table>
+
+          <div class="totals-box">
+            <div class="total-row"><span>Subtotal</span><strong>${fmt(inv.subtotal, curr)}</strong></div>
+            <div class="total-row"><span>Tax</span><strong>${fmt(inv.taxTotal, curr)}</strong></div>
+            <div class="total-row grand"><span>Invoice Total</span><strong>${fmt(inv.grandTotal, curr)}</strong></div>
+            <div class="total-row"><span>Amount Paid</span><strong>${fmt(inv.amountPaid, curr)}</strong></div>
+            <div class="total-row balance"><span>Balance Due</span><strong>${fmt(balanceDue, curr)}</strong></div>
+          </div>
+
+          ${inv.notes ? `<div style="margin-top:20px;color:#475569;"><strong>Notes:</strong><br>${escapeHtml(inv.notes)}</div>` : ''}
+          ${bankBlock}
+
+          <div class="pay-panel">
+            <div style="color:var(--text-muted);font-size:0.9rem;">
+              ${canPayOnline
+                ? (authUser
+                    ? 'Pay securely online with Razorpay (UPI, cards, netbanking).'
+                    : 'Please log in with your client portal account before paying.')
+                : (balanceDue > 0 ? 'Online payment is not available right now. Please contact us for assistance.' : 'No payment is required.')}
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+              <a href="${API_BASE}/invoices/public/${encodeURIComponent(token)}/pdf" class="btn btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                📄 Download PDF
+              </a>
+              ${canPayOnline ? payButtonHtml : ''}
+            </div>
+          </div>
+        </div>
+
+        <div style="text-align:center;color:var(--text-muted);font-size:0.82rem;">
+          ${comp.email ? `${escapeHtml(comp.email)}` : ''}${comp.phone ? ` · ${escapeHtml(comp.phone)}` : ''}
+        </div>
+      `;
+
+      document.getElementById('btn-pay-now')?.addEventListener('click', startPayment);
+    }
+
+    async function loadPortal() {
+      const container = document.getElementById('portal-app');
+      if (!token) {
+        container.innerHTML = `<div class="card" style="text-align:center;padding:60px 20px;"><h2 style="color:var(--danger);">Invalid Invoice Link</h2><p style="color:var(--text-muted);">No secure payment token was provided. Please use the link from your invoice email.</p></div>`;
+        return;
+      }
+
+      try {
+        // Pre-check authentication session
+        authUser = await checkAuthSession();
+
+        const res = await fetch(`${API_BASE}/invoices/public/${encodeURIComponent(token)}`);
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.error || json.message || 'Invoice not found');
+
+        portalData = {
+          invoice: json.data,
+          company: json.company || {},
+          razorpay: json.razorpay || {}
+        };
+        renderPortal(portalData.invoice, portalData.company, portalData.razorpay);
+      } catch (err) {
+        if (err.message == "Unauthorized") {
+          window.location.href = "/login";
+          return;
+        }
+        container.innerHTML = `<div class="card" style="text-align:center;padding:60px 20px;"><h2 style="color:var(--danger);">Unable to Load Invoice</h2><p style="color:var(--text-muted);">${escapeHtml(err.message)}</p></div>`;
+      }
+    }
+
+    loadPortal();
+  </script>
+</body>
+</html>

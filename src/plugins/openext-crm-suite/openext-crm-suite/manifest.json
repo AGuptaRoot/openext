@@ -1,0 +1,225 @@
+{
+  "id": "openext-crm-suite",
+  "name": "Root CRM",
+  "version": "3.39.0",
+  "description": "Modernized tenant-secure CRM with React-powered modular dashboard, analytics, sales pipeline, and multi-persona access control. Workspace extensions add their own fields, tabs, pages, settings, backend routes and data tables without changes to the CRM core.",
+  "author": "OpenNext",
+  "type": "crm",
+  "kind": "system",
+  "icon": "layout-dashboard",
+  "adminEntry": "ui/admin/index.html",
+  "adminMount": "ui/admin/mount.js",
+  "adminNav": [
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "entry": "ui/admin/mount.js",
+      "icon": "layout-dashboard"
+    },
+    {
+      "id": "reports",
+      "label": "Reports",
+      "entry": "ui/admin/mount.js",
+      "icon": "chart-column"
+    },
+    {
+      "id": "leads",
+      "label": "Leads",
+      "entry": "ui/admin/mount.js",
+      "icon": "user-plus"
+    },
+    {
+      "id": "contacts",
+      "label": "Contacts",
+      "entry": "ui/admin/mount.js",
+      "icon": "contact"
+    },
+    {
+      "id": "clients",
+      "label": "Clients",
+      "entry": "ui/admin/mount.js",
+      "icon": "users"
+    },
+    {
+      "id": "opportunities",
+      "label": "Opportunities",
+      "entry": "ui/admin/mount.js",
+      "icon": "trending-up"
+    },
+    {
+      "id": "samples",
+      "label": "Sample Requests",
+      "entry": "ui/admin/mount.js",
+      "icon": "package-check"
+    },
+    {
+      "id": "quotations",
+      "label": "Quotations",
+      "entry": "ui/admin/mount.js",
+      "icon": "file-text"
+    },
+    {
+      "id": "sales-orders",
+      "label": "Sales Orders",
+      "entry": "ui/admin/mount.js",
+      "icon": "shopping-bag"
+    },
+    {
+      "id": "invoices",
+      "label": "Invoices",
+      "entry": "ui/admin/mount.js",
+      "icon": "file-spreadsheet"
+    },
+    {
+      "id": "payments",
+      "label": "Payments",
+      "entry": "ui/admin/mount.js",
+      "icon": "credit-card"
+    },
+    {
+      "id": "projects",
+      "label": "Projects",
+      "entry": "ui/admin/mount.js",
+      "icon": "folder-kanban"
+    },
+    {
+      "id": "tasks",
+      "label": "Tasks",
+      "entry": "ui/admin/mount.js",
+      "icon": "list-checks"
+    },
+    {
+      "id": "time-logs",
+      "label": "Time Logs",
+      "entry": "ui/admin/mount.js",
+      "icon": "clock"
+    },
+    {
+      "id": "expenses",
+      "label": "Expenses",
+      "entry": "ui/admin/mount.js",
+      "icon": "receipt"
+    },
+    {
+      "id": "data-quality",
+      "label": "Data Quality",
+      "entry": "ui/admin/mount.js",
+      "icon": "scan-search"
+    },
+    {
+      "id": "tickets",
+      "label": "Support Tickets",
+      "entry": "ui/admin/mount.js",
+      "icon": "life-buoy"
+    },
+    {
+      "id": "customer-success",
+      "label": "Customer Success",
+      "entry": "ui/admin/mount.js",
+      "icon": "heart-handshake"
+    },
+    {
+      "id": "marketing",
+      "label": "Marketing Automation",
+      "entry": "ui/admin/mount.js",
+      "icon": "megaphone"
+    },
+    {
+      "id": "audit",
+      "label": "Audit History",
+      "entry": "ui/admin/mount.js",
+      "icon": "history"
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "entry": "ui/admin/mount.js",
+      "icon": "settings"
+    }
+  ],
+  "styles": [
+    "ui/admin/style.css"
+  ],
+  "serverEntry": "api/index.js",
+  "migrations": [
+    "api/migrations"
+  ],
+  "models": [
+    "api/models"
+  ],
+  "permissions": [
+    "crm.dashboard.view",
+    "crm.leads.read",
+    "crm.leads.write",
+    "crm.leads.delete",
+    "crm.leads.convert",
+    "crm.leads.export",
+    "crm.leads.duplicate.override",
+    "crm.contacts.read",
+    "crm.contacts.write",
+    "crm.contacts.delete",
+    "crm.clients.read",
+    "crm.clients.write",
+    "crm.clients.delete",
+    "crm.clients.duplicate.override",
+    "crm.dataQuality.read",
+    "crm.dataQuality.manage",
+    "crm.projects.read",
+    "crm.projects.write",
+    "crm.projects.delete",
+    "crm.tasks.read",
+    "crm.tasks.write",
+    "crm.tasks.delete",
+    "crm.time.read",
+    "crm.time.write",
+    "crm.time.delete",
+    "crm.expenses.read",
+    "crm.expenses.write",
+    "crm.expenses.delete",
+    "crm.expenses.approve",
+    "crm.finance.read",
+    "crm.finance.write",
+    "crm.finance.delete",
+    "crm.contracts.read",
+    "crm.contracts.write",
+    "crm.contracts.delete",
+    "crm.samples.read",
+    "crm.samples.write",
+    "crm.samples.approve",
+    "crm.samples.feedback",
+    "crm.samples.export",
+    "crm.samples.request",
+    "crm.opportunities.read",
+    "crm.opportunities.write",
+    "crm.opportunities.delete",
+    "crm.opportunities.export",
+    "crm.quotes.write",
+    "crm.quotes.approveDiscount",
+    "crm.orders.read",
+    "crm.orders.write",
+    "crm.orders.delete",
+    "crm.orders.return",
+    "crm.tickets.read",
+    "crm.tickets.write",
+    "crm.tickets.delete",
+    "crm.tickets.resolve",
+    "crm.customerSuccess.read",
+    "crm.customerSuccess.manage",
+    "crm.marketing.read",
+    "crm.marketing.write",
+    "crm.marketing.delete",
+    "crm.analytics.read",
+    "crm.ai.read",
+    "crm.ai.write",
+    "crm.audit.read",
+    "crm.reports.read",
+    "crm.reports.export",
+    "crm.settings.manage",
+    "crm.users.manage"
+  ],
+  "installHook": "api/hooks/install.js",
+  "uninstallHook": "api/hooks/uninstall.js",
+  "dependencies": [
+    "node-cron"
+  ]
+}

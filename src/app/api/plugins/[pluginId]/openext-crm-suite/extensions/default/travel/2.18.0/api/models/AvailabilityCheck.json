@@ -1,0 +1,30 @@
+{
+  "name": "AvailabilityCheck",
+  "label": "Availability Check",
+  "pluralLabel": "Availability Checks",
+  "titleField": "provider",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "lead_id": { "type": "ref", "ref": "Lead", "label": "Lead", "required": true, "index": true },
+    "requirement_id": { "type": "text", "label": "Requirement", "required": true, "index": true },
+    "service_key": { "type": "text", "label": "Service", "required": true, "index": true },
+    "provider": { "type": "text", "label": "Provider", "required": true },
+    "status": {
+      "type": "select",
+      "label": "Response",
+      "options": ["Available", "Held", "On Request", "Unavailable"],
+      "required": true
+    },
+    "prices": { "type": "json", "label": "Prices" },
+    "currency": { "type": "text", "label": "Currency" },
+    "checked_at": { "type": "date", "label": "Checked at" },
+    "valid_until": { "type": "date", "label": "Valid until" },
+    "channel": { "type": "select", "label": "Contact channel", "options": ["Phone", "WhatsApp", "Email", "Website", "Other"] },
+    "contact_person": { "type": "text", "label": "Contact person" },
+    "notes": { "type": "textarea", "label": "Notes" },
+    "evidence_file_id": { "type": "text", "label": "Evidence file" },
+    "evidence_name": { "type": "text", "label": "Evidence file name" },
+    "checked_by": { "type": "user", "label": "Checked by" },
+    "checked_by_name": { "type": "text", "label": "Checked by (name)" }
+  }
+}

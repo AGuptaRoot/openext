@@ -1,0 +1,23 @@
+/* <x-travel-settings-admin-v1> (Settings → Travel, below the form) */
+.tvx-sa { gap: 12px; }
+.tvx-sa-count { margin: 0; font-size: 13px; font-weight: 600; color: var(--tvx-text); }
+
+/* Import From / To locations (CSV) */
+.tvx-li-scroll { overflow-x: auto; border: 1px solid var(--tvx-border); border-radius: 8px; }
+.tvx-li-table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--tvx-text); }
+.tvx-li-table th { text-align: left; font-weight: 600; color: var(--tvx-text-2); background: var(--tvx-surface-2); padding: 6px 10px; border-bottom: 1px solid var(--tvx-border); white-space: nowrap; }
+.tvx-li-table td { padding: 6px 10px; border-bottom: 1px solid var(--tvx-border-soft); vertical-align: top; }
+.tvx-li-table tr:last-child td { border-bottom: 0; }
+.tvx-li-row-bad td { background: var(--tvx-danger-bg); }
+.tvx-li-ok { color: var(--tvx-ok-text); }
+.tvx-li-info { color: var(--tvx-info-text); }
+.tvx-li-bad { color: var(--tvx-danger-text); }
+.tvx-li-muted { color: var(--tvx-muted); }
+.tvx-li-warn { color: var(--tvx-warn-text); }
+.tvx-li-counts { display: flex; flex-wrap: wrap; gap: 8px; }
+.tvx-li-count { display: flex; flex-direction: column; min-width: 88px; padding: 8px 12px; border: 1px solid var(--tvx-border); border-radius: 8px; background: var(--tvx-surface-2); color: var(--tvx-text-2); font-size: 12px; }
+.tvx-li-count strong { font-size: 18px; color: var(--tvx-heading); }
+.tvx-li-count.tvx-li-ok strong { color: var(--tvx-ok-text); }
+.tvx-li-count.tvx-li-info strong { color: var(--tvx-info-text); }
+.tvx-li-count.tvx-li-bad strong { color: var(--tvx-danger-text); }
+.tvx-li-problems { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--tvx-text-2); display: flex; flex-direction: column; gap: 2px; }

@@ -1,0 +1,35 @@
+{
+  "name": "Booking",
+  "label": "Booking",
+  "pluralLabel": "Bookings",
+  "titleField": "number",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "number": { "type": "text", "label": "Booking number", "required": true, "unique": true },
+    "lead_id": { "type": "ref", "ref": "Lead", "label": "Lead", "required": true, "index": true },
+    "contact_id": { "type": "text", "label": "Contact", "index": true },
+    "opportunity_id": { "type": "ref", "ref": "Opportunity", "label": "Opportunity" },
+    "quotation_id": { "type": "ref", "ref": "Quotation", "label": "Quotation", "required": true, "unique": true },
+    "quotation_no": { "type": "text", "label": "Quotation number" },
+    "quotation_version": { "type": "number", "label": "Quotation version" },
+    "title": { "type": "text", "label": "Title" },
+    "guest_name": { "type": "text", "label": "Guest" },
+    "company_name": { "type": "text", "label": "Company (when booked)" },
+    "travel_start_date": { "type": "date", "label": "Travel start" },
+    "travel_end_date": { "type": "date", "label": "Travel end" },
+    "destination": { "type": "text", "label": "Destination" },
+    "traveller_ids": { "type": "json", "label": "Travellers" },
+    "status": {
+      "type": "select",
+      "label": "Status",
+      "options": ["Pending", "Partially Confirmed", "Confirmed", "Cancelled", "Completed"],
+      "default": "Pending"
+    },
+    "cancel_reason": { "type": "textarea", "label": "Cancel reason" },
+    "cancelled_at": { "type": "date", "label": "Cancelled at" },
+    "completed_at": { "type": "date", "label": "Completed at" },
+    "currency": { "type": "text", "label": "Currency" },
+    "total": { "type": "currency", "label": "Agreed total" },
+    "notes": { "type": "textarea", "label": "Notes" }
+  }
+}

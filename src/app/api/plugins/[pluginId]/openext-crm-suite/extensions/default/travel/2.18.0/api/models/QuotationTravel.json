@@ -1,0 +1,24 @@
+{
+  "name": "QuotationTravel",
+  "label": "Quotation Travel",
+  "pluralLabel": "Quotation Travel",
+  "titleField": "quotation_no",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "quotation_id": { "type": "ref", "ref": "Quotation", "label": "Quotation", "required": true, "unique": true },
+    "quotation_no": { "type": "text", "label": "Quotation number" },
+    "version": { "type": "number", "label": "Quotation version" },
+    "lead_id": { "type": "ref", "ref": "Lead", "label": "Lead", "index": true },
+    "opportunity_id": { "type": "ref", "ref": "Opportunity", "label": "Opportunity", "index": true },
+    "status": { "type": "text", "label": "Quotation status" },
+    "travellers": { "type": "number", "label": "Travellers" },
+    "per_person": { "type": "number", "label": "Price per person" },
+    "grand_total": { "type": "number", "label": "Grand total" },
+    "currency": { "type": "text", "label": "Currency" },
+    "lines_by_group": { "type": "json", "label": "Lines by group" },
+    "valid_till": { "type": "date", "label": "Valid till" },
+    "special_requests": { "type": "textarea", "label": "Special requests" },
+    "values": { "type": "json", "label": "Quotation values (snapshot)" },
+    "synced_at": { "type": "date", "label": "Synced at" }
+  }
+}

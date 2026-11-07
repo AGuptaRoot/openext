@@ -1,0 +1,32 @@
+{
+  "name": "TripPlan",
+  "label": "Trip Plan",
+  "pluralLabel": "Trip Plans",
+  "titleField": "destination",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "opportunity_id": { "type": "ref", "ref": "Opportunity", "label": "Opportunity", "required": true, "unique": true },
+    "lead_id": { "type": "ref", "ref": "Lead", "label": "Lead", "index": true },
+    "title": { "type": "text", "label": "Opportunity title" },
+    "from_city": { "type": "text", "label": "From" },
+    "destination": { "type": "text", "label": "Destination", "index": true },
+    "trip_type": { "type": "text", "label": "Trip type" },
+    "trip_purpose": { "type": "text", "label": "Trip purpose" },
+    "travel_start_date": { "type": "date", "label": "Travel start date", "index": true },
+    "travel_end_date": { "type": "date", "label": "Travel end date" },
+    "nights": { "type": "number", "label": "Nights" },
+    "days": { "type": "number", "label": "Days" },
+    "date_flexibility": { "type": "text", "label": "Date flexibility" },
+    "adults": { "type": "number", "label": "Adults" },
+    "children": { "type": "number", "label": "Children" },
+    "infants": { "type": "number", "label": "Infants" },
+    "total_travellers": { "type": "number", "label": "Total travellers" },
+    "budget_min": { "type": "number", "label": "Budget from" },
+    "budget_max": { "type": "number", "label": "Budget up to" },
+    "currency": { "type": "text", "label": "Currency" },
+    "special_requests": { "type": "textarea", "label": "Special requests" },
+    "internal_notes": { "type": "textarea", "label": "Internal notes" },
+    "values": { "type": "json", "label": "Opportunity values (snapshot)" },
+    "synced_at": { "type": "date", "label": "Synced at" }
+  }
+}

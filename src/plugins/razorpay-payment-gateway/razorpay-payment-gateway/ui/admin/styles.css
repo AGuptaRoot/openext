@@ -1,0 +1,206 @@
+/*
+ * Razorpay Payment Gateway — admin styles for the CMS Mount API.
+ * The CMS injects this file under @scope (#plugin-root); every rule is also prefixed with
+ * .rzp-plugin-root so nothing can restyle the CMS sidebar or other plugins.
+ */
+
+.rzp-plugin-root {
+  font-family: var(--font-body, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
+  padding: 24px;
+  background: #f8fafc;
+  color: #0f172a;
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.rzp-plugin-root *,
+.rzp-plugin-root *::before,
+.rzp-plugin-root *::after {
+  box-sizing: border-box;
+}
+
+.rzp-plugin-root .rzp-title {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.rzp-plugin-root .rzp-subtitle {
+  margin: 0 0 24px;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.rzp-plugin-root .rzp-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+  max-width: 760px;
+}
+
+.rzp-plugin-root .rzp-card h2 {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.rzp-plugin-root label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 14px 0 6px;
+}
+
+.rzp-plugin-root input,
+.rzp-plugin-root select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #fff;
+  color: inherit;
+}
+
+.rzp-plugin-root input:focus,
+.rzp-plugin-root select:focus {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+  border-color: #2563eb;
+}
+
+.rzp-plugin-root input:disabled,
+.rzp-plugin-root select:disabled {
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.rzp-plugin-root .rzp-hint {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.rzp-plugin-root .rzp-hint a {
+  color: #2563eb;
+}
+
+.rzp-plugin-root .rzp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.rzp-plugin-root .rzp-btn {
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.rzp-plugin-root .rzp-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.rzp-plugin-root .rzp-btn-secondary {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.rzp-plugin-root .rzp-btn-secondary:hover:not(:disabled) {
+  background: #cbd5e1;
+}
+
+.rzp-plugin-root .rzp-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.rzp-plugin-root .rzp-status {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.rzp-plugin-root .rzp-status.is-success {
+  color: #15803d;
+}
+
+.rzp-plugin-root .rzp-status.is-error {
+  color: #b91c1c;
+}
+
+.rzp-plugin-root .rzp-alert {
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  max-width: 760px;
+}
+
+.rzp-plugin-root .rzp-alert.is-success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+.rzp-plugin-root .rzp-alert.is-warning {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.rzp-plugin-root .rzp-alert.is-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.rzp-plugin-root .rzp-alert.is-info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.rzp-plugin-root .rzp-code {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 14px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  margin: 12px 0 0;
+}
+
+.rzp-plugin-root .rzp-masked {
+  font-size: 0.85rem;
+  color: #475569;
+  margin: 0 0 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.rzp-plugin-root code {
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+@media (max-width: 640px) {
+  .rzp-plugin-root {
+    padding: 16px;
+  }
+}

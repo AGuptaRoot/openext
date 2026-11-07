@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Email Logs</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <h1>Email Logs</h1>
+    <p class="subtitle">Recent emails sent through this plugin.</p>
+
+    <div class="card">
+      <div class="toolbar" style="margin-bottom: 16px">
+        <button type="button" class="secondary" id="refresh-btn">Refresh</button>
+        <span class="status" id="status">Loading…</span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>To</th>
+              <th>Subject</th>
+              <th>Status</th>
+              <th>Preview</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="logs-body"></tbody>
+        </table>
+      </div>
+
+      <p id="empty-state" class="empty" hidden>No emails sent yet.</p>
+    </div>
+
+    <script src="./shared.js"></script>
+    <script>
+      const statusEl = document.getElementById('status');
+      const logsBody = document.getElementById('logs-body');
+      const emptyState = document.getElementById('empty-state');
+
+      function setStatus(message, type) {
+        statusEl.textContent = message;
+        statusEl.className = 'status' + (type ? ' ' + type : '');
+      }
+
+      async function loadLogs() {
+        setStatus('Loading…');
+        logsBody.innerHTML = '';
+
+        try {
+          const data = await EmailPlugin.api('/mail/logs?limit=100');
+          const logs = data.logs || [];
+
+          if (logs.length === 0) {
+            emptyState.hidden = false;
+            setStatus('0 entries');
+            return;
+          }
+
+          emptyState.hidden = true;
+          logsBody.innerHTML = logs
+            .map(function (log) {
+              const badgeClass = log.status === 'sent' ? 'ok' : 'fail';
+              const statusLabel = log.status === 'sent' ? 'Sent' : 'Failed';
+              const preview = log.bodyPreview || (log.error ? log.error : '—');
+
+              return (
+                '<tr>' +
+                '<td>' +
+                EmailPlugin.escapeHtml(EmailPlugin.formatDate(log.createdAt)) +
+                '</td>' +
+                '<td>' +
+                EmailPlugin.escapeHtml(log.to) +
+                '</td>' +
+                '<td>' +
+                EmailPlugin.escapeHtml(log.subject) +
+                '</td>' +
+                '<td><span class="badge ' +
+                badgeClass +
+                '">' +
+                statusLabel +
+                '</span></td>' +
+                '<td>' +
+                EmailPlugin.escapeHtml(preview) +
+                '</td>' +
+                '<td><button type="button" class="danger delete-btn" data-id="' +
+                EmailPlugin.escapeHtml(log.id) +
+                '">Delete</button></td>' +
+                '</tr>'
+              );
+            })
+            .join('');
+
+          setStatus(logs.length + ' entr' + (logs.length === 1 ? 'y' : 'ies'));
+        } catch (error) {
+          emptyState.hidden = false;
+          emptyState.textContent = error.message;
+          setStatus(error.message, 'error');
+        }
+      }
+
+      document.getElementById('refresh-btn').addEventListener('click', loadLogs);
+
+      logsBody.addEventListener('click', async function (event) {
+        const deleteBtn = event.target.closest('.delete-btn');
+        if (!deleteBtn) return;
+
+        const logId = deleteBtn.getAttribute('data-id');
+        if (!logId) return;
+        if (!confirm('Delete this log entry?')) return;
+
+        setStatus('Deleting…');
+        try {
+          await EmailPlugin.api('/mail/logs/' + encodeURIComponent(logId), {
+            method: 'DELETE',
+          });
+          await loadLogs();
+        } catch (error) {
+          setStatus(error.message, 'error');
+        }
+      });
+
+      loadLogs();
+    </script>
+  </body>
+</html>

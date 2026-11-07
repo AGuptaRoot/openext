@@ -1,0 +1,22 @@
+/* <x-travel-portal-bookings-v1> */
+.tvx-pb { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.tvx-pb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tvx-pb-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.tvx-pb-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 220px; }
+.tvx-pb-main .tvx-muted { overflow-wrap: anywhere; }
+.tvx-pb-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tvx-pb-number { font-size: 13px; font-weight: 700; color: var(--tvx-heading); overflow-wrap: anywhere; }
+.tvx-pb-dest { margin: 0; font-size: 13px; color: var(--tvx-heading); }
+.tvx-pb-note { font-size: 12px; color: var(--tvx-warn-text, #92400e); }
+.tvx-pb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tvx-pb-back { align-self: flex-start; }
+.tvx-pb-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.tvx-pb-actions .tvx-btn { max-width: 100%; white-space: normal; text-align: left; }
+.tvx-pb-pay { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0; padding: 10px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; }
+.tvx-pb-pay dt { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--tvx-muted); }
+.tvx-pb-pay dd { margin: 2px 0 0; font-size: 13px; font-weight: 700; color: var(--tvx-heading); font-variant-numeric: tabular-nums; }
+.tvx-pb .tvx-btn[disabled] { cursor: not-allowed; opacity: 0.55; }
+@media (max-width: 560px) {
+  .tvx-pb-pay { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tvx-pb-actions { justify-content: flex-start; width: 100%; }
+}

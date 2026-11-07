@@ -1,0 +1,33 @@
+{
+  "id": "s3_media_plugin",
+  "name": "S3 Media Storage",
+  "version": "1.7.0",
+  "description": "Store all plugin media in Amazon S3 when AWS credentials are configured. Nothing is written to local disk.",
+  "author": "OpenNext CMS",
+  "type": "media",
+  "kind": "system",
+  "icon": "☁️",
+  "adminEntry": "ui/admin/mount.js",
+  "adminMount": "ui/admin/mount.js",
+  "styles": [
+    "ui/admin/styles.css"
+  ],
+  "serverEntry": "api/index.js",
+  "migrations": [
+    "api/migrations"
+  ],
+  "models": [
+    "api/models"
+  ],
+  "permissions": [
+    "s3.read",
+    "s3.write",
+    "s3.configure"
+  ],
+  "installHook": "api/hooks/install.js",
+  "uninstallHook": "api/hooks/uninstall.js",
+  "dependencies": [
+    "@aws-sdk/client-s3",
+    "@aws-sdk/s3-request-presigner"
+  ]
+}

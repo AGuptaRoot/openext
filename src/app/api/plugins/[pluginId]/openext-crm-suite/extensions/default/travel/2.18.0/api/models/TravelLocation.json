@@ -1,0 +1,16 @@
+{
+  "name": "TravelLocation",
+  "label": "Travel Location",
+  "pluralLabel": "Travel Locations",
+  "titleField": "name",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "location_id": { "type": "text", "label": "Location ID (never changes)", "required": true, "unique": true },
+    "name": { "type": "text", "label": "Name", "required": true },
+    "name_key": { "type": "text", "label": "Name (for duplicate checks)", "required": true, "unique": true },
+    "available_for": { "type": "select", "label": "Available for", "options": ["from", "to", "both"], "required": true },
+    "enabled": { "type": "checkbox", "label": "Enabled" },
+    "source": { "type": "select", "label": "Added by", "options": ["csv", "settings"] },
+    "last_import_at": { "type": "text", "label": "Last imported" }
+  }
+}

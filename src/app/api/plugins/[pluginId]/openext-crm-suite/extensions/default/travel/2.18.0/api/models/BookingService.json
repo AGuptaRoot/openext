@@ -1,0 +1,45 @@
+{
+  "name": "BookingService",
+  "label": "Booking Service",
+  "pluralLabel": "Booking Services",
+  "titleField": "name",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "booking_id": { "type": "text", "label": "Booking", "required": true, "index": true },
+    "line_index": { "type": "number", "label": "Quotation line" },
+    "booking_line": { "type": "text", "label": "Booking and line", "unique": true },
+    "source_ref": { "type": "text", "label": "Line reference" },
+    "requirement_id": { "type": "text", "label": "Requirement", "index": true },
+    "service_key": { "type": "text", "label": "Service" },
+    "voucher_type": {
+      "type": "select",
+      "label": "Voucher type",
+      "options": ["hotel", "transport", "excursion", "ticket", "none"],
+      "default": "none"
+    },
+    "name": { "type": "text", "label": "Name", "required": true },
+    "description": { "type": "textarea", "label": "Description" },
+    "unit": { "type": "text", "label": "Unit" },
+    "quantity": { "type": "number", "label": "Quantity" },
+    "rate": { "type": "currency", "label": "Rate" },
+    "amount": { "type": "currency", "label": "Amount" },
+    "start_date": { "type": "date", "label": "Start date" },
+    "end_date": { "type": "date", "label": "End date" },
+    "service_details": { "type": "json", "label": "Service details" },
+    "availability_snapshot": { "type": "json", "label": "Availability when quoted" },
+    "provider": { "type": "text", "label": "Provider" },
+    "status": {
+      "type": "select",
+      "label": "Status",
+      "options": ["Not Requested", "Requested", "Confirmed", "Unavailable", "Cancelled"],
+      "default": "Not Requested"
+    },
+    "requested_at": { "type": "date", "label": "Requested at" },
+    "confirmation_ref": { "type": "text", "label": "Confirmation reference" },
+    "confirmed_at": { "type": "date", "label": "Confirmed at" },
+    "final_details": { "type": "textarea", "label": "Final confirmed details" },
+    "evidence_file_id": { "type": "text", "label": "Evidence file" },
+    "documents": { "type": "json", "label": "Provider documents" },
+    "cancel_reason": { "type": "textarea", "label": "Cancel reason" }
+  }
+}

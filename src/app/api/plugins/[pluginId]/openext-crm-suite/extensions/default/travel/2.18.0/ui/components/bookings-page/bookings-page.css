@@ -1,0 +1,72 @@
+/* <x-travel-bookings-page-v1> — colours only from the --tvx-* variables (ui/style.css). */
+.tvx-bk { min-width: 0; }
+.tvx-bk .tvx-card { min-width: 0; }
+.tvx-bk-page-title { font-size: 16px; }
+.tvx-bk-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.tvx-bk-search-wrap { flex: 1 1 260px; min-width: 0; }
+.tvx-bk-date { display: flex; flex-direction: column; gap: 4px; flex: 0 1 170px; min-width: 0; }
+.tvx-bk-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tvx-bk-count { display: inline-flex; min-width: 18px; justify-content: center; border-radius: 999px; padding: 0 6px; background: var(--tvx-surface-3); color: var(--tvx-text-2); font-size: 11px; }
+.tvx-chip.is-on .tvx-bk-count { background: var(--tvx-surface); color: var(--tvx-link-strong); }
+.tvx-bk-results { display: flex; flex-direction: column; gap: 10px; }
+.tvx-bk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tvx-bk-row { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; border: 1px solid var(--tvx-border-soft); border-radius: 10px; background: var(--tvx-surface); color: var(--tvx-text); padding: 12px 14px; font: inherit; cursor: pointer; }
+.tvx-bk-row:hover { border-color: var(--tvx-info-border); background: var(--tvx-surface-2); }
+.tvx-bk-row:focus-visible { outline: 2px solid var(--tvx-accent); outline-offset: 2px; }
+.tvx-bk-row-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tvx-bk-row-number { font-weight: 700; font-size: 13px; color: var(--tvx-heading); }
+.tvx-bk-row-title { font-size: 13px; font-weight: 600; color: var(--tvx-text); overflow-wrap: anywhere; }
+.tvx-bk-row-meta { font-size: 12px; color: var(--tvx-muted); overflow-wrap: anywhere; }
+.tvx-bk-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 28px 12px; border: 1px dashed var(--tvx-border); border-radius: 10px; }
+.tvx-bk-empty p { margin: 0; }
+.tvx-bk-more { align-self: center; }
+
+.tvx-bk-bar { display: flex; flex-wrap: wrap; gap: 8px; }
+.tvx-bk-head-row { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.tvx-bk-head-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tvx-bk-number { margin: 0; font-size: 20px; font-weight: 700; color: var(--tvx-heading); }
+.tvx-bk-title { margin: 0; font-size: 13px; color: var(--tvx-text-2); overflow-wrap: anywhere; }
+.tvx-bk-status { font-size: 12px; }
+.tvx-bk-facts { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: 12px; }
+.tvx-bk-facts dt { color: var(--tvx-text-3); font-weight: 600; }
+.tvx-bk-facts dd { margin: 0; color: var(--tvx-text); overflow-wrap: anywhere; white-space: pre-line; }
+.tvx-bk-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tvx-bk .tvx-msg { margin: 0; }
+
+.tvx-bk-traveller-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.tvx-bk-traveller { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.tvx-bk-traveller-name { font-size: 13px; font-weight: 600; color: var(--tvx-text); overflow-wrap: anywhere; }
+
+.tvx-bk-service-list { display: flex; flex-direction: column; gap: 12px; }
+.tvx-bk-service { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--tvx-border-soft); border-radius: 10px; padding: 14px; background: var(--tvx-surface); min-width: 0; }
+.tvx-bk-service.is-cancelled { opacity: .72; }
+.tvx-bk-service-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.tvx-bk-service-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 200px; }
+.tvx-bk-service-title .tvx-muted { overflow-wrap: anywhere; }
+.tvx-bk-more-info summary, .tvx-bk-history summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--tvx-link); }
+.tvx-bk-more-info .tvx-bk-facts { margin-top: 8px; }
+.tvx-bk-history ol { margin: 8px 0 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--tvx-text); }
+.tvx-bk-history li { display: flex; flex-direction: column; gap: 2px; }
+.tvx-bk-history-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tvx-bk-history-text { overflow-wrap: anywhere; }
+
+.tvx-bk-block { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--tvx-border-soft); }
+.tvx-bk-block-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.tvx-bk-block-title { margin: 0; font-size: 12px; font-weight: 700; color: var(--tvx-heading); }
+.tvx-bk-vouchers, .tvx-bk-docs, .tvx-bk-itins { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tvx-bk-voucher { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; padding: 10px 12px; }
+.tvx-bk-voucher.is-focus { border-color: var(--tvx-accent); box-shadow: 0 0 0 1px var(--tvx-accent); }
+.tvx-bk-voucher-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tvx-bk-voucher-no { font-weight: 700; font-size: 13px; color: var(--tvx-heading); }
+.tvx-bk-voucher-actions, .tvx-bk-doc-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.tvx-bk-voucher-actions .tvx-btn, .tvx-bk-doc-actions .tvx-btn { height: 30px; padding: 0 10px; text-decoration: none; }
+.tvx-bk-docs li, .tvx-bk-itins li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; padding: 8px 10px; }
+.tvx-bk-doc-name, .tvx-bk-itin-name { font-size: 13px; font-weight: 600; color: var(--tvx-text); overflow-wrap: anywhere; }
+.tvx-bk-file { height: auto; padding: 6px; }
+.tvx-bk-embed { padding: 0; }
+.tvx-bk-notes-text { white-space: pre-line; }
+@media (max-width: 480px) {
+  .tvx-bk .tvx-card { padding: 14px; }
+  .tvx-bk-service { padding: 12px; }
+  .tvx-bk-date { flex: 1 1 140px; }
+}

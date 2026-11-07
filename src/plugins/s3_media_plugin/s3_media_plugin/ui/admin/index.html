@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>S3 Media Library</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="s3-plugin-root">
+      <h1>S3 Media Library</h1>
+      <p class="subtitle">
+        When AWS credentials are configured, every upload is stored only in Amazon S3 — never on the
+        local server disk.
+      </p>
+
+      <div id="storage-banner" class="alert warning" hidden></div>
+
+      <div id="config-alert" class="alert warning" hidden>
+        S3 is not configured. Open <strong>Dashboard → Settings → Config</strong> and save your AWS
+        credentials (bucket and/or Access Point ARN) under <strong>AWS S3 Media Storage</strong>.
+        Until then, uploads from this plugin are blocked (no local fallback).
+      </div>
+
+      <div class="card">
+        <h2>Upload to Amazon S3</h2>
+        <form id="upload-form">
+          <label for="file">Choose file (any type — max 50MB)</label>
+          <input id="file" name="file" type="file" required />
+          <label for="folder">Optional folder under your S3 prefix</label>
+          <input id="folder" name="folder" type="text" placeholder="e.g. gallery, docs, brand" />
+          <div class="toolbar">
+            <button type="submit" id="upload-btn">Upload to S3</button>
+            <button type="button" class="secondary" id="refresh-btn">Refresh from S3</button>
+            <span class="status" id="status">Loading…</span>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Objects in S3</h2>
+        <div id="media-grid" class="grid"></div>
+        <p id="empty-state" class="empty" hidden>No objects found in your S3 prefix yet.</p>
+      </div>
+    </div>
+
+    <script>
+      const PLUGIN_ID = 's3_media_plugin';
+      const API_BASE = '/api/plugins/' + PLUGIN_ID;
+
+      const statusEl = document.getElementById('status');
+      const gridEl = document.getElementById('media-grid');
+      const emptyEl = document.getElementById('empty-state');
+      const configAlert = document.getElementById('config-alert');
+      const storageBanner = document.getElementById('storage-banner');
+      const uploadBtn = document.getElementById('upload-btn');
+
+      function setStatus(message, type) {
+        statusEl.textContent = message;
+        statusEl.className = 'status' + (type ? ' ' + type : '');
+      }
+
+      function escapeHtml(value) {
+        const el = document.createElement('div');
+        el.textContent = String(value || '');
+        return el.innerHTML;
+      }
+
+      async function api(path, options) {
+        const response = await fetch(API_BASE + path, {
+          credentials: 'include',
+          ...options,
+        });
+
+        let data = null;
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
+        }
+
+        if (!response.ok) {
+          throw new Error((data && data.message) || 'Request failed (' + response.status + ')');
+        }
+
+        return data;
+      }
+
+      function mediaViewSrc(item) {
+        return API_BASE + '/media/' + encodeURIComponent(item.encodedKey) + '/file';
+      }
+
+      function isProbablyImage(name) {
+        return /\.(jpe?g|png|webp|gif|avif|svg)$/i.test(String(name || ''));
+      }
+
+      async function loadSettings() {
+        const data = await api('/settings');
+        const configured = data.settings && data.settings.isConfigured;
+        const status = data.status || {};
+
+        configAlert.hidden = configured;
+
+        if (configured && status.storage === 's3') {
+          storageBanner.hidden = false;
+          storageBanner.className = 'alert success';
+          storageBanner.innerHTML =
+            '<strong>Active storage: Amazon S3</strong> — ' +
+            escapeHtml(status.message || 'All uploads from this plugin are stored in S3 only.');
+        } else {
+          storageBanner.hidden = true;
+        }
+
+        uploadBtn.disabled = !configured;
+        return configured;
+      }
+
+      async function loadMedia() {
+        setStatus('Loading from S3…');
+        gridEl.innerHTML = '';
+
+        try {
+          const data = await api('/media?imagesOnly=false');
+          const media = data.media || [];
+
+          if (media.length === 0) {
+            emptyEl.hidden = false;
+            emptyEl.textContent = 'No objects found in your S3 prefix yet.';
+            setStatus('0 objects in S3');
+            return;
+          }
+
+          emptyEl.hidden = true;
+          gridEl.innerHTML = media
+            .map(function (item) {
+              const previewUrl = mediaViewSrc(item);
+              const copyUrl = item.filePath || item.url;
+              const showImage = isProbablyImage(item.originalName);
+              const previewHtml = showImage
+                ? '<img src="' +
+                  escapeHtml(previewUrl) +
+                  '" alt="' +
+                  escapeHtml(item.originalName) +
+                  '" loading="lazy" />'
+                : '<div class="file-placeholder">' + escapeHtml(item.originalName) + '</div>';
+
+              return (
+                '<article class="media-item">' +
+                previewHtml +
+                '<div class="media-body">' +
+                '<p class="media-name">' +
+                escapeHtml(item.originalName) +
+                '</p>' +
+                '<div class="media-actions">' +
+                '<button type="button" class="secondary copy-btn" data-url="' +
+                escapeHtml(copyUrl) +
+                '">Copy S3 URL</button>' +
+                '<button type="button" class="danger delete-btn" data-key="' +
+                escapeHtml(item.encodedKey) +
+                '">Delete</button>' +
+                '</div>' +
+                '</div>' +
+                '</article>'
+              );
+            })
+            .join('');
+
+          setStatus(media.length + ' object' + (media.length === 1 ? '' : 's') + ' in S3');
+        } catch (error) {
+          emptyEl.hidden = false;
+          emptyEl.textContent = error.message;
+          setStatus(error.message, 'error');
+        }
+      }
+
+      document.getElementById('upload-form').addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const input = document.getElementById('file');
+        const folderInput = document.getElementById('folder');
+        const file = input.files && input.files[0];
+
+        if (!file) {
+          setStatus('Choose a file first', 'error');
+          return;
+        }
+
+        setStatus('Uploading to Amazon S3…');
+        uploadBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        if (folderInput && folderInput.value.trim()) {
+          formData.append('folder', folderInput.value.trim());
+        }
+
+        try {
+          const data = await api('/media/upload', {
+            method: 'POST',
+            body: formData,
+          });
+          input.value = '';
+          setStatus(
+            'Stored in S3: ' +
+              (data.asset && data.asset.originalName ? data.asset.originalName : 'success'),
+            'success'
+          );
+          await loadMedia();
+        } catch (error) {
+          setStatus(error.message, 'error');
+        } finally {
+          uploadBtn.disabled = !(await loadSettings());
+        }
+      });
+
+      document.getElementById('refresh-btn').addEventListener('click', loadMedia);
+
+      gridEl.addEventListener('click', async function (event) {
+        const copyBtn = event.target.closest('.copy-btn');
+        if (copyBtn) {
+          const url = copyBtn.getAttribute('data-url');
+          if (url) {
+            await navigator.clipboard.writeText(url);
+            setStatus('Durable S3 URL copied', 'success');
+          }
+          return;
+        }
+
+        const deleteBtn = event.target.closest('.delete-btn');
+        if (!deleteBtn) return;
+
+        const encodedKey = deleteBtn.getAttribute('data-key');
+        if (!encodedKey) return;
+        if (!confirm('Delete this object from S3?')) return;
+
+        setStatus('Deleting from S3…');
+        try {
+          await api('/media/' + encodeURIComponent(encodedKey), { method: 'DELETE' });
+          await loadMedia();
+        } catch (error) {
+          setStatus(error.message, 'error');
+        }
+      });
+
+      Promise.all([loadSettings(), loadMedia()]).catch(function (error) {
+        setStatus(error.message, 'error');
+      });
+    </script>
+  </body>
+</html>

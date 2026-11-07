@@ -1,0 +1,25 @@
+{
+  "name": "ServiceConfirmation",
+  "label": "Service Confirmation",
+  "pluralLabel": "Service Confirmations",
+  "titleField": "status",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "booking_service_id": { "type": "text", "label": "Booking service", "required": true, "index": true },
+    "booking_id": { "type": "text", "label": "Booking", "index": true },
+    "action": { "type": "text", "label": "Action" },
+    "status": {
+      "type": "select",
+      "label": "Status",
+      "options": ["Not Requested", "Requested", "Confirmed", "Unavailable", "Cancelled"]
+    },
+    "provider": { "type": "text", "label": "Provider" },
+    "confirmation_ref": { "type": "text", "label": "Confirmation reference" },
+    "confirmed_at": { "type": "date", "label": "Confirmed at" },
+    "final_details": { "type": "textarea", "label": "Final confirmed details" },
+    "evidence_file_id": { "type": "text", "label": "Evidence file" },
+    "notes": { "type": "textarea", "label": "Notes" },
+    "by": { "type": "text", "label": "By" },
+    "by_id": { "type": "text", "label": "By (user id)" }
+  }
+}
