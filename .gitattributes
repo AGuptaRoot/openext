@@ -1,0 +1,2 @@
+# CRM extension packages are hash-verified byte-for-byte; never convert line endings.
+src/app/api/plugins/*/*/extensions/** -text
