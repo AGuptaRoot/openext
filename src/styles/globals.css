@@ -181,3 +181,12 @@ button {
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * Fixed CRM menu (src/lib/plugins/fixedPluginNav.ts): the sidebar already lists the
+ * Travel Agency pages, so hide the duplicate links the CRM UI injects into it.
+ */
+nav[data-fixed-plugin-nav~='openext-crm-suite'] a[data-crm-extension-page],
+nav[data-fixed-plugin-nav~='openext-crm-suite'] [data-crm-extension-nav='true'] {
+  display: none !important;
+}

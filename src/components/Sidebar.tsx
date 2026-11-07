@@ -35,6 +35,9 @@ import {
 import { usePlugins, type PluginRecord } from '@/context/PluginContext';
 import { runtimePluginPath } from '@/lib/plugins/adminNav';
 import { extensionNavLinks, type ExtensionHostPage } from '@/lib/extensions/hostPages';
+import type { PluginDynamicNav } from '@/lib/plugins/dynamicNav';
+import { FIXED_PLUGIN_NAV, FIXED_PLUGIN_NAV_ATTRIBUTE } from '@/lib/plugins/fixedPluginNav';
+import { usePluginDynamicNav } from '@/hooks/usePluginDynamicNav';
 import { useExtensionHostPages } from '@/hooks/useExtensionHostPages';
 import { resolveNavIcon } from '@/lib/plugins/navIcons';
 import { useRbac } from '@/hooks/useRbac';
@@ -46,6 +49,8 @@ type NavSection = {
   path?: string;
   navSection?: NavSectionId;
   links: { label: string; icon: LucideIcon; path: string }[];
+  /** Set when this section shows a fixed menu from fixedPluginNav.ts. */
+  fixedNavPluginId?: string;
 };
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
@@ -203,21 +208,39 @@ function findSocialMediaPlugin<T extends { pluginId: string; name: string; type?
 const BUILTIN_SYSTEM_IDS = new Set(['menu-redirect', 'form-builder', 'social-media']);
 
 /** Uploaded system plugins: single-page opens on name click; multi-page uses collapsible nav. */
+function isUploadedSystemPlugin(p: PluginRecord): boolean {
+  return p.kind === 'system' && p.source === 'uploaded' && !BUILTIN_SYSTEM_IDS.has(p.pluginId);
+}
+
 function uploadedSystemNavSections(
   plugins: PluginRecord[],
   pageAccessByPlugin?: Map<string, Array<{ id: string; features: string[] | '*' }>>,
-  extensionPages: ExtensionHostPage[] = []
+  extensionPages: ExtensionHostPage[] = [],
+  dynamicNavByPlugin: Map<string, PluginDynamicNav> = new Map()
 ): NavSection[] {
   return plugins
-    .filter(
-      (p) =>
-        p.kind === 'system' &&
-        p.source === 'uploaded' &&
-        !BUILTIN_SYSTEM_IDS.has(p.pluginId)
-    )
+    .filter(isUploadedSystemPlugin)
     .flatMap((p): NavSection[] => {
-      let navPages = p.adminNav?.length ? p.adminNav : [];
       const access = pageAccessByPlugin?.get(p.pluginId);
+
+      // Fixed menu for this plugin (see fixedPluginNav.ts). Restricted page access
+      // (e.g. client portal users) keeps the normal permission-filtered nav below.
+      const fixedLinks = FIXED_PLUGIN_NAV[p.pluginId];
+      if (fixedLinks?.length && (!access || access.some((item) => item.id === '*'))) {
+        return [
+          {
+            label: p.name || p.pluginId,
+            icon: Puzzle,
+            navSection: 'uploaded-plugins' as NavSectionId,
+            links: fixedLinks.map((link) => ({ ...link })),
+            fixedNavPluginId: p.pluginId,
+          },
+        ];
+      }
+
+      const dynamicNav = dynamicNavByPlugin.get(p.pluginId);
+      const hidden = new Set(dynamicNav?.hide ?? []);
+      let navPages = (p.adminNav?.length ? p.adminNav : []).filter((item) => !hidden.has(item.id));
       if (access && !access.some((item) => item.id === '*')) {
         const allowed = new Set(access.map((item) => item.id));
         navPages = navPages.filter((item) => allowed.has(item.id));
@@ -228,11 +251,21 @@ function uploadedSystemNavSections(
         return [];
       }
 
-      const pluginLinks = navPages.map((item) => ({
+      const staticLinks = navPages.map((item) => ({
         label: item.label,
         icon: resolveNavIcon(item.icon),
         path: runtimePluginPath(p.pluginId, item.id),
       }));
+      // Pages the plugin adds at runtime (e.g. the CRM's active extension), after its own pages.
+      const staticPaths = new Set(staticLinks.map((link) => link.path));
+      const dynamicLinks = (dynamicNav?.add ?? [])
+        .filter((item) => !staticPaths.has(item.path))
+        .map((item) => ({
+          label: item.label,
+          icon: resolveNavIcon(item.icon),
+          path: item.path,
+        }));
+      const pluginLinks = [...staticLinks, ...dynamicLinks];
       const extensionLinks = extensionNavLinks(p.pluginId, extensionPages).map((item) => ({
         label: item.label,
         icon: FileText,
@@ -308,6 +341,11 @@ export default function Sidebar() {
   const { activePlugins } = usePlugins();
   const { pages: extensionPages } = useExtensionHostPages();
   const { canNav, can, canUsePlugin, access, loading: rbacLoading } = useRbac();
+  const uploadedSystemPluginIds = useMemo(
+    () => activePlugins.filter(isUploadedSystemPlugin).map((p) => p.pluginId),
+    [activePlugins]
+  );
+  const dynamicNavByPlugin = usePluginDynamicNav(uploadedSystemPluginIds);
 
   // Append plugin system navs only while their plugin is active (installed + enabled)
   // AND the current role's per-plugin allowlist permits it.
@@ -381,7 +419,12 @@ export default function Sidebar() {
       pageAccessByPlugin.set(access.pluginUserType.pluginId, access.pluginUserType.pageAccess);
     }
 
-    const uploadedSystem = uploadedSystemNavSections(allowedPlugins, pageAccessByPlugin, extensionPages);
+    const uploadedSystem = uploadedSystemNavSections(
+      allowedPlugins,
+      pageAccessByPlugin,
+      extensionPages,
+      dynamicNavByPlugin
+    );
     if (uploadedSystem.length && canNav('uploaded-plugins')) s = [...s, ...uploadedSystem];
     return s;
   }, [
@@ -394,7 +437,14 @@ export default function Sidebar() {
     access?.pluginUserType?.pageAccess,
     access?.pluginAccessByPlugin,
     extensionPages,
+    dynamicNavByPlugin,
   ]);
+
+  // Plugins whose menu is fixed; globals.css hides links their UI injects into this nav.
+  const fixedNavPluginIds = useMemo(
+    () => sections.flatMap((section) => (section.fixedNavPluginId ? [section.fixedNavPluginId] : [])).join(' '),
+    [sections]
+  );
 
   useEffect(() => {
     // Check if we're on mobile and set initial state
@@ -494,7 +544,10 @@ export default function Sidebar() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto py-4 px-3">
+          <nav
+            className="flex-1 overflow-y-auto py-4 px-3"
+            {...{ [FIXED_PLUGIN_NAV_ATTRIBUTE]: fixedNavPluginIds || undefined }}
+          >
             <div className="space-y-1">
               <TooltipProvider delayDuration={0}>
                 {sections.map((item) => (
