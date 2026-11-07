@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
   // Plugin backend loader reads uploaded files from src/app/api/plugins/[pluginId] at runtime.
   serverExternalPackages: ['mongoose'],
 
+  // File tracing skips dotfiles, but the CRM verifies each extension package via its
+  // `.package.json` metadata file. Ship those explicitly so Vercel deploys them.
+  outputFileTracingIncludes: {
+    '/api/plugins/**': ['./src/app/api/plugins/*/*/extensions/**/.package.json'],
+  },
+
   images: {
     remotePatterns: [
       {
