@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import mongoose from 'mongoose';
 import fs from 'fs';
+import { getMongoBaseConnection } from '@/utils/db';
 import path from 'path';
 import { getDynamicEnv } from '@/utils/dynamicEnv';
 import { withDbName } from '@/utils/mongoUri';
@@ -46,20 +46,16 @@ function createConnectionUri(dbName: string) {
   }
 }
 
-async function checkConnection(uri: string) {
+async function listMongoDatabaseNames(): Promise<Set<string>> {
   try {
-    const connection = await mongoose.createConnection(uri).asPromise();
-    if (!connection.db) {
-      throw new Error(`Database connection failed for URI: ${uri}`);
-    }
-    const dbList = await connection.db.admin().listDatabases();
-    const dbName = uri.split('/').pop()?.split('?')[0];
-    const dbExists = dbList.databases.some((db) => db.name === dbName);
-    await connection.close();
-    return dbExists;
+    const connection = await getMongoBaseConnection();
+    if (!connection.db) throw new Error('MongoDB connection has no db handle');
+    const dbList = await connection.db.admin().listDatabases({ nameOnly: true });
+    return new Set(dbList.databases.map((db) => db.name));
   } catch (error) {
-    console.error(`Error connecting to ${uri}:`, error);
-    return false;
+    // Don't log the URI — it contains credentials.
+    console.error('Error listing MongoDB databases:', error);
+    return new Set();
   }
 }
 
@@ -139,13 +135,13 @@ export async function GET() {
       throw new Error('USER_DB_NAME or PAGE_DB_NAME environment variable is not set');
     }
 
-    const masterDbUri = createConnectionUri('master');
-    const userDbUri = createConnectionUri(USER_DB_NAME);
-    const pageDbUri = createConnectionUri(PAGE_DB_NAME);
-
-    const masterDbConnected = await checkConnection(masterDbUri);
-    const userDbConnected = await checkConnection(userDbUri);
-    const pageDbConnected = await checkConnection(pageDbUri);
+    // Validate config early (throws on missing vars), then reuse the shared pool
+    // instead of opening three new connections on every check.
+    createConnectionUri('master');
+    const existing = await listMongoDatabaseNames();
+    const masterDbConnected = existing.has('master');
+    const userDbConnected = existing.has(USER_DB_NAME);
+    const pageDbConnected = existing.has(PAGE_DB_NAME);
 
     const dbConnection = masterDbConnected && userDbConnected && pageDbConnected;
     const isRegistration = dbConnection;

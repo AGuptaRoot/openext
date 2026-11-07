@@ -76,9 +76,18 @@ let masterDbConnecting: Promise<mongoose.Connection> | null = null;
 let userDbSeeded = false;
 let pageDbThemesSeeded = false;
 
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function mongoPoolOptions(): mongoose.ConnectOptions {
-  const maxPoolSize = Number(process.env.MONGODB_MAX_POOL_SIZE) || 25;
-  const minPoolSize = Number(process.env.MONGODB_MIN_POOL_SIZE) || 2;
+  // Serverless (Vercel) runs many instances at once; keep each one's footprint
+  // small and don't hold idle sockets. Atlas M0 allows 500 connections total.
+  const maxPoolSize = envInt('MONGODB_MAX_POOL_SIZE', 5);
+  const minPoolSize = envInt('MONGODB_MIN_POOL_SIZE', 0);
   return {
     maxPoolSize: Math.max(1, maxPoolSize),
     minPoolSize: Math.max(0, Math.min(minPoolSize, maxPoolSize)),
@@ -127,6 +136,51 @@ async function createConnectionUri(dbName: string) {
   }
 }
 
+/**
+ * One MongoDB client (one connection pool) per process, shared by the master,
+ * user and page databases via `useDb()`. Previously each database opened its
+ * own pool, tripling connections per instance. Stored on globalThis so it
+ * survives module re-evaluation (dev HMR, separately bundled route chunks).
+ */
+type MongoBaseState = {
+  base: mongoose.Connection | null;
+  connecting: Promise<mongoose.Connection> | null;
+};
+const mongoGlobal = globalThis as typeof globalThis & { __openextMongoBase?: MongoBaseState };
+const mongoState: MongoBaseState = (mongoGlobal.__openextMongoBase ??= {
+  base: null,
+  connecting: null,
+});
+
+export async function getMongoBaseConnection(): Promise<mongoose.Connection> {
+  if (mongoState.base && mongoState.base.readyState === 1) return mongoState.base;
+  if (mongoState.connecting) return mongoState.connecting;
+
+  mongoState.connecting = (async () => {
+    const stale = mongoState.base;
+    mongoState.base = null;
+    if (stale) await stale.close().catch(() => undefined);
+
+    const uri = await createConnectionUri('master');
+    const conn = await mongoose.createConnection(uri, mongoPoolOptions()).asPromise();
+    conn.on('error', (error) => console.error('MongoDB connection error:', error));
+    conn.on('disconnected', () => console.warn('MongoDB disconnected'));
+    mongoState.base = conn;
+    return conn;
+  })();
+
+  try {
+    return await mongoState.connecting;
+  } finally {
+    mongoState.connecting = null;
+  }
+}
+
+async function useMongoDb(dbName: string): Promise<mongoose.Connection> {
+  const base = await getMongoBaseConnection();
+  return base.useDb(dbName, { useCache: true });
+}
+
 export async function getMasterDbConnection() {
   if (masterDb && (isMysql() || isPostgres() || masterDb.readyState === 1)) {
     return masterDb;
@@ -140,16 +194,7 @@ export async function getMasterDbConnection() {
     } else if (isPostgres()) {
       masterDb = (await getPostgresConnection('master')) as unknown as mongoose.Connection;
     } else {
-      const uri = await createConnectionUri('master');
-      masterDb = await mongoose.createConnection(uri, mongoPoolOptions()).asPromise();
-      masterDb.on('error', (error) => {
-        console.error('MongoDB master database connection error:', error);
-        masterDb = null;
-      });
-      masterDb.on('disconnected', () => {
-        console.warn('MongoDB master database disconnected');
-        masterDb = null;
-      });
+      masterDb = await useMongoDb('master');
     }
     return masterDb!;
   })();
@@ -182,8 +227,7 @@ export const getUserDbConnection = async () => {
       } else if (isPostgres()) {
         userDb = (await getPostgresConnection(USER_DB_NAME)) as unknown as mongoose.Connection;
       } else {
-        const uri = await createConnectionUri(USER_DB_NAME);
-        userDb = await mongoose.createConnection(uri, mongoPoolOptions()).asPromise();
+        userDb = await useMongoDb(USER_DB_NAME);
       }
 
       if (!userDb.models.User) {
@@ -241,22 +285,8 @@ export const getUserDbConnection = async () => {
         userDbSeeded = true;
       }
 
-      if (!isMysql() && !isPostgres()) {
-        userDb.on('error', (error) => {
-          console.error('MongoDB user database connection error:', error);
-          userDb = null;
-        });
-
-        userDb.on('connected', () => {
-          console.log('MongoDB user database connected successfully');
-        });
-
-        userDb.on('disconnected', () => {
-          console.warn('MongoDB user database disconnected');
-          userDb = null;
-        });
-      }
-
+      // Mongo: health is tracked on the shared base connection; the readyState
+      // check at the top of this getter re-acquires it after a disconnect.
       return userDb!;
     } catch (error) {
       console.error('MongoDB connection error:', error);
@@ -289,8 +319,7 @@ export async function getPageDbConnection() {
       } else if (isPostgres()) {
         pageDb = (await getPostgresConnection(PAGE_DB_NAME)) as unknown as mongoose.Connection;
       } else {
-        const uri = await createConnectionUri(PAGE_DB_NAME);
-        pageDb = await mongoose.createConnection(uri, mongoPoolOptions()).asPromise();
+        pageDb = await useMongoDb(PAGE_DB_NAME);
       }
 
       if (!pageDb.models.Page) {
@@ -376,22 +405,8 @@ export async function getPageDbConnection() {
         }
       }
 
-      if (!isMysql() && !isPostgres()) {
-        pageDb.on('error', (error) => {
-          console.error('❌ MongoDB page database connection error:', error);
-          pageDb = null;
-        });
-
-        pageDb.on('connected', () => {
-          console.log(`✅ MongoDB page database (${PAGE_DB_NAME}) connected successfully`);
-        });
-
-        pageDb.on('disconnected', () => {
-          console.warn('⚠️ MongoDB page database disconnected');
-          pageDb = null;
-        });
-      }
-
+      // Mongo: health is tracked on the shared base connection; the readyState
+      // check at the top of this getter re-acquires it after a disconnect.
       return pageDb!;
     } catch (error) {
       console.error('❌ MongoDB page connection error:', error);
@@ -667,7 +682,13 @@ export function getExtensionMigrationModel(): mongoose.Model<IExtensionMigration
 }
 
 export async function closeAllConnections() {
-  await Promise.all([userDb?.close(), pageDb?.close(), masterDb?.close()]);
+  if (isMysql() || isPostgres()) {
+    await Promise.all([userDb?.close(), pageDb?.close(), masterDb?.close()]);
+  } else if (mongoState.base) {
+    // useDb() children share the base client; closing the base closes them all.
+    await mongoState.base.close().catch(() => undefined);
+    mongoState.base = null;
+  }
   userDb = null;
   pageDb = null;
   masterDb = null;
