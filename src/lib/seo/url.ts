@@ -6,7 +6,7 @@ export function getSiteUrl(): string {
   const raw =
     env.NEXT_PUBLIC_SITE_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
-    'http://localhost:3011';
+    'http://localhost:4000';
   return raw.replace(/\/$/, '');
 }
 

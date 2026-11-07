@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "build": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next build",
-    "dev": "node --require ./src/utils/node-localstorage-polyfill.cjs ./node_modules/next/dist/bin/next dev -p 3011",
-    "start": "node --require ./src/utils/node-localstorage-polyfill.cjs ./node_modules/next/dist/bin/next start -p 3011",
+    "dev": "node --require ./src/utils/node-localstorage-polyfill.cjs ./node_modules/next/dist/bin/next dev -p 4000",
+    "start": "node --require ./src/utils/node-localstorage-polyfill.cjs ./node_modules/next/dist/bin/next start -p 4000",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix",
     "format": "prettier --write .",
@@ -85,7 +85,8 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.1",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "node-cron": "*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

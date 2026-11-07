@@ -3,6 +3,13 @@ import fs from 'fs/promises';
 import path from 'path';
 import dotenv from 'dotenv';
 
+const PUBLIC_ENV_KEYS = new Set([
+  'dbConnection',
+  'isRegistration',
+  'DEFAULT_HOME_SLUG',
+  'NEXT_PUBLIC_needsRestart',
+]);
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -12,11 +19,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Missing "key" query param' }, { status: 400 });
     }
 
-    const envPath = path.resolve(process.cwd(), '.env');
-    const envContent = await fs.readFile(envPath, 'utf-8');
-    const parsed = dotenv.parse(envContent);
+    // Public endpoint: only expose non-secret keys the UI actually reads.
+    if (!PUBLIC_ENV_KEYS.has(key)) {
+      return NextResponse.json({ error: `Key "${key}" not found` }, { status: 404 });
+    }
 
-    if (!(key in parsed)) {
+    const envPath = path.resolve(process.cwd(), '.env');
+    let fileValues: Record<string, string> = {};
+    try {
+      fileValues = dotenv.parse(await fs.readFile(envPath, 'utf-8'));
+    } catch {
+      // No .env on disk (e.g. Vercel) — fall back to process.env below.
+    }
+    const parsed: Record<string, string | undefined> = { ...process.env, ...fileValues };
+
+    if (parsed[key] === undefined) {
       return NextResponse.json({ error: `Key "${key}" not found` }, { status: 404 });
     }
 
