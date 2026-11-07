@@ -235,6 +235,7 @@ export async function loadBackendPlugin(options: {
     module: pluginModule,
     permissions,
     loadedAt: new Date(),
+    cms,
   };
 
   setLoadedPlugin(loaded);

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/api/auth';
 import { bootstrapBackendPlugins } from '@/lib/plugins/server/bootstrap';
-import { getLoadedPlugin } from '@/lib/plugins/server/registry';
+import { getLoadedPlugin, refreshPluginDatabase } from '@/lib/plugins/server/registry';
 import { buildPluginRequest, pluginResponseToNext } from '@/lib/plugins/server/dispatch';
 import { getUserDbConnection, getPluginModel } from '@/utils/db';
 import { assertSafePluginId } from '@/lib/plugins/uploaded-lifecycle';
@@ -58,6 +58,9 @@ async function handlePluginRequest(req: NextRequest, context: RouteContext) {
     ready.plugin!.permissions || [],
     user?.role
   );
+
+  // Start every request on a live DB connection (the SDK may hold one that dropped).
+  await refreshPluginDatabase(pluginId);
 
   const pluginReq = await buildPluginRequest({
     req,

@@ -70,6 +70,8 @@ export interface LoadedPlugin {
   module: PluginServerModule;
   permissions: string[];
   loadedAt: Date;
+  /** SDK instance handed to the plugin at load; used to refresh its DB connection. */
+  cms?: CmsSdk;
 }
 
 export interface PluginRouteDefinition {

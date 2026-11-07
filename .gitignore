@@ -80,3 +80,4 @@ training/layout-planner/outputs/
 training/**/__pycache__/
 *.pyc
 
+src/lib/plugins/__tests__/sdkReconnect.test.ts
