@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-const PLUGIN_ID = 's3-media-plugin';
+// Must match "id" in the S3 plugin's manifest.json.
+const PLUGIN_ID = 's3_media_plugin';
 const API_BASE = `/api/plugins/${PLUGIN_ID}`;
 
 type S3Settings = {

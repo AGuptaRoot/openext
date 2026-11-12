@@ -5,7 +5,8 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getUserDbConnection, getPluginModel } from '@/utils/db';
 
-export const S3_MEDIA_PLUGIN_ID = 's3-media-plugin';
+// Must match "id" in the S3 plugin's manifest.json.
+export const S3_MEDIA_PLUGIN_ID = 's3_media_plugin';
 
 const DEFAULT_ALLOWED_TYPES = new Set([
   'image/jpeg',
