@@ -11,6 +11,18 @@
 
 const store = require('./booking-store.js');
 
+/**
+ * "<qty> <unit>" for a quantity — once: a unit saved with its own number (before 2.19.4, e.g.
+ * "2 Adults" for 2) is shown as "2 Adults", never "2 2 Adults" (which reads like "22").
+ */
+function qtyWithUnit(qty, unit) {
+  const q = String(qty).trim();
+  let u = String(unit || '').trim();
+  const lead = u.match(/^(\d+(?:\.\d+)?)\s+(.+)$/);
+  if (lead && Number(lead[1]) === Number(q)) u = lead[2];
+  return u ? `${q} ${u}` : q;
+}
+
 const { str } = store;
 const TITLES = { hotel: 'Hotel Voucher', transport: 'Transport Voucher', excursion: 'Excursion Voucher' };
 const DEFAULT_PREFIX = { hotel: 'HTV', transport: 'TPV', excursion: 'EXV' };
@@ -55,7 +67,7 @@ function buildSnapshot(p) {
     service: {
       name: str(service.name).slice(0, 200),
       description,
-      quantity: qty ? `${qty}${str(service.unit) ? ` ${str(service.unit)}` : ''}` : '',
+      quantity: qty ? qtyWithUnit(qty, str(service.unit)) : '',
       dates: store.dateRange(service.start_date, service.end_date),
       start: store.prettyDay(service.start_date),
       end: store.prettyDay(service.end_date),

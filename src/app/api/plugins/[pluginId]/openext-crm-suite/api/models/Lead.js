@@ -151,6 +151,14 @@ const LeadSchema = new Schema(
     stage: { type: String, required: true, trim: true },
     stageUpdatedAt: { type: Date, default: Date.now },
     source: { type: String, trim: true, maxlength: 80, default: '' },
+    /**
+     * Deal Value entered on the lead form (null = not given) and its currency (ISO code; empty =
+     * workspace default). 3.40.1: declared on the lead itself — before, the paths were only on the
+     * qualification sub-schema, so MongoDB (Mongoose strict mode) silently dropped lead.value on create
+     * and update. The qualification copies are kept so no stored data changes meaning.
+     */
+    value: { type: Number, default: null, min: 0 },
+    currency: { type: String, trim: true, uppercase: true, maxlength: 3, default: '' },
     tags: { type: [String], default: [] },
     customFields: { type: Schema.Types.Mixed, default: () => ({}) },
     /**

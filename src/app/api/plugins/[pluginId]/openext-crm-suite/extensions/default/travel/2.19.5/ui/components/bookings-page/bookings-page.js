@@ -577,7 +577,7 @@ function renderBookingsPage(root, ctx) {
   function serviceCard(b, s, can, open) {
     const facts = [
       ['Dates', ui.fmtRange(s.start_date, s.end_date)],
-      ['Quantity', s.quantity !== null && s.quantity !== undefined ? `${s.quantity}${s.unit ? ` ${s.unit}` : ''}` : ''],
+      ['Quantity', ui.qtyWithUnit(s.quantity, s.unit)],
       ['Provider', s.provider],
       ['When quoted', s.availability && (s.availability.status || s.availability.provider)
         ? [s.availability.status, s.availability.provider, s.availability.valid_until ? `valid until ${ui.fmtMoment(s.availability.valid_until)}` : ''].filter(Boolean).join(' · ')
@@ -668,7 +668,7 @@ function renderBookingsPage(root, ctx) {
         h('dl', { class: 'tvx-bx-readonly' }, [
           ['Service', s.name],
           ['Dates', ui.fmtRange(s.start_date, s.end_date)],
-          ['Quantity', s.quantity !== null && s.quantity !== undefined ? `${s.quantity}${s.unit ? ` ${s.unit}` : ''}` : ''],
+          ['Quantity', ui.qtyWithUnit(s.quantity, s.unit)],
           ['When quoted', s.availability ? [s.availability.status, s.availability.provider].filter(Boolean).join(' · ') : '']
         ].filter(([, v]) => v).flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: v })])),
         h('div', { class: 'tvx-grid tvx-grid-2' }, [ui.field('Status', status), ui.field('Provider', provider), ...confirmedOnly, notesField])

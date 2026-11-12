@@ -639,11 +639,12 @@ async function ensureProformaForQuotation(req, quotationId, options = {}) {
   }
   const { amount, isAdvance, total } = payable;
   const isBalance = Boolean(payable.isBalance);
+  // The payment request and its payments belong to a client. A quotation still on a lead converts
+  // that lead now (marks it Won and creates or links the client), the same as accepting it. Errors
+  // (e.g. no lead and no client) surface as their own message instead of a failed save.
   const clientId =
     String(quotation.clientId || '').trim() ||
-    (await QuotationService.resolveQuotationClientId(req, quotation, { convertLead: false }).catch(
-      () => ''
-    ));
+    (await QuotationService.resolveQuotationClientId(req, quotation, { convertLead: true }));
 
   const proformaNo = await getNextNumber(req, 'proforma');
   const issueDate = new Date();
@@ -710,6 +711,8 @@ async function ensureProformaForQuotation(req, quotationId, options = {}) {
       $set: {
         proformaInvoiceId: String(proforma._id),
         proformaInvoiceNo: proformaNo,
+        // Keep the client found above on the quotation, so the tax invoice raised later finds it.
+        ...(clientId && !String(quotation.clientId || '').trim() ? { clientId: String(clientId) } : {}),
         updatedBy: userId
       }
     }

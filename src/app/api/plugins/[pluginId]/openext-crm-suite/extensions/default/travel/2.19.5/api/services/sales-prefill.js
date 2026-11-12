@@ -5,12 +5,14 @@
  * (CRM sales-flow contract: manifest salesFlow.opportunityPrefillRoute / quotationPrefillRoute).
  *
  * Opportunity: title "Goa — 2 Adults, 1 Child · 12–18 Jun 2026", close date before travel, the lead's
- *   Deal Value, trip fields (destination, dates, trip type, traveller counts), one line per Complete
- *   service (saved as the opportunity's products) and panels with the lead's travel services and travellers
+ *   Deal Value, trip fields (destination, dates, trip type, traveller counts), the quotation's rows of
+ *   the Complete services (2.19.0; saved as the opportunity's products, whose prices the quotation
+ *   takes over) and panels with the lead's travel services and travellers
  *   (shown in place of the product lines: manifest salesFlow.hideOpportunityLines).
  * Quotation (manifest salesFlow.lockQuotationLines): lines from the Complete services; the agent enters
  *   the rate, availability and provider. Quantity and unit by the service's Pricing (Services & Forms):
- *     per_person      one line per Adult / Child / Infant group ("2 Adults")
+ *     per_person      one line per Adult / Child / Infant group ("2 Adults"), counted from the travellers
+ *                     added on the lead's Travellers tab (2.19.3; none added = 1 person, with a warning)
  *     per_room_night  rooms × nights ("Rooms × Nights"; number_of_rooms / number_of_nights or check-in/out)
  *     per_unit        number_of_vehicles / participants, else 1 ("2 Vehicles", "1 Service")
  *   Tax from the service's Quotation tax %. Also: title and description, the trip summary row, the
@@ -97,6 +99,14 @@ function flexibilityFor(value) {
   return '';
 }
 
+/**
+ * 2.19.4: a line's unit is the word only ("Adults", "Service"): every screen shows "<qty> <unit>", so a
+ * unit with its own number read as "1 1 Service" (≈ "11").
+ */
+function unitWord(n, one, many) {
+  return n === 1 ? one : many;
+}
+
 function plural(n, one, many) {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -144,7 +154,7 @@ async function loadTrip(sdk, leadId) {
     ? { adults: num(values.adults) || 0, children: num(values.children) || 0, infants: num(values.infants) || 0 }
     : null;
   const categories = travellers.map((t) => rules.ageInfo({ dob: str(t.dob).slice(0, 10), yearOfBirth: t.year_of_birth }, referenceDate).ageCategory);
-  const { groups } = rules.travellerGroups(categories, expected);
+  const { groups, counted } = rules.travellerGroups(categories, expected);
 
   const selected = Array.isArray(values.required_services) ? values.required_services.map(String) : [];
   const byKey = new Map(services.filter((s) => s.enabled !== false).map((s) => [s.key, s]));
@@ -164,7 +174,9 @@ async function loadTrip(sdk, leadId) {
       return { service: s, instances, complete: instances.filter((i) => i.complete) };
     });
 
-  return { id, lead, values, start, end, referenceDate, timeZone, today, groups, travellers, chosen, readiness: readiness[id] || null };
+  // `added` (2.19.3): the Traveller records on the lead's Travellers tab by age (no known age = Adult) —
+  // the quantity of per-person quotation lines and the quotation's price-per-person count.
+  return { id, lead, values, start, end, referenceDate, timeZone, today, groups, added: counted, travellers, chosen, readiness: readiness[id] || null };
 }
 
 function groupsText(groups) {
@@ -439,9 +451,17 @@ async function opportunityPrefill(sdk, leadId) {
   const nights = daysBetween(trip.start, trip.end);
   const sameDay = rules.isValidDate(trip.start) && trip.end === trip.start;
 
-  const lines = trip.chosen.flatMap((c) =>
-    c.complete.map((inst) => ({ name: nameOf(c, inst), description: requirementSummary(c.service, inst.requirement), quantity: 1, unitPrice: 0 }))
-  );
+  // 2.19.0: the opportunity's Proposed Travel Services are the quotation's own rows (same name,
+  // description, quantity and unit: per Adult / Child / Infant, Rooms × Nights, Vehicles …), so a price
+  // agreed on the opportunity is carried 1:1 onto the quotation (applyOpportunityPrices).
+  const lines = quotationRows(trip).map((l) => ({
+    name: l.name,
+    description: l.description,
+    quantity: l.quantity,
+    unit: l.unit || '',
+    unitPrice: l.unitPrice || 0,
+    ...(num(l.tax) !== null ? { tax: num(l.tax) } : {})
+  }));
 
   const dealValue = num(trip.lead.value);
   const planned = plannedHeadCount(trip);
@@ -550,13 +570,15 @@ function linesForService(service, requirement, trip, { name = service.name, chec
   };
   if (service.pricing === 'per_person') {
     const lines = [];
+    // 2.19.3: counted from the travellers added on the lead's Travellers tab, never the lead's typed counts.
+    const added = trip.added || {};
     for (const [group, one, many, fare] of GROUP_UNITS) {
-      const n = trip.groups[group];
+      const n = added[group];
       if (!n) continue;
       const rate = price(prices, group.toLowerCase());
-      lines.push({ ...base, unitPrice: rate === null ? 0 : rate, name, description: [summary, fare].filter(Boolean).join(', ').slice(0, 500), quantity: n, unit: plural(n, one, many) });
+      lines.push({ ...base, unitPrice: rate === null ? 0 : rate, name, description: [summary, fare].filter(Boolean).join(', ').slice(0, 500), quantity: n, unit: unitWord(n, one, many) });
     }
-    return lines.length ? lines : [{ ...base, unitPrice: price(prices, 'adult') || 0, name, description: summary, quantity: 1, unit: '1 Person' }];
+    return lines.length ? lines : [{ ...base, unitPrice: price(prices, 'adult') || 0, name, description: summary, quantity: 1, unit: 'Person' }];
   }
   if (service.pricing === 'per_room_night') {
     const rooms = Math.max(1, num(v.number_of_rooms) || 1);
@@ -567,7 +589,7 @@ function linesForService(service, requirement, trip, { name = service.name, chec
   const vehicles = num(v.number_of_vehicles);
   const participants = num(v.participants);
   const n = Math.max(1, vehicles || participants || 1);
-  const unit = vehicles ? plural(n, 'Vehicle', 'Vehicles') : participants ? plural(n, 'Participant', 'Participants') : plural(n, 'Service', 'Services');
+  const unit = vehicles ? unitWord(n, 'Vehicle', 'Vehicles') : participants ? unitWord(n, 'Participant', 'Participants') : unitWord(n, 'Service', 'Services');
   return [{ ...base, name, description: summary, quantity: n, unit }];
 }
 
@@ -575,23 +597,106 @@ function unitForOption(service) {
   return service.pricing === 'per_room_night' ? 'Rooms × Nights' : service.pricing === 'per_person' ? 'Persons' : 'Service';
 }
 
+/** The quotation rows of the lead's Complete services (also the opportunity's Proposed Travel Services). */
+function quotationRows(trip) {
+  return trip.chosen.flatMap((c) =>
+    c.complete.flatMap((inst) => linesForService(c.service, inst.requirement, trip, { name: nameOf(c, inst), check: inst.check }))
+  );
+}
+
 /**
- * Trip values of the quotation's opportunity: its declared values (always current), else its TripPlan
- * copy (saved by /sales-flow/opportunity-saved). Only for an opportunity of this lead; {} otherwise (or when it cannot be read).
+ * The quotation's opportunity: trip values (its declared values, always current, else its TripPlan
+ * copy saved by /sales-flow/opportunity-saved) and its Proposed Travel Services (products). Only for an
+ * opportunity of this lead; empty otherwise (or when it cannot be read).
  */
-async function opportunityTripValues(sdk, opportunityId, leadId) {
+async function opportunityTrip(sdk, opportunityId, leadId) {
+  const none = { values: {}, products: [] };
   const oid = str(opportunityId);
-  if (!ID_RE.test(oid)) return {};
+  if (!ID_RE.test(oid)) return none;
   try {
     const opp = await sdk.crm.opportunities.findById(oid);
-    if (!opp || str(opp.leadId) !== leadId) return {};
+    if (!opp || str(opp.leadId) !== leadId) return none;
+    const products = Array.isArray(opp.products) ? opp.products : [];
     const values = await sdk.values.get('opportunity', oid).catch(() => null);
-    if (values && typeof values === 'object' && Object.keys(values).length) return values;
+    if (values && typeof values === 'object' && Object.keys(values).length) return { values, products };
     const plan = sdk.models.TripPlan ? await sdk.models.TripPlan.findOne({ opportunity_id: oid }) : null;
-    return plan || {};
+    return { values: plan || {}, products };
   } catch {
-    return {};
+    return none;
   }
+}
+
+const round2 = (n) => Math.round(n * 100) / 100;
+
+/**
+ * 2.19.0: prices agreed on the opportunity (Proposed Travel Services) onto the quotation rows. The
+ * opportunity's price wins over the availability check's; a row without one keeps the check's rate.
+ *   1. the same row (name and description; the rate is per unit, so the quantity may have changed), then
+ *      the same name and quantity: rate 1:1, and
+ *      the opportunity's tax when it set one (above 0; an unset tax keeps the service's tax %)
+ *   2. older opportunities (one row per service, 1 × total): a service with a single quotation row gets
+ *      rate = price ÷ quantity; one split over several rows (Adult / Child / Infant) is left to price,
+ *      with a warning
+ * Each opportunity row is used once. Returns the priced rows and those warnings.
+ */
+function applyOpportunityPrices(lines, products) {
+  const all = Array.isArray(products) ? products : [];
+  // Rows per service on each side: "same name and quantity" only when both have as many rows of it
+  // (an older 1-row Flights must not price the 1-Child row of a 2-row quotation Flights).
+  const countBy = (list, nameOf) => list.reduce((m, x) => m.set(nameOf(x), (m.get(nameOf(x)) || 0) + 1), new Map());
+  const oppRows = countBy(all, (p) => str(p && p.productName));
+  const quoteRows = countBy(lines, (l) => l.name);
+  const pool = all
+    .map((p) => ({
+      name: str(p && p.productName),
+      description: str(p && p.description),
+      quantity: num(p && p.quantity) || 1,
+      unitPrice: num(p && p.unitPrice),
+      tax: num(p && p.tax)
+    }))
+    .filter((p) => p.name && p.unitPrice !== null && p.unitPrice > 0);
+  if (!pool.length || !lines.length) return { lines, warnings: [] };
+  const used = new Set();
+  const take = (match) => {
+    const i = pool.findIndex((p, idx) => !used.has(idx) && match(p));
+    if (i < 0) return null;
+    used.add(i);
+    return pool[i];
+  };
+  const out = lines.map((l) => ({ ...l }));
+  const priced = new Set();
+  const passes = [
+    // Same service and same row (the description names the fare / rooms × nights): the rate is per unit,
+    // so it carries over even when more travellers were added after the opportunity was saved.
+    (p, l) => p.name === l.name && p.description === str(l.description),
+    (p, l) => p.name === l.name && p.quantity === l.quantity && oppRows.get(l.name) === quoteRows.get(l.name)
+  ];
+  for (const same of passes) {
+    out.forEach((l, i) => {
+      if (priced.has(i)) return;
+      const p = take((x) => same(x, l));
+      if (!p) return;
+      priced.add(i);
+      l.unitPrice = p.unitPrice;
+      if (p.tax !== null && p.tax > 0 && p.tax <= 100) l.tax = p.tax;
+    });
+  }
+  const warnings = [];
+  const names = [...new Set(out.filter((l, i) => !priced.has(i)).map((l) => l.name))];
+  for (const name of names) {
+    const rows = out.map((l, i) => [l, i]).filter(([l]) => l.name === name);
+    if (rows.some(([, i]) => priced.has(i))) continue;
+    const p = take((x) => x.name === name && x.quantity === 1);
+    if (!p) continue;
+    if (rows.length === 1) {
+      const [l, i] = rows[0];
+      priced.add(i);
+      l.unitPrice = round2(p.unitPrice / Math.max(1, Number(l.quantity) || 1));
+    } else {
+      warnings.push(`${name}: the opportunity has one total price for this service — enter the rate of each line.`.slice(0, 300));
+    }
+  }
+  return { lines: out, warnings };
 }
 
 /**
@@ -645,15 +750,18 @@ function dayPlanPanel(trip, lines, services) {
 
 async function quotationPrefill(sdk, leadId, opportunityId = '') {
   const trip = await loadTrip(sdk, leadId);
-  const lines = trip.chosen.flatMap((c) =>
-    c.complete.flatMap((inst) => linesForService(c.service, inst.requirement, trip, { name: nameOf(c, inst), check: inst.check }))
-  );
   const services = await readServices(sdk);
-  const [oppValues, { validTill, validTillMax }] = await Promise.all([opportunityTripValues(sdk, opportunityId, trip.id), validity(sdk, trip)]);
-  // Travellers for the price per person: adults + children (infants usually travel free) of the
-  // opportunity, else of the lead.
-  const oppCount = num(oppValues.adults) !== null || num(oppValues.children) !== null ? (num(oppValues.adults) || 0) + (num(oppValues.children) || 0) : null;
-  const travellersCount = oppCount !== null ? oppCount : (trip.groups.Adult || 0) + (trip.groups.Child || 0);
+  const [opp, { validTill, validTillMax }] = await Promise.all([opportunityTrip(sdk, opportunityId, trip.id), validity(sdk, trip)]);
+  const oppValues = opp.values;
+  const { lines, warnings: priceWarnings } = applyOpportunityPrices(quotationRows(trip), opp.products);
+  // 2.19.3: travellers for the price per person = the adults + children added on the lead's Travellers
+  // tab (infants usually travel free) — not the opportunity's or the lead's typed counts.
+  const travellersCount = (trip.added.Adult || 0) + (trip.added.Child || 0);
+  // A per-person service with no traveller added yet is quoted for 1 person: say so.
+  const perPersonNames = trip.chosen.filter((c) => c.complete.length && c.service.pricing === 'per_person').map((c) => c.service.name);
+  const noTravellerWarnings = !trip.travellers.length && perPersonNames.length
+    ? [`No travellers added on the Travellers tab yet — ${perPersonNames.join(', ')} ${perPersonNames.length === 1 ? 'is' : 'are'} quoted for 1 person. Add the travellers, then reload the quotation.`.slice(0, 300)]
+    : [];
   const expired = trip.chosen.flatMap((c) => c.complete.filter((i) => i.check && i.check.expired).map((i) => nameOf(c, i)));
 
   const [inclusions, exclusions, policy, showTravellers] = await Promise.all([
@@ -716,8 +824,8 @@ async function quotationPrefill(sdk, leadId, opportunityId = '') {
       servicesCheck(trip)
     ],
     notices: travellerNotices(trip),
-    warnings: [...availabilityWarnings(trip), ...warningsFor(trip)].slice(0, 20)
+    warnings: [...noTravellerWarnings, ...priceWarnings, ...availabilityWarnings(trip), ...warningsFor(trip)].slice(0, 20)
   };
 }
 
-module.exports = { travellerNotices, opportunityPrefill, quotationPrefill, requirementSummary, dateRange, linesForService, lineColumns, flexibilityFor };
+module.exports = { travellerNotices, opportunityPrefill, quotationPrefill, requirementSummary, dateRange, linesForService, lineColumns, flexibilityFor, applyOpportunityPrices };

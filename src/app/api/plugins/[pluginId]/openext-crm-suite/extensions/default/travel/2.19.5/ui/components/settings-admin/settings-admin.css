@@ -20,4 +20,4 @@
 .tvx-li-count.tvx-li-ok strong { color: var(--tvx-ok-text); }
 .tvx-li-count.tvx-li-info strong { color: var(--tvx-info-text); }
 .tvx-li-count.tvx-li-bad strong { color: var(--tvx-danger-text); }
-.tvx-li-problems { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--tvx-text-2); display: flex; flex-direction: column; gap: 2px; }
+.tvx-li-problems { margin: 4px 0 0; padding: 8px 10px 8px 26px; font-size: 13px; color: var(--tvx-text-2); display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--tvx-border-soft); border-radius: 8px; }

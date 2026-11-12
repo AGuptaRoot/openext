@@ -70,6 +70,9 @@ exports.listForLead = async (req, sdk) => {
   const { counted, unknownAge } = rules.travellerGroups(travellers.map((t) => t.ageCategory), ref.expected);
   return {
     travellers,
+    // 2.19.2: Traveller Qty = the Traveller records linked to this lead (what the tab lists), counted
+    // here — never the traveller count typed on the lead. The tab shows it as "Travellers (n)" / "Qty: n".
+    qty: rows.length,
     counts,
     groups: { ...counted, unknownAge },
     expected: ref.expected,

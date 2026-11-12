@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.18.0",
-  "checksum": "b1f8b44e88d3dcac66c39bdfa2599b28f8fca296a20bb620c0dbe2902a08aaed",
-  "writtenAt": "2026-11-07T09:39:13.705Z",
+  "version": "2.19.5",
+  "checksum": "efc04ab7f97a6c9a7530f8e2317bc3292a7d9f0d4fb6b1b1c00df8b478b73cc9",
+  "writtenAt": "2026-11-12T13:22:06.097Z",
   "files": [
     {
       "path": "README.md",
@@ -161,8 +161,8 @@
     },
     {
       "path": "api/routes/travellers.js",
-      "sha256": "73412334a99883370519a20b3b4bba83e727d75032353375a0481d36de635088",
-      "size": 20293
+      "sha256": "d0cfba9fc98dfbb479bb33435410a7b33e9f941c8ad79c395ec657e58b0e0a5b",
+      "size": 20528
     },
     {
       "path": "api/routes/trip-views.js",
@@ -256,8 +256,8 @@
     },
     {
       "path": "api/services/sales-prefill.js",
-      "sha256": "847a3ba8dd784f028a5353223fe19c9aef60b6ccfad664c4ad10a9aba0a3acfb",
-      "size": 37160
+      "sha256": "9826e7ef8b81ae3ed3d1492de670d1b330ad0c4436f26c0a019eaf3a1699f3a4",
+      "size": 42660
     },
     {
       "path": "api/services/sales-sync.js",
@@ -291,12 +291,12 @@
     },
     {
       "path": "api/services/voucher-doc.js",
-      "sha256": "20e530ea8e4c9129efc273df8085662a3f2155e39dcce9e5cd70a2f032486710",
-      "size": 12343
+      "sha256": "7e4123afa453c8b72103ee995993aa4fe866a628ad940095465155654fb3b124",
+      "size": 12759
     },
     {
       "path": "crm-extension.json",
-      "sha256": "158f5290c8bccfc6b8aed5d4914553ae75d8bf02d3ab45f09b72e1c9574bcc35",
+      "sha256": "057515bb3d4576ebae2b9fdb507adfbe7dbe8be3859a2e289c51b5fa8d4bc8ba",
       "size": 10520
     },
     {
@@ -361,8 +361,8 @@
     },
     {
       "path": "ui/components/bookings-page/bookings-page.js",
-      "sha256": "7b2d04972287f927f22d7cc6868c89db9485c866bede2d6cabf02cc076a47c02",
-      "size": 47810
+      "sha256": "2c2f2c6646b5946c363eb62058cf18631d6978e314c305812121fd07b6098e86",
+      "size": 47680
     },
     {
       "path": "ui/components/client-travel-requirement/client-travel-requirement.css",
@@ -431,8 +431,8 @@
     },
     {
       "path": "ui/components/lead-travellers/lead-travellers.js",
-      "sha256": "03d2f29ca91b1eb579645b8e1b6d24964cdca18e09832b02c05fb38b6815d9f2",
-      "size": 88909
+      "sha256": "0cb177e463e72fca6ed2b5f22d347ac6b8263f9a921adaef3a24c8a6ec4f35e7",
+      "size": 89222
     },
     {
       "path": "ui/components/opportunity-trip/opportunity-trip.css",
@@ -481,8 +481,8 @@
     },
     {
       "path": "ui/components/settings-admin/settings-admin.css",
-      "sha256": "1fdc0a19c9627ec70d12968e4a992f0a4fb4d01bef8bb2e91f390ff0d2416417",
-      "size": 1764
+      "sha256": "a8a7078c322b5336aa67e8edc8f59a9c48f3d5e6dbc9b61869b0c5588b8977dc",
+      "size": 1901
     },
     {
       "path": "ui/components/settings-admin/settings-admin.js",
@@ -511,8 +511,8 @@
     },
     {
       "path": "ui/shared/booking-ui.js",
-      "sha256": "c75292bdafbe410d85a9199be0985e0faeea63bc7a277c626965f183aab651f6",
-      "size": 12651
+      "sha256": "47ae7c1f874d9ec74a54a901eb68cad3ccd26538d98af93c939f87d49f422336",
+      "size": 13164
     },
     {
       "path": "ui/shared/csv.js",

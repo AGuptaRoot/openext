@@ -104,6 +104,9 @@ function renderLeadTravellers(root, ctx) {
 
   let travellers = [];
   let counts = { Adult: 0, Child: 0, Infant: 0, total: 0 };
+  // Traveller Qty: the Traveller records linked to the lead, counted by the server (source of truth).
+  // Refreshed by loadList() after every add, link of an existing traveller and delete.
+  let qty = 0;
   // Groups as the quotation counts them (no known age = Adult), for the mismatch warning.
   let groups = null;
   // Travellers being deleted (a second click does nothing).
@@ -200,6 +203,8 @@ function renderLeadTravellers(root, ctx) {
       if (seq !== listSeq) return;
       travellers = Array.isArray(data && data.travellers) ? data.travellers : [];
       counts = data && data.counts ? data.counts : { Adult: 0, Child: 0, Infant: 0, total: 0 };
+      // Older server without qty: the rows it returned are the same records.
+      qty = data && Number.isInteger(data.qty) && data.qty >= 0 ? data.qty : travellers.length;
       groups = data && data.groups ? data.groups : null;
       expected = data && data.expected ? data.expected : null;
       referenceDate = (data && data.referenceDate) || todayIso();
@@ -1127,13 +1132,11 @@ function renderLeadTravellers(root, ctx) {
   // --- Rendering Functions ---
 
   function renderCountsSummary() {
-    const total = counts.total || (counts.Adult || 0) + (counts.Child || 0) + (counts.Infant || 0);
-    const travWord = total === 1 ? 'traveller' : 'travellers';
     const adultWord = counts.Adult === 1 ? 'Adult' : 'Adults';
     const childWord = counts.Child === 1 ? 'Child' : 'Children';
     const infantWord = counts.Infant === 1 ? 'Infant' : 'Infants';
 
-    const countsText = `${total} ${travWord} · ${counts.Adult || 0} ${adultWord} · ${counts.Child || 0} ${childWord} · ${counts.Infant || 0} ${infantWord}`;
+    const countsText = `${counts.Adult || 0} ${adultWord} · ${counts.Child || 0} ${childWord} · ${counts.Infant || 0} ${infantWord}`;
 
     const dateFormatted = formatDisplayDate(referenceDate);
     const refText =
@@ -1142,8 +1145,8 @@ function renderLeadTravellers(root, ctx) {
         : `Age is worked out on today's date (${dateFormatted}).`;
 
     return h('div', { class: 'tvx-tr-titles' }, [
-      h('h3', { class: 'tvx-h3', text: 'Travellers' }),
-      h('p', { class: 'tvx-sub', text: countsText }),
+      h('h3', { class: 'tvx-h3', text: `Travellers (${qty})`, 'data-testid': 'travellers-title' }),
+      h('p', { class: 'tvx-sub' }, [h('strong', { text: `Qty: ${qty}`, 'data-testid': 'travellers-qty' }), ` · ${countsText}`]),
       h('p', { class: 'tvx-muted', text: refText })
     ]);
   }

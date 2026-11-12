@@ -347,3 +347,16 @@ export async function copyText(text) {
 export function errorMessage(err) {
   return errorText(err && err.code === 'BOOKING_EXISTS' ? { message: err.message } : err);
 }
+
+/**
+ * "<qty> <unit>" for a quantity — once: a unit saved with its own number (before 2.19.4, e.g.
+ * "2 Adults" for 2) is shown as "2 Adults", never "2 2 Adults" (which reads like "22").
+ */
+export function qtyWithUnit(qty, unit) {
+  if (qty === null || qty === undefined || qty === '') return '';
+  const q = String(qty).trim();
+  let u = String(unit || '').trim();
+  const lead = u.match(/^(\d+(?:\.\d+)?)\s+(.+)$/);
+  if (lead && Number(lead[1]) === Number(q)) u = lead[2];
+  return u ? `${q} ${u}` : q;
+}
