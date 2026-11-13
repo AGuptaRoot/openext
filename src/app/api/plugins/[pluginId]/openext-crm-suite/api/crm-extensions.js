@@ -40,6 +40,26 @@ const ALL_CORE_MODULES = [
 /** Core modules an extension may hide. Dashboard and Settings always stay. */
 const HIDEABLE_MODULES = ALL_CORE_MODULES.filter((id) => id !== 'dashboard' && id !== 'settings');
 
+/**
+ * Core Settings tabs an extension may hide (manifest `hiddenSettingsTabs`, CRM 3.43.0). General and
+ * Extensions always stay (Extensions is where the workspace switches extension). Hiding a tab only
+ * removes it from Settings; its data and APIs are unchanged.
+ */
+const HIDEABLE_SETTINGS_TABS = [
+  'modules',
+  'shipping',
+  'finance',
+  'email',
+  'integrations',
+  'leads',
+  'qualification-match',
+  'opportunities',
+  'clients',
+  'projects',
+  'project-statuses',
+  'users'
+];
+
 /** Lucide icon names the Extensions card grid knows how to render. */
 const ALLOWED_ICONS = [
   'package',
@@ -261,6 +281,7 @@ function toFeaturePayload(def) {
     requestTypeName: ext.requestTypeName,
     pipelineKey: ext.pipelineKey,
     hiddenModules: [...(ext.hiddenModules || [])],
+    hiddenSettingsTabs: [...(ext.hiddenSettingsTabs || [])],
     conversions: { ...(ext.conversions || {}) },
     declarations: {
       fields: decl.fields || {},
@@ -343,6 +364,7 @@ module.exports = {
   DEFAULT_EXTENSION_ID,
   ALL_CORE_MODULES,
   HIDEABLE_MODULES,
+  HIDEABLE_SETTINGS_TABS,
   ALLOWED_ICONS,
   ALLOWED_ACCENTS,
   STAGE_TYPES,

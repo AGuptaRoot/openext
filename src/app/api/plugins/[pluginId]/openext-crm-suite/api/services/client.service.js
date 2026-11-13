@@ -11,6 +11,7 @@ const {
   normalizeMobile
 } = require('../validation/common.util');
 const AuditService = require('./audit.service');
+const ClientContactPolicy = require('../utils/client-contact-policy.util');
 const { normalizeCompanyName, buildCompanyTokens } = require('../utils/lead-duplicate.util');
 const { scoreClient } = require('../utils/data-quality.util');
 const {
@@ -670,6 +671,10 @@ async function addContact(req, companyId, input) {
   if (input.email && !isValidEmail(input.email)) throw appError('Email is invalid');
   if (input.phone && !isValidMobile(normalizeMobile(input.phone))) throw appError('Mobile number is invalid');
 
+  // One Client = one Contact (utils/client-contact-policy.util.js); the first one is the primary.
+  const existingCount = await ClientContactPolicy.assertCanAddContact(req, companyId);
+  if (existingCount === 0) input = { ...input, isPrimary: true };
+
   if (input.isPrimary) {
     await Contact.updateMany(
       { ...contactFilter(req, companyId), isPrimary: true },
@@ -758,7 +763,8 @@ async function updateContact(req, companyId, contactId, input) {
     );
     updates.isPrimary = true;
   } else if (input.isPrimary === false) {
-    updates.isPrimary = false;
+    // The client's only Contact is its primary one (one Client = one Contact).
+    if ((await ClientContactPolicy.countContacts(req, companyId)) > 1) updates.isPrimary = false;
   }
 
   const contact = await Contact.findOneAndUpdate(
@@ -804,6 +810,8 @@ async function removeContact(req, companyId, contactId) {
     _id: contactId
   }).lean();
   if (!existing) throw appError('Contact not found', 404);
+  // The client's only Contact stays (edit it instead); extra rows of older data may be removed.
+  await ClientContactPolicy.assertCanRemoveContact(req, companyId);
 
   await Contact.findOneAndUpdate(
     { ...contactFilter(req, companyId), _id: contactId },
@@ -1021,12 +1029,14 @@ async function convertFromLead(req, leadId, options = {}) {
   let contact;
 
   try {
+    // The lead's directory Contact becomes the client's Contact (reused, never duplicated).
     contact = await addContact(req, clientId, {
       name: lead.name,
       email: lead.email || '',
       phone: lead.phone || '',
-      designation: '',
-      isPrimary: true
+      designation: lead.jobTitle || '',
+      isPrimary: true,
+      personContactId: /^[a-f0-9]{24}$/i.test(String(lead.contactId || '').trim()) ? String(lead.contactId).trim() : null
     });
 
     const updatedLead = await Lead.findOneAndUpdate(

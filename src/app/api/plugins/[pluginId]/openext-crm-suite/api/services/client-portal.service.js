@@ -217,8 +217,16 @@ async function inviteContact(req, clientId, input = {}) {
   const tenantId = resolveTenantId(req);
   const userId = resolveUserId(req);
 
-  const contactId = String(input.contactId || '').trim();
+  let contactId = String(input.contactId || '').trim();
   const email = String(input.email || '').trim().toLowerCase();
+  // One Client = one Contact: a portal user for the client's linked Contact is tied to that Contact
+  // (its directory id), so its IsportalAssigned flag is found from every lead / client of it.
+  if (!contactId && email) {
+    const linked = await require('../utils/client-contact-policy.util').linkedContact(req, clientId);
+    if (linked && String(linked.email || '').trim().toLowerCase() === email) {
+      contactId = String(linked.personContactId || '').trim();
+    }
+  }
   const contactName = String(input.name || input.contactName || '').trim();
   const username = String(input.username || '').trim() || email.split('@')[0];
   const initialPassword = String(input.password || input.initialPassword || '').trim() || crypto.randomBytes(6).toString('base64url');
@@ -1128,6 +1136,8 @@ async function resubmitPortalAccess(req, clientIdOrLeadId, accessId, input = {})
   if (existing.status !== 'Rejected') {
     throw appError('Only rejected portal requests can be resubmitted', 409);
   }
+  // The Contact got its portal user meanwhile (another lead, client or request): no second request.
+  await PortalContact.assertNotAssigned(req, await portalContactRef(req, existing));
 
   const username = String(input.username || existing.username || '').trim();
   const password = String(input.password || input.initialPassword || '').trim() || crypto.randomBytes(6).toString('base64url');

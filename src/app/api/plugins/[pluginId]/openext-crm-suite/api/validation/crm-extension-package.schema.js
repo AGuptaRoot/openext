@@ -24,6 +24,7 @@ const { validateFields } = require('./request-type.schema');
 const {
   ALL_CORE_MODULES,
   HIDEABLE_MODULES,
+  HIDEABLE_SETTINGS_TABS,
   ALLOWED_ICONS,
   ALLOWED_ACCENTS,
   STAGE_TYPES,
@@ -756,6 +757,20 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
     }
   }
 
+  // Settings tabs the extension has no use for (CRM 3.43.0), e.g. ["users"].
+  const hiddenSettingsTabs = [];
+  if (source.hiddenSettingsTabs !== undefined && !Array.isArray(source.hiddenSettingsTabs)) {
+    errors.push('hiddenSettingsTabs must be a list of Settings tab ids');
+  }
+  for (const raw of Array.isArray(source.hiddenSettingsTabs) ? source.hiddenSettingsTabs : []) {
+    const tabId = str(raw).toLowerCase();
+    if (!HIDEABLE_SETTINGS_TABS.includes(tabId)) {
+      errors.push(`hiddenSettingsTabs cannot hide "${tabId}"; valid ids: ${HIDEABLE_SETTINGS_TABS.join(', ')}`);
+    } else if (!hiddenSettingsTabs.includes(tabId)) {
+      hiddenSettingsTabs.push(tabId);
+    }
+  }
+
   const conversionsRaw = isObject(source.conversions) ? source.conversions : {};
   const conversions = {
     salesOrder: conversionsRaw.salesOrder === true,
@@ -1094,6 +1109,7 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
     pipelineStages,
     adoptDefaultPipeline: false,
     hiddenModules,
+    hiddenSettingsTabs,
     conversions,
     highlights,
     manifestVersion,

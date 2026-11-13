@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.20.0",
-  "checksum": "d750308bbe6c213cea5dd015c351b87ef96d5bfc1e8228947b69646254d01e6b",
-  "writtenAt": "2026-11-13T05:57:22.870Z",
+  "version": "2.21.0",
+  "checksum": "88aa75bc4cc9508a7a920c12a4ff69ffbdb35129857d8ba1254fee5506bb0fa3",
+  "writtenAt": "2026-11-13T08:05:55.532Z",
   "files": [
     {
       "path": "README.md",
@@ -156,8 +156,8 @@
     },
     {
       "path": "api/routes/traveller-tools.js",
-      "sha256": "63965c6cf808c3f0ba311ff66dce8db29d42210d24c6983f0db50a2456a2997c",
-      "size": 19933
+      "sha256": "d8246cce83d877914c1254c7a08c720d206f97c4b9bfbcf764261b31f1a00112",
+      "size": 16675
     },
     {
       "path": "api/routes/travellers.js",
@@ -181,8 +181,8 @@
     },
     {
       "path": "api/routes.json",
-      "sha256": "f3abce5a9bc362d845bf485d390fa66b8ec1bc049fdba3556d9ab591ec72a599",
-      "size": 25010
+      "sha256": "111e0ead1d41ce8047a997c9bc3e040c167a2bd355cd121b286b8308db8959dc",
+      "size": 25382
     },
     {
       "path": "api/services/availability.js",
@@ -296,8 +296,8 @@
     },
     {
       "path": "crm-extension.json",
-      "sha256": "12c17291fbb1f78459294752c634719ba82971d4135c98ecb88a9eab0bed4bf6",
-      "size": 10930
+      "sha256": "1fb53a092a44cad96a4f781f4df2eccfcb74445a1322f6ebf14580f1c8f89b11",
+      "size": 10976
     },
     {
       "path": "json/actions.json",
@@ -491,13 +491,13 @@
     },
     {
       "path": "ui/components/travellers-page/travellers-page.css",
-      "sha256": "3c28604cf902716dac3d6ff74939330fe3b4b7af00dc5c0d8e9aea01088b5d9b",
-      "size": 4002
+      "sha256": "1cbe79d795f60e0d88ba4d18ad452edb47f41ce70aa19f2e51a086298141ff4d",
+      "size": 3784
     },
     {
       "path": "ui/components/travellers-page/travellers-page.js",
-      "sha256": "47224be117b7ef368143a5922a7b387e9f2cc87b77b9d99e6ba3bdf6295d2eb5",
-      "size": 34214
+      "sha256": "ab656cb820b7d0d42040e76e163641490405605be99998ab250ffc91e2d584ed",
+      "size": 27535
     },
     {
       "path": "ui/mount.js",
