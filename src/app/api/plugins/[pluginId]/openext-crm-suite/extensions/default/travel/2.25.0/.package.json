@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.23.0",
-  "checksum": "4fe12fff4723cae66c71dbd5f76f50e9a8bae156942c2cc79f77c998372c0dc1",
-  "writtenAt": "2026-11-13T10:50:56.343Z",
+  "version": "2.25.0",
+  "checksum": "54ca8c404676f0c7b8eb2015940b3de7f91dd25f9c61f8ad0bbffbd42be9e183",
+  "writtenAt": "2026-11-13T11:44:25.696Z",
   "files": [
     {
       "path": "README.md",
@@ -96,8 +96,8 @@
     },
     {
       "path": "api/routes/client-requirement.js",
-      "sha256": "96cf2f47e05b212c678cf5bb2d6236e839397049eebf77db12f38b00bd5c36f7",
-      "size": 21426
+      "sha256": "530bf08202ef982ba1eac3ac91e7f82a3627c00a870a224960a54e06c27295d1",
+      "size": 21954
     },
     {
       "path": "api/routes/client-travellers.js",
@@ -306,8 +306,8 @@
     },
     {
       "path": "crm-extension.json",
-      "sha256": "28e71c2808d9195912203dc90932867b85ad5b6428e90b8d1fef2c0227126bb3",
-      "size": 10599
+      "sha256": "3d62672c5211ab87c9999a38ee5bb6242f89cd98bd8803449370f1313e3141e5",
+      "size": 11071
     },
     {
       "path": "json/actions.json",

@@ -13,7 +13,8 @@
  *   sdk.values.get(recordType, id)  this extension's declared field values on a core record
  *   sdk.values.set(recordType, id, patch)  save them (CRM 3.34.0; the CRM's checks and permissions apply)
  *   sdk.crm.leads.createForClient(clientId, { title })  a new enquiry for a client (CRM 3.34.0, crm.leads.write)
- *   sdk.crm.opportunities.createForLead(leadId, { title })  the lead's open opportunity or a new one (3.34.0)
+ *   sdk.crm.opportunities.createForLead(leadId, { title, clientId })  the lead's open opportunity or a new one (3.34.0;
+ *                                                     clientId 3.44.0: the client the deal is for)
  *   sdk.access.leadIds()   leads this user may see (null = all) — for the extension's own lead-keyed records
  *   sdk.access.portal()    the client-portal login (kind, clientId, leadIds), or null for staff
  *   sdk.finance.quotationPayment(id)  paid / balance / Unpaid|Partially Paid|Paid from verified payments

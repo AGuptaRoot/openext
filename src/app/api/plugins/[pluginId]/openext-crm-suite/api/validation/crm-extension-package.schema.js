@@ -968,7 +968,19 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
             if (!has('POST', startRoute) || !oneParam(startRoute)) errors.push(`salesFlow.clientQuotation.startRoute "${startRoute}" must be a POST route with one ":param" (the client id)`);
             const notEligibleText = str(cq.notEligibleText);
             if (notEligibleText.length > 200) errors.push('salesFlow.clientQuotation.notEligibleText is too long (200 characters at most)');
-            salesFlow.clientQuotation = { eligibleRoute, pickerRoute, startRoute, ...(notEligibleText ? { notEligibleText } : {}) };
+            // 3.44.0: the short tag on a client that cannot get a quotation yet (client list of the quotation form).
+            const notEligibleLabel = str(cq.notEligibleLabel);
+            if (notEligibleLabel.length > 60) errors.push('salesFlow.clientQuotation.notEligibleLabel is too long (60 characters at most)');
+            // 3.45.0: client quotations are saved without an opportunity (client + its enquiry).
+            if (cq.withoutOpportunity !== undefined && typeof cq.withoutOpportunity !== 'boolean') errors.push('salesFlow.clientQuotation.withoutOpportunity must be true or false');
+            salesFlow.clientQuotation = {
+              eligibleRoute,
+              pickerRoute,
+              startRoute,
+              ...(cq.withoutOpportunity === true ? { withoutOpportunity: true } : {}),
+              ...(notEligibleText ? { notEligibleText } : {}),
+              ...(notEligibleLabel ? { notEligibleLabel } : {})
+            };
           }
         }
         // Service invoice PDF: { layout: 'service', title?, summaryTitle?, linesTitle?, footer? }. The

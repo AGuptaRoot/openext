@@ -419,20 +419,39 @@ async function create(req, input) {
     }
   }
 
+  // 3.45.0: a client quotation for the client's enquiry (both named, no opportunity). The lead must be an
+  // enquiry opened for that client; the extension may then skip the opportunity (clientQuotation.withoutOpportunity).
+  let clientEnquiry = false;
+  if (input.clientId && input.leadId && !opportunityId) {
+    const Lead = req.cms?.models?.get?.('Lead');
+    const q = Lead ? Lead.findOne({ tenantId, _id: leadId, isDeleted: { $ne: true } }) : null;
+    const lead = q && typeof q.lean === 'function' ? await q.lean() : await q;
+    const forClient = lead ? String(lead.forClientId || lead.convertedClientId || '') : '';
+    if (!lead || forClient !== clientId) {
+      throw appError('This enquiry does not belong to the selected client.', 400, { code: 'LEAD_CLIENT_MISMATCH' });
+    }
+    clientEnquiry = true;
+  }
+  const SalesFlowRules = require('./sales-flow.service');
+  const enquiryWithoutOpportunity = clientEnquiry && (await SalesFlowRules.clientQuotationWithoutOpportunity(req));
+
   // Settings → Lead workflow: every new quotation belongs to an opportunity (revisions are not created here).
-  if (!opportunityId && (await require('./lead-workflow.service').quotationNeedsOpportunity(req))) {
+  if (!opportunityId && !enquiryWithoutOpportunity && (await require('./lead-workflow.service').quotationNeedsOpportunity(req))) {
     throw appError('Create an opportunity first: new quotations must belong to an opportunity.', 400, { code: 'OPPORTUNITY_REQUIRED' });
   }
 
   if (!clientId && !leadId) throw appError('clientId or leadId is required');
 
   if (clientId) await validateClient(req, clientId);
+  // CRM 3.44.0: a quotation for a client (not through a lead) asks the extension's client rule
+  // (salesFlow.clientQuotation, e.g. Travel: the client's Travel Requirement must be complete).
+  if (input.clientId && (!input.leadId || clientEnquiry)) await SalesFlowRules.assertClientQuotationEligible(req, clientId);
   if (leadId) {
     const LeadService = require('./lead.service');
     await LeadService.getById(req, leadId, { includeQuality: false });
     // Lead workflow rule: a quotation straight from a lead needs a Qualified or ready lead
     // (a quotation from an opportunity already passed it when the opportunity was created).
-    if (!opportunityId) await require('./lead-workflow.service').assertOpportunityAllowed(req, leadId, 'quotation');
+    if (!opportunityId && !clientEnquiry) await require('./lead-workflow.service').assertOpportunityAllowed(req, leadId, 'quotation');
     await assertLeadNotConverted(req, leadId);
   }
 
@@ -1165,10 +1184,37 @@ async function reject(req, id) {
   return doc;
 }
 
+/** Marks an open enquiry opened for this client as Won and converted to it (never another client's lead). */
+async function closeClientEnquiry(req, leadId, clientId) {
+  const Lead = req.cms?.models?.get?.('Lead');
+  if (!Lead) return;
+  const tenantId = resolveTenantId(req);
+  const q = Lead.findOne({ tenantId, _id: leadId, isDeleted: { $ne: true } });
+  const lead = q && typeof q.lean === 'function' ? await q.lean() : await q;
+  if (!lead || lead.convertedClientId || String(lead.forClientId || '') !== String(clientId)) return;
+  const stages = await SettingService.getPipelineStages(req);
+  const wonStage = SettingService.resolveWonStage(stages);
+  await Lead.updateOne(
+    { tenantId, _id: leadId, convertedClientId: null },
+    { $set: { stage: wonStage, stageUpdatedAt: new Date(), convertedClientId: String(clientId), convertedAt: new Date(), updatedBy: resolveUserId(req) } }
+  );
+  await AuditService.log(req, {
+    action: 'stage_changed',
+    module: 'lead',
+    recordId: String(leadId),
+    description: `Client enquiry closed: ${lead.stage} -> ${wonStage} (quotation accepted)`,
+    metadata: { from: lead.stage, to: wonStage, clientId: String(clientId) }
+  }).catch(() => null);
+}
+
 async function resolveQuotationClientId(req, quotation, options = {}) {
   const convertLead = options.convertLead !== false;
   let clientId = quotation?.clientId ? String(quotation.clientId).trim() : '';
   const leadId = quotation?.leadId ? String(quotation.leadId).trim() : '';
+
+  // 3.45.0: accepting a client's quotation closes the client's enquiry it was made for (Won, linked to
+  // that client; no new client is created).
+  if (clientId && leadId && convertLead) await closeClientEnquiry(req, leadId, clientId);
 
   if (!clientId && leadId) {
     const LeadService = require('./lead.service');

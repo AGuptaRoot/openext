@@ -190,6 +190,9 @@ const LeadSchema = new Schema(
       default: () => ({ kind: '' })
     },
     convertedClientId: { type: String, default: null },
+    // CRM 3.45.0: an enquiry opened for an existing client (extension client quotation); its quotations
+    // are that client's and accepting one closes the enquiry as the client's.
+    forClientId: { type: String, default: null, index: true },
     convertedAt: { type: Date, default: null },
     isPortal: { type: Boolean, default: false, index: true },
     portalEnabledAt: { type: Date, default: null },

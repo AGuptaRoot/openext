@@ -576,7 +576,13 @@ async function config(req) {
     bookingAfterAdvance: Boolean(flow.bookingAfterAdvance),
     lockWonLead: Boolean(flow.lockWonLead),
     // 3.34.0: a quotation for a client goes through the extension (eligible clients, a picker, a start step).
-    clientQuotation: isPlainObject(flow.clientQuotation) ? { notEligibleText: text(flow.clientQuotation.notEligibleText, 200) } : null,
+    clientQuotation: isPlainObject(flow.clientQuotation)
+      ? {
+          notEligibleText: text(flow.clientQuotation.notEligibleText, 200),
+          notEligibleLabel: text(flow.clientQuotation.notEligibleLabel, 60),
+          withoutOpportunity: flow.clientQuotation.withoutOpportunity === true
+        }
+      : null,
     // 3.32.0: the quotation pages ask POST /sales-flow/quotation-dates for Issue Date / Valid Till limits.
     quotationDates: Boolean(flow.quotationDatesRoute),
     quotationLineFields: flow.quotationPrefillRoute && Array.isArray(flow.quotationLineFields) ? flow.quotationLineFields : [],
@@ -1169,6 +1175,37 @@ async function clientQuotationPicker(req, clientId) {
   };
 }
 
+/**
+ * CRM 3.44.0: a new quotation addressed to a client (client recipient, no lead) when the active extension
+ * runs client quotations (salesFlow.clientQuotation): the client must be one the extension allows now
+ * (e.g. a completed Travel Requirement) → 409 CLIENT_QUOTATION_NOT_READY. Without such an extension nothing
+ * changes; an extension that cannot answer does not block the save.
+ */
+/** 3.45.0: the active extension's client quotations need no opportunity (salesFlow.clientQuotation.withoutOpportunity). */
+async function clientQuotationWithoutOpportunity(req) {
+  const flow = await contract(req).catch(() => null);
+  return Boolean(flow && isPlainObject(flow.clientQuotation) && flow.clientQuotation.withoutOpportunity === true);
+}
+
+async function assertClientQuotationEligible(req, clientId) {
+  const id = text(clientId, 24);
+  const flow = await contract(req).catch(() => null);
+  const cq = flow && isPlainObject(flow.clientQuotation) ? flow.clientQuotation : null;
+  if (!cq || !cq.eligibleRoute || !ID_RE.test(id)) return;
+  let ids;
+  try {
+    ids = (await clientQuotationEligible(req)).clientIds;
+  } catch {
+    return;
+  }
+  if (ids.includes(id)) return;
+  const error = new Error(text(cq.notEligibleText, 300) || 'This client cannot get a quotation yet.');
+  error.status = 409;
+  error.statusCode = 409;
+  error.code = 'CLIENT_QUOTATION_NOT_READY';
+  throw error;
+}
+
 /** POST: the extension prepares the quotation's lead / opportunity → { leadId, opportunityId }. */
 async function clientQuotationStart(req, clientId, body = {}) {
   const id = text(clientId, 24);
@@ -1183,7 +1220,10 @@ async function clientQuotationStart(req, clientId, body = {}) {
     error.status = 409;
     throw error;
   }
+  // 3.45.0: the enquiry the extension prepared for this client is recorded as the client's
+  // (older enquiries too), so a quotation may name both the client and its enquiry.
+  if (ID_RE.test(leadId)) await require('./extension-records.service').markEnquiryForClient(req, leadId, id).catch(() => false);
   return { leadId: ID_RE.test(leadId) ? leadId : '', opportunityId: ID_RE.test(opportunityId) ? opportunityId : '' };
 }
 
-module.exports = { clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };
+module.exports = { clientQuotationWithoutOpportunity, assertClientQuotationEligible, clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };

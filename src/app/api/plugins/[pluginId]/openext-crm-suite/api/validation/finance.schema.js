@@ -125,7 +125,7 @@ function validateQuotationCreate(body) {
   const opportunityId = trimString(source.opportunityId || source.dealId) || '';
 
   if (!clientId && !leadId) errors.push('clientId or leadId is required');
-  if (clientId && leadId) errors.push('Provide either clientId or leadId, not both');
+  // 3.45.0: both = a client quotation for the client's enquiry (the server checks the lead is that client's).
 
   const lineItems = validateLineItems(errors, source.lineItems, { required: true });
   const issueDate = assertOptionalDate(errors, source.issueDate, 'Issue date');
