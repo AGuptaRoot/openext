@@ -1,7 +1,8 @@
 'use client';
 import { apiUrl } from '@/lib/apiClient';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { pluginRegistry } from '@/lib/pluginRegistry';
 import * as Library from '@/components/plugins/PluginComponents';
 import { ContactUI } from '@/components/ui/ContactUI';
@@ -64,11 +65,17 @@ function isBuiltinSystemPlugin(plugin: PluginRecord): boolean {
 export const PluginProvider = ({ children }: { children: ReactNode }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [activePlugins, setActivePlugins] = useState<PluginRecord[]>([]);
+  const pathname = usePathname();
+  // True once the list was loaded for a signed-in user. The provider sits in the root layout, so it
+  // first loads on the login page, where get-plugins answers 401; login then moves to the dashboard
+  // without remounting it, and the list would stay empty until a full page refresh.
+  const loadedOk = useRef(false);
 
   const loadPlugins = async () => {
     try {
       const response = await fetch(apiUrl('/api/dashboard/plugins/get-plugins'));
       const data = await response.json();
+      loadedOk.current = response.ok;
 
       if (response.ok) {
         const plugins = data.plugins || [];
@@ -179,9 +186,23 @@ export const PluginProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const mounted = useRef(false);
+
   useEffect(() => {
-    loadPlugins();
-  }, []);
+    // Back on the login page: the next user's list is loaded after they sign in.
+    if (pathname === '/login') {
+      loadedOk.current = false;
+      mounted.current = true;
+      return;
+    }
+    // First load on any page; after that, retry only on reaching the dashboard without a list
+    // (public pages of signed-out visitors would get 401 on every navigation).
+    if (!mounted.current || (!loadedOk.current && pathname?.startsWith('/dashboard'))) {
+      mounted.current = true;
+      loadPlugins();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   return (
     <PluginContext.Provider value={{ isLoaded, activePlugins, refreshPlugins: loadPlugins }}>
