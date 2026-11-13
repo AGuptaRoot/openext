@@ -21,6 +21,9 @@ const {
   isExtensionEnabled
 } = require('./extension-host');
 
+/** adminNav ids that only exist so the CMS opens their URLs; never shown in the CMS sidebar. */
+const ADMIN_NAV_HIDDEN = Object.freeze(['extension']);
+
 /**
  * Plugin server entry point.
  *
@@ -63,6 +66,19 @@ module.exports = {
         /* ignore if already registered */
       }
     }
+    /**
+     * CMS dynamic admin navigation (GET /api/plugins/openext-crm-suite/admin-nav, see the CMS
+     * lib/plugins/dynamicNav.ts). manifest.adminNav declares the page id "extension" only so the CMS
+     * opens workspace-extension URLs (/runtime/openext-crm-suite/extension/<id>/<page>) on a direct
+     * load or a refresh; it is not a menu item, so it is hidden here. Same answer for every user, no
+     * data in it. (The CMS runs every app.use middleware before any route, so the usual login and
+     * tenant checks still apply; a user they refuse cannot open the CRM anyway.)
+     */
+    app.get('/admin-nav', (_req, res) => {
+      res.set('Cache-Control', 'no-store');
+      res.json({ success: true, data: { add: [], hide: [...ADMIN_NAV_HIDDEN] } });
+    });
+
     app.use(requireTenantContext);
 
     // Activity standalone and periodic location logging routes

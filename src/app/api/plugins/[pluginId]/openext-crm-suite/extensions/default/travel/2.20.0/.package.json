@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.19.5",
-  "checksum": "efc04ab7f97a6c9a7530f8e2317bc3292a7d9f0d4fb6b1b1c00df8b478b73cc9",
-  "writtenAt": "2026-11-12T13:22:06.097Z",
+  "version": "2.20.0",
+  "checksum": "d750308bbe6c213cea5dd015c351b87ef96d5bfc1e8228947b69646254d01e6b",
+  "writtenAt": "2026-11-13T05:57:22.870Z",
   "files": [
     {
       "path": "README.md",
@@ -296,8 +296,8 @@
     },
     {
       "path": "crm-extension.json",
-      "sha256": "057515bb3d4576ebae2b9fdb507adfbe7dbe8be3859a2e289c51b5fa8d4bc8ba",
-      "size": 10520
+      "sha256": "12c17291fbb1f78459294752c634719ba82971d4135c98ecb88a9eab0bed4bf6",
+      "size": 10930
     },
     {
       "path": "json/actions.json",

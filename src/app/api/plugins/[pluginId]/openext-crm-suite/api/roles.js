@@ -29,7 +29,10 @@ module.exports = {
     { id: 'reports', label: 'Reports', features: ['view', 'export'] },
     { id: 'audit', label: 'Audit History', features: ['view'] },
     { id: 'settings', label: 'Settings', features: ['manage'] },
-    { id: 'security', label: 'Tenant Security', features: ['manage'] }
+    { id: 'security', label: 'Tenant Security', features: ['manage'] },
+    // CMS URL segment of workspace-extension pages (/runtime/openext-crm-suite/extension/<id>/<page>).
+    // Not in the sidebar (GET /admin-nav hides it); the extension's own permissions decide each page.
+    { id: 'extension', label: 'Extension Pages', features: ['view'] }
   ],
   roles: [
     {
@@ -170,7 +173,10 @@ module.exports = {
         { id: 'samples', features: ['list', 'create', 'approve', 'feedback'] },
         { id: 'opportunities', features: ['list', 'create', 'edit', 'delete', 'convert'] },
         { id: 'reports', features: ['view', 'export'] },
-        { id: 'tickets', features: ['list', 'create', 'status', 'resolve'] }
+        { id: 'tickets', features: ['list', 'create', 'status', 'resolve'] },
+        // Workspace-extension pages (e.g. Travel → Travellers): the CMS opens them under this page id;
+        // which extension pages a user sees is decided by the extension's own permissions.
+        { id: 'extension', features: ['view'] }
       ]
     },
     {
@@ -223,7 +229,10 @@ module.exports = {
         { id: 'sales-orders', features: ['list', 'create'] },
         { id: 'invoices', features: ['list'] },
         { id: 'payments', features: ['list'] },
-        { id: 'tickets', features: ['list', 'create'] }
+        { id: 'tickets', features: ['list', 'create'] },
+        // Workspace-extension pages (e.g. Travel → Travellers): the CMS opens them under this page id;
+        // which extension pages a user sees is decided by the extension's own permissions.
+        { id: 'extension', features: ['view'] }
       ]
     },
     {
@@ -256,7 +265,10 @@ module.exports = {
         { id: 'time-logs', features: ['list', 'create', 'delete'] },
         { id: 'expenses', features: ['list', 'create', 'submit'] },
         { id: 'reports', features: ['view'] },
-        { id: 'tickets', features: ['list', 'create', 'status', 'resolve'] }
+        { id: 'tickets', features: ['list', 'create', 'status', 'resolve'] },
+        // Workspace-extension pages (e.g. Travel → Travellers): the CMS opens them under this page id;
+        // which extension pages a user sees is decided by the extension's own permissions.
+        { id: 'extension', features: ['view'] }
       ]
     },
     {
@@ -281,7 +293,10 @@ module.exports = {
         { id: 'tasks', features: ['list', 'comments', 'status'] },
         { id: 'time-logs', features: ['list', 'create'] },
         { id: 'expenses', features: ['list', 'create', 'submit'] },
-        { id: 'tickets', features: ['list', 'create', 'status'] }
+        { id: 'tickets', features: ['list', 'create', 'status'] },
+        // Workspace-extension pages (e.g. Travel → Travellers): the CMS opens them under this page id;
+        // which extension pages a user sees is decided by the extension's own permissions.
+        { id: 'extension', features: ['view'] }
       ]
     },
     {
@@ -320,7 +335,10 @@ module.exports = {
         { id: 'payments', features: ['list', 'create', 'edit', 'delete'] },
         { id: 'expenses', features: ['list', 'create', 'submit', 'approve', 'reject'] },
         { id: 'reports', features: ['view', 'export'] },
-        { id: 'audit', features: ['view'] }
+        { id: 'audit', features: ['view'] },
+        // Workspace-extension pages (e.g. Travel → Travellers): the CMS opens them under this page id;
+        // which extension pages a user sees is decided by the extension's own permissions.
+        { id: 'extension', features: ['view'] }
       ]
     },
     {
@@ -338,7 +356,10 @@ module.exports = {
       pages: [
         'dashboard',
         { id: 'tickets', features: ['list', 'create', 'status', 'resolve', 'delete'] },
-        { id: 'customer-success', features: ['view-summary', 'view-health', 'submit-csat'] }
+        { id: 'customer-success', features: ['view-summary', 'view-health', 'submit-csat'] },
+        // Workspace-extension pages (e.g. Travel → Travellers): the CMS opens them under this page id;
+        // which extension pages a user sees is decided by the extension's own permissions.
+        { id: 'extension', features: ['view'] }
       ]
     },
     {

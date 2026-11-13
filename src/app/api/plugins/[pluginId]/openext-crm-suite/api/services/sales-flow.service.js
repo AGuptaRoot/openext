@@ -567,6 +567,7 @@ async function config(req) {
     invoiceFromQuotation: Boolean(flow.invoiceFromQuotation),
     hideRecurringInvoices: Boolean(flow.hideRecurringInvoices),
     hideInvoiceTemplates: Boolean(flow.hideInvoiceTemplates),
+    hideQuotationTemplates: Boolean(flow.hideQuotationTemplates),
     hideInvoiceWriteOff: Boolean(flow.hideInvoiceWriteOff),
     lockOpportunityOnAccept: Boolean(flow.lockOpportunityOnAccept),
     lockConvertedLead: Boolean(flow.lockConvertedLead),

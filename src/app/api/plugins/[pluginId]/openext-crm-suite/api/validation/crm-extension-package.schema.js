@@ -929,7 +929,9 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
         // bookingAfterAdvance: shows Settings → General "Allow Booking Creation After Advance Payment".
         // lockWonLead (3.34.0): a Won or converted lead is read-only for users (UI and server).
         // hideInvoiceWriteOff (3.39.0): no Write off on invoices (button hidden, server refuses).
-        for (const key of ['hideShipping', 'lockOpportunityContact', 'invoiceFromQuotation', 'hideRecurringInvoices', 'hideInvoiceTemplates', 'hideInvoiceWriteOff', 'lockOpportunityOnAccept', 'lockConvertedLead', 'completeOpportunitiesOnConversion', 'clientQuotationStartsWithLead', 'bookingAfterAdvance', 'lockWonLead']) {
+        // hideQuotationTemplates (3.41.0): no quotation templates (no Templates button on the quotation list,
+        //   no Load / Save as Template on the quotation form, the template pages redirect). Stored templates are kept.
+        for (const key of ['hideShipping', 'lockOpportunityContact', 'invoiceFromQuotation', 'hideRecurringInvoices', 'hideInvoiceTemplates', 'hideQuotationTemplates', 'hideInvoiceWriteOff', 'lockOpportunityOnAccept', 'lockConvertedLead', 'completeOpportunitiesOnConversion', 'clientQuotationStartsWithLead', 'bookingAfterAdvance', 'lockWonLead']) {
           if (source.salesFlow[key] === undefined) continue;
           if (typeof source.salesFlow[key] !== 'boolean') errors.push(`salesFlow.${key} must be true or false`);
           else if (source.salesFlow[key]) salesFlow[key] = true;
