@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.21.0",
-  "checksum": "88aa75bc4cc9508a7a920c12a4ff69ffbdb35129857d8ba1254fee5506bb0fa3",
-  "writtenAt": "2026-11-13T08:05:55.532Z",
+  "version": "2.23.0",
+  "checksum": "4fe12fff4723cae66c71dbd5f76f50e9a8bae156942c2cc79f77c998372c0dc1",
+  "writtenAt": "2026-11-13T10:50:56.343Z",
   "files": [
     {
       "path": "README.md",
@@ -28,6 +28,11 @@
       "path": "api/models/ClientEnquiry.json",
       "sha256": "0754f3c995fdaab2b6409778577ed2b9617ab03ecf1b12f553c96cda398a050b",
       "size": 486
+    },
+    {
+      "path": "api/models/ClientTravelRequirement.json",
+      "sha256": "0fb75f76840428be4b8a208d52ccac416cdc963a07358df0eafb268e1b33e91c",
+      "size": 863
     },
     {
       "path": "api/models/FieldSuggestion.json",
@@ -91,8 +96,8 @@
     },
     {
       "path": "api/routes/client-requirement.js",
-      "sha256": "4e79f7064dda3741f20eb0d9cb75d2e70fd8003ec1ec8b04614d45ceabec218e",
-      "size": 14541
+      "sha256": "96cf2f47e05b212c678cf5bb2d6236e839397049eebf77db12f38b00bd5c36f7",
+      "size": 21426
     },
     {
       "path": "api/routes/client-travellers.js",
@@ -106,8 +111,8 @@
     },
     {
       "path": "api/routes/dates.js",
-      "sha256": "38b119cbe71980a8f60f2dd97a85f16489768b30fbac1460be2765f46a1d53b7",
-      "size": 5524
+      "sha256": "d3ef59090cdac13555061677419b6b7bc648a9c1addf2c381ab4af2e7795df53",
+      "size": 5782
     },
     {
       "path": "api/routes/field-suggestions.js",
@@ -181,8 +186,8 @@
     },
     {
       "path": "api/routes.json",
-      "sha256": "111e0ead1d41ce8047a997c9bc3e040c167a2bd355cd121b286b8308db8959dc",
-      "size": 25382
+      "sha256": "066669b6375578a2705d614282e0652b297f89cf1a0901ba83f134afd11ec5a3",
+      "size": 25737
     },
     {
       "path": "api/services/availability.js",
@@ -265,6 +270,11 @@
       "size": 8459
     },
     {
+      "path": "api/services/travel-info-options.js",
+      "sha256": "9f585e9c7d6166b2a73bf9cc091d6db581954224da7f0baa0085f88f18806c01",
+      "size": 1877
+    },
+    {
       "path": "api/services/travel-locations.js",
       "sha256": "766cc0b6f3931b0e27aeb8015c8fe015915e04e10862b06c125f490e5459c558",
       "size": 13838
@@ -286,8 +296,8 @@
     },
     {
       "path": "api/services/trip-dates.js",
-      "sha256": "28d5221311940ddec2e07aa5eab34911a4b024d3a4701712f76197a2ea74bdbf",
-      "size": 5161
+      "sha256": "d1ae10917c3e5554bb10e4c0dc0df3cd9d0997548f4281d42393c23aaf126eca",
+      "size": 7835
     },
     {
       "path": "api/services/voucher-doc.js",
@@ -296,8 +306,8 @@
     },
     {
       "path": "crm-extension.json",
-      "sha256": "1fb53a092a44cad96a4f781f4df2eccfcb74445a1322f6ebf14580f1c8f89b11",
-      "size": 10976
+      "sha256": "28e71c2808d9195912203dc90932867b85ad5b6428e90b8d1fef2c0227126bb3",
+      "size": 10599
     },
     {
       "path": "json/actions.json",
@@ -371,8 +381,8 @@
     },
     {
       "path": "ui/components/client-travel-requirement/client-travel-requirement.js",
-      "sha256": "895718c5293c7b3798fd829ac96e87765b2faa2c84f565449996538e29727b73",
-      "size": 12548
+      "sha256": "559e5c5d07e6cb6f769a65438a8944407ff95f9f8ac2ca7857fcddc8246e877c",
+      "size": 13881
     },
     {
       "path": "ui/components/client-travellers/client-travellers.css",
@@ -421,8 +431,8 @@
     },
     {
       "path": "ui/components/lead-requirements/lead-requirements.js",
-      "sha256": "10335c188cbc6ad911280b17d4e03f30c3630dc0a54cf21532a8b39ec938ea24",
-      "size": 21443
+      "sha256": "e025570206fd7a4b34110895906dcff3043aed8bd66d3c51035b929bdf643552",
+      "size": 21408
     },
     {
       "path": "ui/components/lead-travellers/lead-travellers.css",
@@ -531,8 +541,8 @@
     },
     {
       "path": "ui/shared/fields.js",
-      "sha256": "4bff1cdf43bee01a9623044f28c79c494dd7d5317ac2e928c9107eb0b6781e32",
-      "size": 26265
+      "sha256": "8e8219f9afa2659d9bbc2e081f65e48eb7e60772bfab5abe5c96bcb6bfaf5f9d",
+      "size": 27144
     },
     {
       "path": "ui/shared/image-shrink.js",
@@ -548,6 +558,11 @@
       "path": "ui/shared/traveller-age.js",
       "sha256": "da1e0c9079a78a6f449c74acc1b321996efeae5c734659acbd32e04a69c76df8",
       "size": 8154
+    },
+    {
+      "path": "ui/shared/trip-range.js",
+      "sha256": "5c820f7d6446a2b5e8fa0b5c9d6ac788db5827181e533276ca39d8ce197bde31",
+      "size": 2776
     },
     {
       "path": "ui/style.css",

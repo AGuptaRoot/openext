@@ -1,7 +1,7 @@
 {
   "id": "openext-crm-suite",
   "name": "Root CRM",
-  "version": "3.43.0",
+  "version": "3.43.1",
   "description": "Modernized tenant-secure CRM with React-powered modular dashboard, analytics, sales pipeline, and multi-persona access control. Workspace extensions add their own fields, tabs, pages, settings, backend routes and data tables without changes to the CRM core.",
   "author": "OpenNext",
   "type": "crm",

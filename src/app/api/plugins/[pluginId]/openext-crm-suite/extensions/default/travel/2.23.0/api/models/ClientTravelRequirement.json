@@ -1,0 +1,17 @@
+{
+  "name": "ClientTravelRequirement",
+  "label": "Client travel requirement",
+  "pluralLabel": "Client travel requirements",
+  "titleField": "client_id",
+  "permissions": { "read": "crm.settings.manage", "write": "crm.settings.manage" },
+  "fields": {
+    "client_id": { "type": "text", "label": "Client", "required": true, "index": true },
+    "values": { "type": "json", "label": "Travel Information" },
+    "requirements": { "type": "json", "label": "Requirement forms" },
+    "status": { "type": "select", "label": "Status", "options": ["Draft", "Complete"], "default": "Draft" },
+    "lead_id": { "type": "text", "label": "Trip (enquiry lead)", "index": true },
+    "trip_started_at": { "type": "text", "label": "Trip started" },
+    "created_by": { "type": "text", "label": "Created by" },
+    "updated_by": { "type": "text", "label": "Updated by" }
+  }
+}

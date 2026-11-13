@@ -1,8 +1,8 @@
 {
   "activeExtensionId": "travel",
   "name": "Travel Agency",
-  "version": "2.21.0",
+  "version": "2.23.0",
   "source": "uploaded",
-  "checksum": "88aa75bc4cc9508a7a920c12a4ff69ffbdb35129857d8ba1254fee5506bb0fa3",
-  "updatedAt": "2026-11-13T08:06:06.715Z"
+  "checksum": "4fe12fff4723cae66c71dbd5f76f50e9a8bae156942c2cc79f77c998372c0dc1",
+  "updatedAt": "2026-11-13T10:51:08.468Z"
 }

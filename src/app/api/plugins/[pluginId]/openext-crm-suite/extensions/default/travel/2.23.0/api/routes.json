@@ -421,7 +421,15 @@
       "path": "/clients/:client_id/travel-requirement",
       "permission": "crm.leads.write",
       "handler": "routes/client-requirement.js#saveForClient",
-      "summary": "Client → Travel Requirement: save Travel Information and every selected requirement form (starts the enquiry)",
+      "summary": "Client → Travel Requirement: save Travel Information and every selected requirement form (no lead is created)",
+      "timeoutMs": 30000
+    },
+    {
+      "method": "POST",
+      "path": "/clients/:client_id/travel-requirement/trip",
+      "permission": "crm.leads.write",
+      "handler": "routes/client-requirement.js#startTrip",
+      "summary": "Client → Travel Requirement: open the trip (enquiry lead) from the saved requirement, to add travellers",
       "timeoutMs": 30000
     },
     {
