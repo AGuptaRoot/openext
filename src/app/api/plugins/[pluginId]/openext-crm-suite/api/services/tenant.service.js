@@ -495,6 +495,13 @@ async function listAssignableMembers(req, search = '') {
         entry.displayName = entry.designation ? `${label} (${entry.designation})` : label;
       }
     }
+    // CRM 3.50.5: a membership whose OpenNext user cannot be found (e.g. the account was deleted) has no
+    // name to show — it was listed as its raw id. It cannot be assigned work, so it is left out (leads
+    // already assigned to it are not changed).
+    for (const uid of unresolved) {
+      const entry = byId.get(uid);
+      if (entry && /^[a-f0-9]{24}$/i.test(String(entry.username || ''))) byId.delete(uid);
+    }
   }
 
   const term = String(search || '').trim().toLowerCase().slice(0, 100);
