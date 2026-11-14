@@ -37,6 +37,12 @@ module.exports = function registerClientsRoutes(app) {
     requireAnyPermission('crm.leads.write', 'crm.clients.read'),
     clientController.companyMatch
   );
+  // CRM 3.48.0: the same lookup with the contact (Client create / Contact create), body only.
+  app.post(
+    '/clients/company-match',
+    requireAnyPermission('crm.leads.write', 'crm.clients.read', 'crm.clients.write', 'crm.contacts.write'),
+    clientController.companyMatch
+  );
 
   // Import / Export
   app.post(

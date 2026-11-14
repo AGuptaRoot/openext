@@ -1079,7 +1079,12 @@ async function listPendingPortalApprovals(req, res) {
 async function companyMatch(req, res) {
   try {
     const CompanyMatch = require('../services/client-company-match.service');
-    const data = await CompanyMatch.findClientsByCompany(req, req.query?.company);
+    // CRM 3.48.0: POST carries the contact (personContactId / email / mobile) in the body, never in the URL.
+    const body = req.method === 'POST' && req.body && typeof req.body === 'object' ? req.body : null;
+    const input = body
+      ? { company: body.company, personContactId: body.personContactId, email: body.email, phone: body.phone }
+      : { company: req.query?.company };
+    const data = await CompanyMatch.findClientsByCompany(req, input);
     res.json({ success: true, data });
   } catch (error) {
     sendError(res, error);

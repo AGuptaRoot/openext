@@ -243,11 +243,13 @@ async function pluginEnabled(userDb) {
  * The S3 Media plugin as a write target, or null when it is not installed, disabled or not configured:
  * through its storage provider when it has one (it keeps its keys), else from its saved settings.
  */
-async function mediaPluginConfig(req) {
+async function mediaPluginConfig(req, options = {}) {
   const { rows, userDb, model } = await s3ConfigRows(req);
   if (!rows.length) return null;
   if (userDb && !(await pluginEnabled(userDb))) return null;
-  const provider = loadStorageProvider();
+  // options.settingsOnly (3.49.2): the plugin's saved settings, not its provider — for reading a file the
+  // plugin's HTTP API stored inside its media folder, which the provider does not serve.
+  const provider = options.settingsOnly ? null : loadStorageProvider();
   if (provider && model) {
     // The plugin's own models context: its settings model, nothing else of the CRM.
     const cms = { models: { get: (name) => (name === 'S3Config' ? model : null), register: () => model } };
@@ -397,8 +399,30 @@ async function putObject(cfg, key, bytes, contentType = 'application/octet-strea
   return { key, provider: cfg.provider };
 }
 
+/**
+ * Reads bytes. CRM 3.49.2: like putObject, a refused or unreachable HTTP API falls back to the plugin's
+ * server-side storage provider — e.g. a client-portal login (no s3.read) downloading the voucher of its own
+ * booking. The caller has already checked that this user may have the file (record ownership); the
+ * S3 Media permission only guards the plugin's own media API, which clients are never given.
+ */
 async function getObject(cfg, key) {
-  if (cfg && cfg.api) return (await MediaApi.download(cfg.api.req, key)).buffer;
+  if (cfg && cfg.api) {
+    try {
+      return (await MediaApi.download(cfg.api.req, key)).buffer;
+    } catch (error) {
+      const direct = FALL_BACK.has(error && error.code) ? await directTarget(cfg.api.req) : null;
+      if (!direct) throw error;
+      try {
+        return await getObject(direct, key);
+      } catch (inner) {
+        // The provider serves only the CRM's private folder; a key the HTTP API made sits in the media folder.
+        if (!(inner && inner.code === 'INVALID_STORAGE_KEY')) throw inner;
+        const settings = await mediaPluginConfig(cfg.api.req, { settingsOnly: true }).catch(() => null);
+        if (!settings) throw error;
+        return getObject(settings, key);
+      }
+    }
+  }
   if (cfg && cfg.storage) return (await cfg.storage.provider.get(cfg.storage.cms, key)).buffer;
   const { sdk, s3 } = client(cfg);
   const res = await s3.send(new sdk.GetObjectCommand({ Bucket: cfg.bucket, Key: key }));

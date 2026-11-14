@@ -212,25 +212,53 @@ async function sendPortalInvitationEmail(req, { clientName, email, username, pas
   }
 }
 
+/**
+ * CRM 3.49.0: the client's Contact row a portal invitation is for — by its id / directory id, else by email.
+ * A client without any Contact rows (older data) may still use the client record's own email.
+ */
+async function clientContactFor(req, clientId, { contactId = '', email = '' } = {}) {
+  const Contact = getContactModel(req);
+  const q = Contact.find({ tenantId: resolveTenantId(req), companyId: String(clientId), isDeleted: false });
+  const rows = (await (q && typeof q.lean === 'function' ? q.lean() : q)) || [];
+  const id = String(contactId || '').trim();
+  const mail = String(email || '').trim().toLowerCase();
+  if (id) {
+    const byId = rows.find((r) => String(r._id) === id || String(r.personContactId || '') === id);
+    // A contact of this client invited under another email is refused; an unknown id falls back to the email.
+    if (byId) return !mail || String(byId.email || '').trim().toLowerCase() === mail ? byId : null;
+  }
+  if (!mail) return null;
+  const byEmail = rows.find((r) => String(r.email || '').trim().toLowerCase() === mail);
+  if (byEmail) return byEmail;
+  if (!rows.length) {
+    const client = await ClientService.getById(req, clientId).catch(() => null);
+    if (client && String(client.email || '').trim().toLowerCase() === mail) return { email: mail, personContactId: '' };
+  }
+  return null;
+}
+
 async function inviteContact(req, clientId, input = {}) {
   const client = await ClientService.getById(req, clientId);
   const tenantId = resolveTenantId(req);
   const userId = resolveUserId(req);
 
   let contactId = String(input.contactId || '').trim();
-  const email = String(input.email || '').trim().toLowerCase();
-  // One Client = one Contact: a portal user for the client's linked Contact is tied to that Contact
-  // (its directory id), so its IsportalAssigned flag is found from every lead / client of it.
-  if (!contactId && email) {
-    const linked = await require('../utils/client-contact-policy.util').linkedContact(req, clientId);
-    if (linked && String(linked.email || '').trim().toLowerCase() === email) {
-      contactId = String(linked.personContactId || '').trim();
-    }
+  let email = String(input.email || '').trim().toLowerCase();
+  // CRM 3.49.0: a client's portal user is one of ITS contacts — the Primary or a Secondary one — and sees the
+  // client's quotations, invoices and bookings. Any other email is refused. The portal user is tied to that
+  // Contact (its directory id), so its IsportalAssigned flag is found from every lead / client of it.
+  const contact = await clientContactFor(req, clientId, { contactId, email });
+  if (!contact) {
+    const error = appError('Choose one of this client’s contacts (Primary or Secondary). Add the person as a contact of the client first.', 422);
+    error.code = 'PORTAL_NOT_CLIENT_CONTACT';
+    throw error;
   }
-  const contactName = String(input.name || input.contactName || '').trim();
+  if (!email) email = String(contact.email || '').trim().toLowerCase();
+  contactId = String(contact.personContactId || '').trim();
+  const contactName = String(input.name || input.contactName || contact.name || '').trim();
   const username = String(input.username || '').trim() || email.split('@')[0];
   const initialPassword = String(input.password || input.initialPassword || '').trim() || crypto.randomBytes(6).toString('base64url');
-  const phone = String(input.phone || '').trim();
+  const phone = String(input.phone || contact.phone || '').trim();
   const portalRole = PORTAL_ROLES.includes(input.portalRole) ? input.portalRole : 'Standard';
 
   if (!email) throw appError('Email is required for client portal invitation', 422);
@@ -1246,6 +1274,7 @@ async function listPendingApprovals(req) {
 }
 
 module.exports = {
+  clientContactFor,
   leadContactPortalAssigned,
   listPortalAccess,
   inviteContact,

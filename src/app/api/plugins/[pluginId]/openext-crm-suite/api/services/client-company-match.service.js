@@ -21,6 +21,8 @@ const ClientContactPolicy = require('../utils/client-contact-policy.util');
 const AuditService = require('./audit.service');
 
 const MAX_MATCHES = 5;
+/** Which create form confirmed it (audit wording only). */
+const SOURCE_LABEL = { lead: 'Lead create', client: 'Client create', contact: 'Contact create' };
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
 function appError(message, status = 400, code) {
@@ -43,6 +45,10 @@ function lean(q) {
   return q && typeof q.lean === 'function' ? q.lean() : q;
 }
 
+function digits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -60,16 +66,83 @@ async function allowed(check) {
   }
 }
 
+function phoneVariants(phone) {
+  const d = digits(phone);
+  if (d.length < 7) return [];
+  if (d.length < 10) return [d];
+  const last10 = d.slice(-10);
+  return [...new Set([last10, `+91${last10}`, `91${last10}`, `0${last10}`, d, `+${d}`])];
+}
+
 /**
- * Existing Clients whose company name matches `company` (same normalised name: case, spacing, punctuation,
- * "&" / "and" and legal suffixes such as Pvt Ltd are ignored). At most 5, oldest first.
- * @returns {Promise<Array<{ id: string, name: string, canOpen: boolean, canAddContact: boolean, primaryContactName: string }>>}
+ * CRM 3.48.0: Clients the contact already belongs to: the directory contact's client rows (personContactId)
+ * and its clientIds, or client contact rows with the same email / mobile. Tenant-scoped; ids only.
  */
-async function findClientsByCompany(req, company) {
-  const raw = String(company || '').trim().slice(0, 120);
+async function clientIdsOfContact(req, { personContactId, email, phone } = {}) {
+  const Contact = model(req, 'Contact');
+  const tenantId = resolveTenantId(req);
+  const ids = new Set();
+  const personId = String(personContactId || '').trim();
+  if (OBJECT_ID.test(personId)) {
+    const PersonContact = model(req, 'PersonContact');
+    const person = PersonContact ? await lean(PersonContact.findOne({ tenantId, _id: personId, isDeleted: false })) : null;
+    for (const id of Array.isArray(person && person.clientIds) ? person.clientIds : []) ids.add(String(id));
+  }
+  if (Contact) {
+    const or = [];
+    if (OBJECT_ID.test(personId)) or.push({ personContactId: personId });
+    const mail = String(email || '').trim().toLowerCase();
+    if (mail && isValidEmail(mail)) or.push({ email: mail });
+    for (const v of phoneVariants(phone)) or.push({ phone: v });
+    if (or.length) {
+      const q = Contact.find({ tenantId, isDeleted: false, $or: or });
+      const limited = q && typeof q.limit === 'function' ? q.limit(50) : q;
+      for (const row of (await lean(limited)) || []) if (row.companyId) ids.add(String(row.companyId));
+    }
+  }
+  return [...ids].filter((id) => OBJECT_ID.test(id));
+}
+
+async function describeMatch(req, row, reason, canWriteClients) {
+  const canOpen = await allowed(() => assertClientReadAccess(req, row, leadModelGetter));
+  const canAddContact = canOpen && canWriteClients && (await allowed(() => assertClientWriteAccess(req, row, leadModelGetter)));
+  let primaryContactName = '';
+  if (canOpen) {
+    const linked = await ClientContactPolicy.linkedContact(req, row._id);
+    primaryContactName = linked ? String(linked.name || '') : '';
+  }
+  return { id: String(row._id), name: String(row.name || ''), reason, canOpen, canAddContact, primaryContactName };
+}
+
+/**
+ * The one "Existing Client Found" lookup for Lead create, Client create and Contact create.
+ * Clients the given contact already belongs to (reason 'contact') first, then Clients whose company name
+ * matches `company` (reason 'company': same normalised name — case, spacing, punctuation, "&" / "and" and
+ * legal suffixes such as Pvt Ltd are ignored). At most 5. Reports only; never links anything.
+ * @param {string|object} input - the company name, or { company, personContactId, email, phone }
+ * @returns {Promise<Array<{ id, name, reason, canOpen, canAddContact, primaryContactName }>>}
+ */
+async function findClientsByCompany(req, input) {
+  const params = input && typeof input === 'object' ? input : { company: input };
+  const raw = String(params.company || '').trim().slice(0, 120);
   const key = normalizeCompanyName(raw);
   const Company = model(req, 'Company');
-  if (!Company || key.length < 2) return [];
+  if (!Company) return [];
+  const canWriteClients = hasPermission(req, 'crm.clients.write');
+  const out = [];
+  const seen = new Set();
+
+  const contactClientIds = await clientIdsOfContact(req, params);
+  if (contactClientIds.length) {
+    const q = Company.find({ ...companyFilter(req), _id: { $in: contactClientIds.slice(0, 20) } });
+    const sortedRows = q && typeof q.sort === 'function' ? q.sort({ createdAt: 1 }) : q;
+    for (const row of (await lean(sortedRows)) || []) {
+      if (out.length >= MAX_MATCHES) break;
+      seen.add(String(row._id));
+      out.push(await describeMatch(req, row, 'contact', canWriteClients));
+    }
+  }
+  if (key.length < 2 || out.length >= MAX_MATCHES) return out;
 
   const firstWord = key.split(' ')[0];
   const query = Company.find({
@@ -85,25 +158,12 @@ async function findClientsByCompany(req, company) {
   const limited = sorted && typeof sorted.limit === 'function' ? sorted.limit(50) : sorted;
   const rows = (await lean(limited)) || [];
 
-  const canWriteClients = hasPermission(req, 'crm.clients.write');
-  const out = [];
   for (const row of rows) {
     if (out.length >= MAX_MATCHES) break;
-    if (normalizeCompanyName(row.name) !== key) continue;
-    const canOpen = await allowed(() => assertClientReadAccess(req, row, leadModelGetter));
-    const canAddContact = canOpen && canWriteClients && (await allowed(() => assertClientWriteAccess(req, row, leadModelGetter)));
-    let primaryContactName = '';
-    if (canOpen) {
-      const linked = await ClientContactPolicy.linkedContact(req, row._id);
-      primaryContactName = linked ? String(linked.name || '') : '';
-    }
-    out.push({ id: String(row._id), name: String(row.name || ''), canOpen, canAddContact, primaryContactName });
+    if (seen.has(String(row._id)) || normalizeCompanyName(row.name) !== key) continue;
+    out.push(await describeMatch(req, row, 'company', canWriteClients));
   }
   return out;
-}
-
-function digits(value) {
-  return String(value || '').replace(/\D/g, '');
 }
 
 /** The client's row for this person: linked by personContactId, else the same email / mobile (older rows). */
@@ -127,7 +187,8 @@ async function existingRow(req, clientId, person) {
 /**
  * "Add as Secondary Contact": adds the lead form's new contact (or `personContactId`) to an existing Client.
  * @param {object} input - { personContactId? } or the contact fields { salutation, name, email, phone, gender,
- *   pan, jobTitle, companyName, photoUrl }, plus allowDuplicate (the user already chose to keep a duplicate).
+ *   pan, jobTitle, companyName, photoUrl }, plus allowDuplicate (the user already chose to keep a duplicate) or
+ *   reuseExisting (3.48.0: one existing contact with the same email / mobile / PAN is reused).
  * @returns {Promise<{ client: { id: string, name: string }, contact: object, personContactId: string, alreadyLinked: boolean }>}
  */
 async function addSecondaryContact(req, clientId, input = {}) {
@@ -163,19 +224,27 @@ async function addSecondaryContact(req, clientId, input = {}) {
     }
     // Checked before the directory contact is made, so a refused add leaves nothing behind.
     await ClientContactPolicy.assertCanAddContact(req, id);
-    person = await PersonContactService.create(req, {
-      salutation: source.salutation,
-      name,
-      email,
-      phone,
-      gender: source.gender,
-      pan: source.pan,
-      jobTitle: source.jobTitle,
-      photoUrl: source.photoUrl,
-      companyName: String(source.companyName || '').trim() || client.name,
-      allowDuplicate: source.allowDuplicate === true
-    });
-    personCreated = true;
+    try {
+      person = await PersonContactService.create(req, {
+        salutation: source.salutation,
+        name,
+        email,
+        phone,
+        gender: source.gender,
+        pan: source.pan,
+        jobTitle: source.jobTitle,
+        photoUrl: source.photoUrl,
+        companyName: String(source.companyName || '').trim() || client.name,
+        allowDuplicate: source.allowDuplicate === true
+      });
+      personCreated = true;
+    } catch (error) {
+      // CRM 3.48.0 (reuseExisting): the contact already exists once (same email / mobile / PAN) → reuse it
+      // instead of a duplicate. Several matches stay a 409 so the user picks the right one.
+      const dupes = error && error.code === 'CONTACT_DUPLICATE' && Array.isArray(error.duplicates) ? error.duplicates : [];
+      if (source.reuseExisting !== true || dupes.length !== 1) throw error;
+      person = dupes[0];
+    }
   }
 
   const clientRef = { id, name: String(client.name || '') };
@@ -200,12 +269,12 @@ async function addSecondaryContact(req, clientId, input = {}) {
     action: 'updated',
     module: 'client',
     recordId: id,
-    description: `${contact.isPrimary ? 'Primary' : 'Secondary'} contact added from Lead create: ${contact.name}`,
+    description: `${contact.isPrimary ? 'Primary' : 'Secondary'} contact added from ${SOURCE_LABEL[source.source] || 'Lead create'}: ${contact.name}`,
     metadata: {
       contactId: String(contact._id),
       personContactId: String(person._id),
       personContactCreated: personCreated,
-      source: 'lead_create_company_match'
+      source: SOURCE_LABEL[source.source] ? `${source.source}_create_company_match` : 'lead_create_company_match'
     }
   });
 

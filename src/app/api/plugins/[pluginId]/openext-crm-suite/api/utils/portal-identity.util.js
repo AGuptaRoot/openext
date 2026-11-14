@@ -86,20 +86,22 @@ async function findLeadIdsForEmail(req, email) {
 }
 
 /**
- * Leads that belong to a client login: converted into (or linked to) that client, or carrying the
- * login's own email (the client's new enquiry, not converted until a quotation is accepted).
+ * Leads that belong to a client login: converted into (or linked to) that client, opened for it as its
+ * enquiry (forClientId, CRM 3.45.0 — not converted until a quotation is accepted), or carrying the login's
+ * own email. CRM 3.49.1: the enquiry link makes a client's trips visible to EVERY portal contact of the
+ * client (Primary and Secondary), not only to the contact whose email the enquiry carries.
  * Re-checked after the query so a data layer can never widen it.
  */
 async function findClientLeadIds(req, clientId, email) {
   const clauses = [];
-  if (clientId) clauses.push({ convertedClientId: String(clientId) });
+  if (clientId) clauses.push({ convertedClientId: String(clientId) }, { forClientId: String(clientId) });
   if (email && email.includes('@')) clauses.push({ email: emailRegex(email) });
   if (!clauses.length) return [];
   try {
     const Lead = req.cms?.models.get('Lead');
     if (!Lead || typeof Lead.find !== 'function') return [];
     const query = Lead.find({ tenantId: resolveTenantId(req), isDeleted: false, $or: clauses }).select(
-      '_id email convertedClientId isDeleted'
+      '_id email convertedClientId forClientId isDeleted'
     );
     const leads = typeof query?.lean === 'function' ? await query.lean() : await query;
     return (leads || [])
@@ -107,6 +109,7 @@ async function findClientLeadIds(req, clientId, email) {
       .filter(
         (lead) =>
           (clientId && String(lead?.convertedClientId || '') === String(clientId)) ||
+          (clientId && String(lead?.forClientId || '') === String(clientId)) ||
           (email && String(lead?.email || '').trim().toLowerCase() === email)
       )
       .map((lead) => String(lead._id));
