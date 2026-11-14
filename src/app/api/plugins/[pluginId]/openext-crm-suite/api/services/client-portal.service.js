@@ -69,63 +69,136 @@ function isPortalApprover(req) {
   );
 }
 
-async function createOrUpdateCmsClientUser(req, { username, email, password, phone, clientId, leadId }) {
+const CRM_PLUGIN_ID = 'openext-crm-suite';
+/** The CRM plugin role a portal user gets: roles.js id "client" ("Client / Customer Portal"). */
+const PORTAL_ROLE_ID = 'client';
+const STAFF_SAFE_ROLE_TEXT = new Set(['client', 'customer', 'portal']);
+
+function portalError(message, status, code) {
+  const error = appError(message, status);
+  error.code = code;
+  return error;
+}
+
+/**
+ * CRM 3.52.0: the numeric CMS role of "Client / Customer Portal (openext-crm-suite)". The CMS gives every
+ * plugin role its number (100 and up) when the plugin is uploaded and keeps them in the user database's
+ * settings (pluginUserTypes[<pluginId>]). → the number, or null when the CMS has not registered it.
+ */
+async function portalRoleValue(db) {
+  const settings = await db.collection('settings').findOne({});
+  const types = settings && settings.pluginUserTypes && settings.pluginUserTypes[CRM_PLUGIN_ID];
+  const entry = Array.isArray(types) ? types.find((t) => t && t.id === PORTAL_ROLE_ID) : null;
+  const value = entry ? Number(entry.value) : NaN;
+  return Number.isFinite(value) && value >= 100 ? value : null;
+}
+
+/** A user the portal role may be given to: a portal user already (any version), never a staff account. */
+function isPortalUserDoc(user, roleValue) {
+  if (!user) return true;
+  const role = user.role;
+  if (role === undefined || role === null || role === '') return true;
+  if (Number(role) === roleValue) return true;
+  if (typeof role === 'string' && STAFF_SAFE_ROLE_TEXT.has(role.trim().toLowerCase())) return true;
+  // Older CRM versions saved portal users with these flags (role text "client").
+  return user.isClientUser === true && user.userType === 'client' && !(typeof role === 'number' && role <= 2);
+}
+
+/**
+ * CRM 3.52.0 — "Give Portal Access" (Client, Lead and Opportunity detail, and the manager's approval):
+ *   create the OpenNext user (or reuse the one with this email — never a duplicate) → assign the CRM role
+ *   "Client / Customer Portal (openext-crm-suite)" → read the user back and verify the role.
+ * Throws — and the caller marks nothing (IsportalAssigned stays false) — when the user cannot be created or
+ * the role cannot be assigned. An existing staff account (another role) is never changed: 409.
+ * → the OpenNext user id.
+ */
+async function ensurePortalCmsUser(req, { username, email, password, phone, clientId, leadId }) {
+  const mail = String(email || '').trim().toLowerCase();
+  if (!mail) throw portalError('An email is required to give portal access.', 422, 'PORTAL_EMAIL_REQUIRED');
+  let col;
+  let db;
   try {
     const conn = await req.cms?.database?.user?.();
-    if (!conn) return null;
+    db = conn && (conn.db || conn);
+    col = db && typeof db.collection === 'function' ? db.collection('users') : null;
+  } catch {
+    col = null;
+  }
+  if (!col) throw portalError('The OpenNext user account could not be created (user database not available).', 503, 'PORTAL_USER_FAILED');
 
-    const col = conn.db?.collection('users') || (typeof conn.collection === 'function' ? conn.collection('users') : null);
-    if (!col) return null;
+  const roleValue = await portalRoleValue(db).catch(() => null);
+  if (roleValue === null) {
+    throw portalError(
+      'The CRM role "Client / Customer Portal" is not registered in OpenNext. Re-upload or re-enable the CRM plugin so its roles are registered, then try again.',
+      503,
+      'PORTAL_ROLE_MISSING'
+    );
+  }
 
-    const hashedPassword = hashPassword(password);
-    const filter = { email: email.toLowerCase() };
-    const existing = await col.findOne(filter);
+  const existing = await col.findOne({ email: mail });
+  if (existing && !isPortalUserDoc(existing, roleValue)) {
+    throw portalError(
+      'This email belongs to an OpenNext user with another role (not a client). Use a different email for portal access, or change that user in OpenNext → Users.',
+      409,
+      'PORTAL_USER_IS_STAFF'
+    );
+  }
 
+  const link = {
+    ...(clientId ? { clientId: String(clientId) } : {}),
+    ...(leadId ? { leadId: String(leadId) } : {})
+  };
+  let userId;
+  try {
     if (existing) {
       await col.updateOne(
         { _id: existing._id },
         {
           $set: {
             username: username || existing.username,
-            password: hashedPassword,
+            password: hashPassword(password),
             phoneNumber: phone || existing.phoneNumber,
-            role: 'client',
+            role: roleValue,
             userType: 'client',
             isClient: true,
             isClientUser: true,
             active: true,
             onboardingCompleted: true,
-            ...(clientId ? { clientId: String(clientId) } : {}),
-            ...(leadId ? { leadId: String(leadId) } : {})
+            updatedAt: new Date(),
+            ...link
           }
         }
       );
-      return existing._id ? String(existing._id) : null;
+      userId = existing._id;
+    } else {
+      const inserted = await col.insertOne({
+        username: username || mail.split('@')[0],
+        email: mail,
+        password: hashPassword(password),
+        phoneNumber: phone || '',
+        role: roleValue,
+        userType: 'client',
+        isClient: true,
+        isClientUser: true,
+        active: true,
+        onboardingCompleted: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...link
+      });
+      userId = inserted && inserted.insertedId;
     }
-
-    const newDoc = {
-      username: username || email.split('@')[0],
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      phoneNumber: phone || '',
-      role: 'client',
-      userType: 'client',
-      isClient: true,
-      isClientUser: true,
-      active: true,
-      onboardingCompleted: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ...(clientId ? { clientId: String(clientId) } : {}),
-      ...(leadId ? { leadId: String(leadId) } : {})
-    };
-
-    const insertResult = await col.insertOne(newDoc);
-    return insertResult?.insertedId ? String(insertResult.insertedId) : null;
   } catch (err) {
-    req.cms?.logger?.warn?.('[ClientPortalService] CMS User sync on approval skipped:', err?.message || err);
-    return null;
+    req.cms?.logger?.warn?.('[ClientPortalService] portal user not saved:', err?.message || err);
+    throw portalError('The OpenNext user account could not be created.', 502, 'PORTAL_USER_FAILED');
   }
+
+  // Verified, not assumed: the account exists and carries the portal role.
+  const saved = userId ? await col.findOne({ _id: userId }) : null;
+  if (!saved || Number(saved.role) !== roleValue) {
+    throw portalError('The "Client / Customer Portal" role could not be assigned to the OpenNext user.', 502, 'PORTAL_ROLE_NOT_ASSIGNED');
+  }
+  return String(saved._id);
 }
 
 async function listPortalAccess(req, clientId) {
@@ -291,6 +364,12 @@ async function inviteContact(req, clientId, input = {}) {
   const needsApproval = !isPortalApprover(req) || Boolean(input.requestOnly);
   const targetStatus = needsApproval ? 'Pending_Approval' : 'Invited';
 
+  // 3.52.0: a direct invite creates / reuses the OpenNext user and assigns the CRM portal role first —
+  // nothing is saved or marked when that fails.
+  const cmsUserId = needsApproval
+    ? null
+    : await ensurePortalCmsUser(req, { username: username || (existing && existing.username), email, password: initialPassword, phone, clientId: String(clientId) });
+
   let doc;
   if (existing) {
     doc = await ClientPortalAccess.findOneAndUpdate(
@@ -371,14 +450,7 @@ async function inviteContact(req, clientId, input = {}) {
     return result;
   }
 
-  // Manager direct invite: Create CMS user and dispatch invitation email
-  const cmsUserId = await createOrUpdateCmsClientUser(req, {
-    username: result.username || username,
-    email,
-    password: initialPassword,
-    phone,
-    clientId: String(clientId)
-  });
+  // Manager direct invite: the CMS user (with the portal role, verified above) and the invitation email
   if (cmsUserId && doc.set) {
     doc.cmsUserId = cmsUserId;
     await doc.save();
@@ -574,6 +646,18 @@ async function inviteLeadContact(req, leadId, input = {}) {
   const needsApproval = !isPortalApprover(req) || Boolean(input.requestOnly);
   const targetStatus = needsApproval ? 'Pending_Approval' : 'Invited';
 
+  // 3.52.0: a direct invite creates / reuses the OpenNext user and assigns the CRM portal role first —
+  // nothing is saved or marked when that fails.
+  const cmsUserId = needsApproval
+    ? null
+    : await ensurePortalCmsUser(req, {
+        username,
+        email,
+        password: initialPassword,
+        phone: String(input.phone || lead.phone || '').trim(),
+        leadId: String(leadId)
+      });
+
   let doc;
   if (existing) {
     doc = await ClientPortalAccess.findOneAndUpdate(
@@ -653,14 +737,7 @@ async function inviteLeadContact(req, leadId, input = {}) {
     return result;
   }
 
-  // Manager direct invite: Create CMS user and dispatch invitation email
-  const cmsUserId = await createOrUpdateCmsClientUser(req, {
-    username: result.username || username,
-    email,
-    password: initialPassword,
-    phone: String(input.phone || lead.phone || '').trim(),
-    leadId: String(leadId)
-  });
+  // Manager direct invite: the CMS user (with the portal role, verified above) and the invitation email
   if (cmsUserId && doc.set) {
     doc.cmsUserId = cmsUserId;
     await doc.save();
@@ -1031,8 +1108,9 @@ async function approvePortalAccess(req, clientIdOrLeadId, accessId) {
   const targetPassword = existing.stagedPassword || existing.initialPassword || crypto.randomBytes(6).toString('base64url');
   const targetUsername = existing.username || existing.email.split('@')[0];
 
-  // 1. Create or update CMS user with client role
-  const cmsUserId = await createOrUpdateCmsClientUser(req, {
+  // 1. Create or reuse the CMS user and assign the CRM portal role (verified; throws — nothing is
+  //    activated or marked — when it fails).
+  const cmsUserId = await ensurePortalCmsUser(req, {
     username: targetUsername,
     email: existing.email,
     password: targetPassword,
@@ -1275,6 +1353,7 @@ async function listPendingApprovals(req) {
 
 module.exports = {
   clientContactFor,
+  ensurePortalCmsUser,
   leadContactPortalAssigned,
   listPortalAccess,
   inviteContact,
@@ -1294,7 +1373,8 @@ module.exports = {
   resubmitPortalAccess,
   listPendingApprovals,
   isPortalApprover,
-  createOrUpdateCmsClientUser,
+  // 3.52.0: the old name, now the verified step (user + CRM portal role).
+  createOrUpdateCmsClientUser: ensurePortalCmsUser,
   PORTAL_STATUSES,
   PORTAL_ROLES,
   PORTAL_MODULE_PERMISSIONS

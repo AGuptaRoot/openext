@@ -74,7 +74,20 @@ async function loadChecks(sdk, ids) {
  * Line sourceRef "<requirementId>:<availabilityCheckId>" links the requirement (of this lead only)
  * and the availability check the price came from.
  */
-async function buildServiceRows(sdk, q, leadId) {
+/**
+ * 2.28.0: the client trip (ClientTravelRequirement) a quotation without a lead was made for
+ * (CRM 3.51.0 quotation.extensionRecordId), checked against the quotation's client; else null.
+ */
+async function clientTripOfQuotation(sdk, q) {
+  const tripId = str(q && q.extensionRecordId);
+  const clientId = str(q && q.clientId);
+  if (!ID_RE.test(tripId) || !ID_RE.test(clientId) || !sdk.models.ClientTravelRequirement) return null;
+  const trip = await sdk.models.ClientTravelRequirement.findById(tripId).catch(() => null);
+  if (!trip || str(trip.client_id) !== clientId || str(trip.lead_id)) return null;
+  return trip;
+}
+
+async function buildServiceRows(sdk, q, leadId, trip = null) {
   const lines = Array.isArray(q.lineItems) ? q.lineItems : [];
   const refs = lines.map((l) => str(l && l.sourceRef).slice(0, 64));
   const reqIds = [...new Set(refs.map((r) => r.split(':')[0]).filter((id) => ID_RE.test(id)))];
@@ -86,6 +99,17 @@ async function buildServiceRows(sdk, q, leadId) {
   ]);
   const byKey = new Map(services.map((s) => [s.key, s]));
   const reqById = new Map(requirements.filter((r) => str(r.lead_id) === leadId).map((r) => [str(r._id), r]));
+  // 2.28.0: a client trip's lines link "trip-<service key>" to the trip's saved service form.
+  if (trip) {
+    const { TRIP_REF_PREFIX } = require('../services/sales-prefill.js');
+    const forms = trip.requirements && typeof trip.requirements === 'object' ? trip.requirements : {};
+    for (const ref of refs) {
+      const key = ref.split(':')[0];
+      if (!key.startsWith(TRIP_REF_PREFIX)) continue;
+      const serviceKey = key.slice(TRIP_REF_PREFIX.length);
+      if (forms[serviceKey] && typeof forms[serviceKey] === 'object') reqById.set(key, { _id: '', service_key: serviceKey, values: forms[serviceKey] });
+    }
+  }
   const checkById = new Map(checks.map((c) => [str(c._id), c]));
   const errors = [];
   const rows = lines.map((line, index) => {
@@ -236,12 +260,16 @@ exports.fromQuotation = async (req, sdk) => {
     throw sdk.error(400, 'This quotation has no lines — there is nothing to book', 'QUOTATION_NO_LINES');
   }
   const leadId = await leadIdOf(sdk, q);
-  if (!leadId) throw sdk.error(400, 'This quotation has no lead — a booking needs the lead and its travellers', 'QUOTATION_NO_LEAD');
-  const lead = await sdk.crm.leads.findById(leadId);
-  if (!lead) throw sdk.error(404, 'Lead not found', 'NOT_FOUND');
+  // 2.28.0: a client quotation made for the client's trip record (no lead).
+  const trip = leadId ? null : await clientTripOfQuotation(sdk, q);
+  if (!leadId && !trip) throw sdk.error(400, 'This quotation has no lead — a booking needs the lead and its travellers', 'QUOTATION_NO_LEAD');
+  const lead = leadId ? await sdk.crm.leads.findById(leadId) : null;
+  if (leadId && !lead) throw sdk.error(404, 'Lead not found', 'NOT_FOUND');
+  const tripClient = trip ? await sdk.crm.clients.findById(str(q.clientId)).catch(() => null) : null;
+  if (trip && !tripClient) throw sdk.error(404, 'Client not found', 'NOT_FOUND');
 
   // Build and check every service row first, so a bad line never leaves a half-made booking.
-  const rows = await buildServiceRows(sdk, q, leadId);
+  const rows = await buildServiceRows(sdk, q, leadId, trip);
 
   const existing = await sdk.models.Booking.findOne({ quotation_id: qid });
   if (existing) {
@@ -258,9 +286,12 @@ exports.fromQuotation = async (req, sdk) => {
     throw sdk.error(409, `No booking yet: ${gate.bookingReason}`, 'QUOTATION_NOT_PAID');
   }
 
+  const tripTravellerIds = trip ? (Array.isArray(trip.traveller_ids) ? trip.traveller_ids : []).map(str).filter((id) => ID_RE.test(id)).slice(0, 200) : [];
   const [values, travellers, prefixSetting] = await Promise.all([
-    sdk.values.get('lead', leadId),
-    sdk.models.Traveller.find({ lead_id: leadId }, { limit: 200, sort: { createdAt: 1 } }),
+    trip ? Promise.resolve(trip.values && typeof trip.values === 'object' ? trip.values : {}) : sdk.values.get('lead', leadId),
+    trip
+      ? tripTravellerIds.length ? sdk.models.Traveller.find({ _id: { $in: tripTravellerIds } }, { limit: 200, sort: { createdAt: 1 } }) : Promise.resolve([])
+      : sdk.models.Traveller.find({ lead_id: leadId }, { limit: 200, sort: { createdAt: 1 } }),
     sdk.settings.get('booking_prefix')
   ]);
   const dates = rows.flatMap((r) => [r.start_date, r.end_date]).filter(Boolean).sort();
@@ -274,16 +305,18 @@ exports.fromQuotation = async (req, sdk) => {
   try {
     booking = await sdk.models.Booking.create({
       number,
-      lead_id: leadId,
-      contact_id: str(lead.contactId),
+      // 2.28.0: a client trip's booking has no lead; it belongs to the client and its trip record.
+      ...(leadId ? { lead_id: leadId } : {}),
+      ...(trip ? { client_id: str(q.clientId), client_trip_id: str(trip._id) } : {}),
+      contact_id: lead ? str(lead.contactId) : '',
       opportunity_id: str(q.opportunityId),
       quotation_id: qid,
       quotation_no: str(q.quotationNo),
       quotation_version: Number(q.version) || 1,
-      title: (str(q.title) || str(lead.title) || `${destination || 'Trip'} booking`).slice(0, 200),
-      guest_name: str(lead.name).slice(0, 120),
+      title: (str(q.title) || (lead ? str(lead.title) : '') || `${destination || 'Trip'} booking`).slice(0, 200),
+      guest_name: (lead ? str(lead.name) : str(tripClient && tripClient.name)).slice(0, 120),
       // Snapshot: a later change of the Contact / lead company never rewrites this booking.
-      company_name: str(lead.company).slice(0, 120),
+      company_name: (lead ? str(lead.company) : str(tripClient && tripClient.name)).slice(0, 120),
       travel_start_date: start,
       travel_end_date: endRaw && endRaw >= start ? endRaw : start,
       destination: destination.slice(0, 120),
@@ -303,10 +336,15 @@ exports.fromQuotation = async (req, sdk) => {
   }
   await createMissing(sdk, booking, rows);
   await linkItineraries(sdk, qid, booking._id);
+  // 2.28.0: the client trip is booked (closed): the client's next Travel Requirement starts a new trip.
+  if (trip) {
+    await sdk.models.ClientTravelRequirement.updateById(trip._id, { status: 'Booked', booking_id: str(booking._id), quotation_id: qid });
+  }
   await sdk.audit('created', `Booking ${number} created from quotation ${q.quotationNo || qid} (${rows.length} services)`, {
     bookingId: booking._id,
     quotationId: qid,
     leadId,
+    ...(trip ? { clientId: str(q.clientId), clientTripId: str(trip._id) } : {}),
     services: rows.length
   });
   return { message: `Booking ${number} created`, navigate: store.bookingLink(booking._id), booking: { id: booking._id, number } };
@@ -327,8 +365,8 @@ exports.forInvoice = async (req, sdk) => {
   const qid = str(invoice.quotationId) || str(invoice.convertedQuotationId);
   const booking = ID_RE.test(qid) ? await sdk.models.Booking.findOne({ quotation_id: qid }) : null;
   if (booking) {
-    // A sales agent opens only the bookings of their own leads.
-    await leadAccess.assertLeadVisible(sdk, booking.lead_id);
+    // A sales agent opens only the bookings of their own leads (2.28.0: a client trip's through its client).
+    await leadAccess.assertBookingVisible(sdk, booking);
     return { navigate: store.bookingLink(booking._id), booking: { id: booking._id, number: booking.number } };
   }
   const gate = ID_RE.test(qid) ? await store.paymentGate(sdk, qid) : { bookingEligible: false, bookingReason: '' };
@@ -359,14 +397,15 @@ function listFilter(query) {
 
 exports.list = async (req, sdk) => {
   const query = req.query || {};
-  // A sales agent sees the bookings of their own leads only (counts included).
-  const base = await leadAccess.withVisibleLeads(sdk, listFilter(query));
+  // A sales agent sees the bookings of their own leads only (counts included); 2.28.0: plus client trips.
+  const base = await leadAccess.withVisibleBookings(sdk, listFilter(query));
   const status = BOOKING_STATUSES.includes(str(query.status)) ? str(query.status) : '';
   const where = { ...base };
   if (status) where.status = status;
   const after = str(query.after);
   const cut = after.match(/^(.{10,40})\|([a-f0-9]{24})$/i);
-  if (cut) where.$and = [{ $or: [{ createdAt: { $lt: cut[1] } }, { createdAt: cut[1], _id: { $lt: cut[2] } }] }];
+  // 2.28.0: the next page keeps the visibility clause (it used to replace it).
+  if (cut) where.$and = [...(Array.isArray(base.$and) ? base.$and : []), { $or: [{ createdAt: { $lt: cut[1] } }, { createdAt: cut[1], _id: { $lt: cut[2] } }] }];
   const [rows, ...counts] = await Promise.all([
     sdk.models.Booking.find(where, { limit: PAGE_SIZE + 1, sort: { createdAt: -1, _id: -1 } }),
     sdk.models.Booking.count(base),
@@ -636,11 +675,12 @@ exports.forClient = async (req, sdk) => {
   }
   const oppIds = opportunities.map((o) => str(o._id)).filter((id) => ID_RE.test(id));
   for (const o of opportunities) if (ID_RE.test(str(o.leadId)) && !leadIds.includes(str(o.leadId))) leadIds.push(str(o.leadId));
-  const or = [];
+  // 2.28.0: and the client's own trips (bookings without a lead).
+  const or = [{ client_id: clientId }];
   if (leadIds.length) or.push({ lead_id: { $in: leadIds } });
   if (oppIds.length) or.push({ opportunity_id: { $in: oppIds } });
-  const where = await leadAccess.withVisibleLeads(sdk, { $or: or });
-  const rows = leadIds.length || oppIds.length ? await sdk.models.Booking.find(where, { limit: 100, sort: { createdAt: -1 } }) : [];
+  const where = await leadAccess.withVisibleBookings(sdk, { $or: or });
+  const rows = await sdk.models.Booking.find(where, { limit: 100, sort: { createdAt: -1 } });
   const leadTitle = new Map(leads.map((l) => [str(l._id), str(l.title) || str(l.name)]));
   const missing = [...new Set(rows.map((r) => str(r.lead_id)))].filter((id) => ID_RE.test(id) && !leadTitle.has(id));
   if (missing.length && typeof sdk.crm.leads.findByIds === 'function') {

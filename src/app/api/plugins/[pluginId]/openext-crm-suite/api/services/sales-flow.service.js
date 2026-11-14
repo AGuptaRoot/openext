@@ -641,15 +641,28 @@ async function opportunityPrefill(req, body = {}) {
 }
 
 /** What a new quotation for this lead (or the opportunity's lead) starts with. */
+/** CRM 3.51.0: the active extension's own record id (salesFlow.clientQuotation start → recordId), or ''. */
+const recordIdOf = (value) => {
+  const id = text(value, 64);
+  return /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : '';
+};
+
 async function quotationPrefill(req, body = {}) {
   let leadId = text(body.leadId, 24);
   const opportunityId = text(body.opportunityId, 24);
-  if (!leadId && !opportunityId) throw badRequest('leadId or opportunityId is required');
+  // 3.51.0: a client quotation for the extension's own record: the client + that record (no lead).
+  const recordId = recordIdOf(body.recordId);
+  const clientId = text(body.clientId, 24);
+  const forRecord = !leadId && !opportunityId && Boolean(recordId) && ID_RE.test(clientId);
+  if (!leadId && !opportunityId && !forRecord) throw badRequest('leadId or opportunityId is required');
   if (leadId && !ID_RE.test(leadId)) throw badRequest('leadId is not valid');
   if (opportunityId && !ID_RE.test(opportunityId)) throw badRequest('opportunityId is not valid');
   const flow = await contract(req);
   if (!flow || !flow.quotationPrefillRoute) return unavailable('none');
-  if (opportunityId) {
+  if (forRecord) {
+    // The user must be allowed to see the client (sales-agent scope applies).
+    await require('./client.service').getById(req, clientId, { includeQuality: false });
+  } else if (opportunityId) {
     const OpportunityService = require('./opportunity.service');
     const opportunity = await OpportunityService.getById(req, opportunityId);
     const ref = opportunity && opportunity.leadId;
@@ -662,13 +675,18 @@ async function quotationPrefill(req, body = {}) {
     await LeadService.getById(req, leadId, { includeQuality: false });
   }
   // Since 3.18.0 the extension also learns the opportunity ('' when none); old extensions ignore it.
-  const data = await call(req, flow.quotationPrefillRoute, { leadId, opportunityId: opportunityId || '' });
+  const data = await call(
+    req,
+    flow.quotationPrefillRoute,
+    forRecord ? { leadId: '', opportunityId: '', clientId, recordId } : { leadId, opportunityId: opportunityId || '' }
+  );
   if (!data) return unavailable('none');
   if (data.failed) return unavailable('failed', data.message);
   const groupKeys = groupKeysOf(flow);
   return {
     available: true,
-    leadId,
+    leadId: forRecord ? '' : leadId,
+    ...(forRecord ? { recordId, clientId } : {}),
     title: text(data.title, 200),
     description: text(data.description, 2000),
     summary: cleanSummary(data.summary),
@@ -778,10 +796,18 @@ async function enforceFixedQuotationLines(req, items, ref = {}) {
   if (!flow || !flow.fixedLines || !flow.lockQuotationLines || !flow.quotationPrefillRoute) return items;
   const leadId = text(ref.leadId, 24);
   const opportunityId = text(ref.opportunityId, 24);
-  if (!ID_RE.test(leadId) && !ID_RE.test(opportunityId)) return items;
+  const recordId = recordIdOf(ref.recordId);
+  const clientId = text(ref.clientId, 24);
+  const forRecord = !ID_RE.test(leadId) && !ID_RE.test(opportunityId) && Boolean(recordId) && ID_RE.test(clientId);
+  if (!ID_RE.test(leadId) && !ID_RE.test(opportunityId) && !forRecord) return items;
   let prefill;
   try {
-    prefill = await quotationPrefill(req, { ...(ID_RE.test(leadId) ? { leadId } : {}), opportunityId: ID_RE.test(opportunityId) ? opportunityId : '' });
+    prefill = await quotationPrefill(
+      req,
+      forRecord
+        ? { recordId, clientId }
+        : { ...(ID_RE.test(leadId) ? { leadId } : {}), opportunityId: ID_RE.test(opportunityId) ? opportunityId : '' }
+    );
   } catch {
     return items;
   }
@@ -894,7 +920,8 @@ async function quotationAccepted(req, quotation) {
     status: text(quotation.status, 40),
     leadId: idOf(quotation.leadId),
     opportunityId: idOf(quotation.opportunityId || quotation.dealId),
-    clientId: idOf(quotation.clientId)
+    clientId: idOf(quotation.clientId),
+    recordId: recordIdOf(quotation.extensionRecordId)
   }, 'quotation-accepted', { system: true });
 }
 
@@ -937,6 +964,8 @@ async function quotationSaved(req, body = {}) {
     status: text(quotation.status, 40),
     leadId: idOf(quotation.leadId),
     opportunityId: idOf(quotation.opportunityId || quotation.dealId),
+    clientId: idOf(quotation.clientId),
+    recordId: recordIdOf(quotation.extensionRecordId),
     grandTotal: num(quotation.grandTotal),
     currency: text(quotation.currency, 10),
     issueDate: dateOf(quotation.issueDate),
@@ -1017,7 +1046,8 @@ async function quotationPaid(req, quotationId) {
       status: text(quotation.status, 40),
       leadId: idOf(quotation.leadId),
       opportunityId: idOf(quotation.opportunityId || quotation.dealId),
-      clientId: idOf(quotation.clientId)
+      clientId: idOf(quotation.clientId),
+      recordId: recordIdOf(quotation.extensionRecordId)
     }, 'quotation-paid', { system: true });
   } catch (err) {
     console.warn('[plugin:openext-crm-suite] quotation paid hook failed:', err?.message || err);
@@ -1034,15 +1064,21 @@ async function quotationPaid(req, quotationId) {
  * {} when the extension has no such route; also {} when it cannot answer (an extension failure never
  * blocks the save).
  */
-async function quotationDateRules(req, { leadId = '', opportunityId = '', leadValues } = {}) {
+async function quotationDateRules(req, { leadId = '', opportunityId = '', recordId = '', clientId = '', leadValues } = {}) {
   const flow = await contract(req).catch(() => null);
   const route = flow && text(flow.quotationDatesRoute, 200);
   const lead = text(leadId, 24);
   const opp = text(opportunityId, 24);
-  if (!route || (!ID_RE.test(lead) && !ID_RE.test(opp))) return {};
+  // 3.51.0: a client quotation for the extension's own record (client + record, no lead).
+  const record = recordIdOf(recordId);
+  const client = text(clientId, 24);
+  const forRecord = !ID_RE.test(lead) && !ID_RE.test(opp) && Boolean(record) && ID_RE.test(client);
+  if (!route || (!ID_RE.test(lead) && !ID_RE.test(opp) && !forRecord)) return {};
   const { callActiveRoute } = require('../extension-runtime/runtime');
   try {
-    const body = { leadId: ID_RE.test(lead) ? lead : '', opportunityId: ID_RE.test(opp) ? opp : '' };
+    const body = forRecord
+      ? { leadId: '', opportunityId: '', clientId: client, recordId: record }
+      : { leadId: ID_RE.test(lead) ? lead : '', opportunityId: ID_RE.test(opp) ? opp : '' };
     if (isPlainObject(leadValues)) body.leadValues = leadValues;
     const res = await callActiveRoute(req, 'POST', route, body, { system: true });
     const data = res && res.available !== false && isPlainObject(res.data) ? res.data : {};
@@ -1256,6 +1292,11 @@ async function clientQuotationStart(req, clientId, body = {}) {
   const data = await callRoute(req, 'POST', routeFor(cq.startRoute, id), { selected });
   const leadId = text(data.leadId, 24);
   const opportunityId = text(data.opportunityId, 24);
+  // 3.51.0: the extension may keep the trip in its own record (no lead): { recordId }.
+  const recordId = recordIdOf(data.recordId);
+  if (recordId && !ID_RE.test(leadId) && !ID_RE.test(opportunityId)) {
+    return { leadId: '', opportunityId: '', recordId };
+  }
   if (!ID_RE.test(opportunityId) && !ID_RE.test(leadId)) {
     const error = new Error(text(data.message, 300) || 'The quotation could not be prepared');
     error.status = 409;

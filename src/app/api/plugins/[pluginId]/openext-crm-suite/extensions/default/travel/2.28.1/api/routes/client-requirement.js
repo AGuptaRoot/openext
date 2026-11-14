@@ -26,6 +26,13 @@
  * POST /clients/:client_id/quotation-start           { selected: [traveller ids] } → the trip is opened if
  *                                                    needed, travellers copied onto it, its opportunity
  *                                                    → { leadId, opportunityId }
+ *
+ * 2.28.0 (CRM 3.51.0): a quotation started from the client's saved Travel Requirement makes NO lead. That
+ * requirement row (ClientTravelRequirement) is the client trip: it keeps Step 1, Step 2, the chosen
+ * travellers (traveller_ids) and its quotation / booking. quotation-start answers { recordId } and the CRM
+ * saves the quotation for the client + that record. A client whose trip is already an open lead (older
+ * versions, or "Open Trip & Add Travellers") keeps using that lead exactly as before. A booked trip is
+ * closed: the next requirement starts a new row.
  */
 
 const { readServices, activeService } = require('../services/catalog.js');
@@ -69,11 +76,29 @@ async function openEnquiry(sdk, clientId) {
   return null;
 }
 
-/** The client's saved requirement whose trip is not opened yet (newest), or null. */
+/** 2.28.0: a client trip that is booked is closed (its row is history; the next trip is a new row). */
+const TRIP_CLOSED = new Set(['Booked']);
+const isOpenTripRow = (r) => Boolean(r) && !str(r.lead_id) && !TRIP_CLOSED.has(str(r.status));
+
+/** The client's saved requirement whose trip is not opened as a lead and not booked yet (newest), or null. */
 async function draftOf(sdk, clientId) {
   const rows = await sdk.models.ClientTravelRequirement.find({ client_id: clientId }, { limit: 20, sort: { updatedAt: -1 } });
-  return rows.find((r) => !str(r.lead_id)) || null;
+  return rows.find(isOpenTripRow) || null;
 }
+
+/**
+ * 2.28.0: the client trip record of a client quotation (CRM recordId), checked against its client.
+ * → the ClientTravelRequirement row; 404 when it is not this client's trip.
+ */
+async function clientTripOf(sdk, recordId, clientId) {
+  const id = str(recordId);
+  const client = str(clientId);
+  if (!ID_RE.test(id) || !ID_RE.test(client)) throw sdk.error(404, 'Client trip not found', 'NOT_FOUND');
+  const row = await sdk.models.ClientTravelRequirement.findById(id).catch(() => null);
+  if (!row || str(row.client_id) !== client || str(row.lead_id)) throw sdk.error(404, 'Client trip not found', 'NOT_FOUND');
+  return row;
+}
+exports.clientTripOf = clientTripOf;
 
 /** Live first-instance requirement per selected service of a lead, statuses rechecked. */
 async function requirementsOf(sdk, leadId, services, selected) {
@@ -371,7 +396,7 @@ exports.quotationReady = async (req, sdk) => {
   }
   for (const draft of drafts) {
     const clientId = str(draft.client_id);
-    if (str(draft.lead_id) || withEnquiry.has(clientId) || ready.has(clientId)) continue;
+    if (!isOpenTripRow(draft) || withEnquiry.has(clientId) || ready.has(clientId)) continue;
     const selected = selectedOf(plain(draft.values));
     if (completeOf(selected, draftRequirements(draft, services, selected))) ready.add(clientId);
   }
@@ -426,6 +451,19 @@ exports.quotationTravellers = async (req, sdk) => {
     if (profile && onProfiles.has(travellerStore.profileOf(profile))) continue;
     items.push(item(t.id, t.name, t));
   }
+  // 2.28.1: a client trip (no lead) of a client without any saved traveller can still be quoted — the
+  // travellers step never blocks it (adding travellers on a lead would open a lead, which a client trip avoids).
+  if (!leadId && !items.length) {
+    return {
+      eligible: true,
+      title: 'Select travellers',
+      intro: 'This client has no saved travellers yet. You can create the quotation now: per-person services are quoted for 1 person until travellers are known.',
+      submitLabel: 'Create Quotation',
+      min: 0,
+      items: [],
+      emptyText: 'No saved travellers for this client.'
+    };
+  }
   return {
     eligible: true,
     title: 'Select travellers',
@@ -448,6 +486,33 @@ exports.quotationStart = async (req, sdk) => {
   if (!current) throw sdk.error(409, 'Fill and save this client’s Travel Requirement first.', 'REQUIREMENT_NOT_READY');
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const selected = [...new Set((Array.isArray(body.selected) ? body.selected : []).map(str).filter((id) => ID_RE.test(id)))].slice(0, 50);
+
+  // 2.28.0: the saved requirement is the client trip — no lead is made. The chosen travellers must be this
+  // client's (the picker's list, visibility applied) and not have an expired passport.
+  if (current.kind === 'draft') {
+    const { forClient } = require('./client-travellers.js');
+    const today = rules.todayIso(undefined, await travellerStore.timeZone(sdk));
+    const list = (await forClient({ params: { client_id: clientId } }, sdk)).travellers;
+    // 2.28.1: none chosen is fine only when the client has no saved traveller at all (the picker's min 0).
+    if (!selected.length && list.length) throw sdk.error(400, 'Choose at least one traveller.', 'TRAVELLERS_REQUIRED');
+    const byId = new Map(list.map((t) => [str(t.id), t]));
+    for (const id of selected) {
+      const t = byId.get(id);
+      if (!t) throw sdk.error(400, 'A chosen traveller is not one of this client’s travellers.', 'INVALID_TRAVELLERS');
+      if (alerts.passportStatus(t.passportExpiry || t.passport_expiry_date, today) === 'Expired') {
+        throw sdk.error(400, `${t.name || 'A traveller'}: passport expired — renew it before travel.`, 'PASSPORT_EXPIRED');
+      }
+    }
+    const recordId = str(current.draft._id);
+    await sdk.models.ClientTravelRequirement.updateById(recordId, {
+      traveller_ids: selected,
+      status: 'Quoted',
+      quoted_at: new Date().toISOString(),
+      updated_by: str(sdk.user && sdk.user.id)
+    });
+    await sdk.audit('updated', `Client quotation started from the Travel Requirement (${selected.length} traveller${selected.length === 1 ? '' : 's'}, no lead)`, { clientId, recordId });
+    return { recordId };
+  }
 
   // Nothing is opened without at least one traveller.
   const knownLead = current.kind === 'lead' ? str(current.lead._id) : '';

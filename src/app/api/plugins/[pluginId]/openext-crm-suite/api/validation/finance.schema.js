@@ -126,6 +126,10 @@ function validateQuotationCreate(body) {
 
   if (!clientId && !leadId) errors.push('clientId or leadId is required');
   // 3.45.0: both = a client quotation for the client's enquiry (the server checks the lead is that client's).
+  // 3.51.0: or a client quotation for the extension's own record (clientQuotation start → recordId).
+  const extensionRecordId = trimString(source.extensionRecordId) || '';
+  if (extensionRecordId && !/^[A-Za-z0-9_-]{1,64}$/.test(extensionRecordId)) errors.push('extensionRecordId is not valid');
+  if (extensionRecordId && !clientId) errors.push('extensionRecordId needs the clientId');
 
   const lineItems = validateLineItems(errors, source.lineItems, { required: true });
   const issueDate = assertOptionalDate(errors, source.issueDate, 'Issue date');
@@ -149,6 +153,7 @@ function validateQuotationCreate(body) {
     ...(clientId ? { clientId } : {}),
     ...(leadId ? { leadId } : {}),
     ...(opportunityId ? { opportunityId, dealId: opportunityId } : {}),
+    ...(extensionRecordId ? { extensionRecordId } : {}),
     lineItems,
     title,
     description,

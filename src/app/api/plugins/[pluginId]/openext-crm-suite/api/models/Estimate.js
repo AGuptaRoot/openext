@@ -58,6 +58,11 @@ const EstimateSchema = new Schema(
     proformaInvoiceNo: { type: String, trim: true, default: '' },
     opportunityId: { type: String, trim: true, default: '', index: true },
     dealId: { type: String, trim: true, default: '', index: true },
+    /**
+     * CRM 3.51.0: a client quotation made from the active extension's own record (salesFlow.clientQuotation:
+     * the start step returned { recordId }, e.g. Travel's client trip) instead of a lead. The extension's id.
+     */
+    extensionRecordId: { type: String, trim: true, maxlength: 64, default: '', index: true },
     quotationNo: { type: String, required: true, trim: true },
     title: { type: String, trim: true, default: '' },
     description: { type: String, trim: true, default: '' },

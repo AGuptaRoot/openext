@@ -47,10 +47,10 @@ const refId = (ref) => String((ref && typeof ref === 'object' ? ref._id : ref) |
  * the active extension's limits (salesFlow.quotationDatesRoute, e.g. not valid after the trip starts).
  * Days are compared as "YYYY-MM-DD" (date-only, no time-zone shift). 400 INVALID_QUOTATION_DATES.
  */
-async function assertCommercialDates(req, { leadId, opportunityId, issueDate, validTill, checkIssueMin, rules }) {
+async function assertCommercialDates(req, { leadId, opportunityId, recordId, clientId, issueDate, validTill, checkIssueMin, rules }) {
   const SalesFlow = require('./sales-flow.service');
   const { dayOf } = require('../utils/date-only.util');
-  const limits = rules || (await SalesFlow.quotationDateRules(req, { leadId: refId(leadId), opportunityId: refId(opportunityId) }));
+  const limits = rules || (await SalesFlow.quotationDateRules(req, { leadId: refId(leadId), opportunityId: refId(opportunityId), recordId, clientId: refId(clientId) }));
   SalesFlow.assertQuotationDates({ issueDate: dayOf(issueDate), validTill: dayOf(validTill), rules: limits, checkIssueMin: Boolean(checkIssueMin) });
   return limits;
 }
@@ -432,8 +432,15 @@ async function create(req, input) {
     }
     clientEnquiry = true;
   }
+  // 3.51.0: a client quotation for the extension's own record (its client step returned { recordId }):
+  // the client only — no lead and no opportunity.
+  const extensionRecordId = /^[A-Za-z0-9_-]{1,64}$/.test(String(input.extensionRecordId || '').trim()) ? String(input.extensionRecordId).trim() : '';
+  if (extensionRecordId && (!clientId || leadId || opportunityId)) {
+    throw appError('A quotation for the extension record belongs to a client only (no lead or opportunity).', 400, { code: 'RECORD_CLIENT_ONLY' });
+  }
+  const clientRecord = Boolean(extensionRecordId);
   const SalesFlowRules = require('./sales-flow.service');
-  const enquiryWithoutOpportunity = clientEnquiry && (await SalesFlowRules.clientQuotationWithoutOpportunity(req));
+  const enquiryWithoutOpportunity = (clientEnquiry || clientRecord) && (await SalesFlowRules.clientQuotationWithoutOpportunity(req));
 
   // Settings → Lead workflow: every new quotation belongs to an opportunity (revisions are not created here).
   if (!opportunityId && !enquiryWithoutOpportunity && (await require('./lead-workflow.service').quotationNeedsOpportunity(req))) {
@@ -475,7 +482,7 @@ async function create(req, input) {
     // Fixed lines: rebuilt from the extension's records (only rate and tax from the user).
     await SalesFlow.cleanLineExtras(
       req,
-      await SalesFlow.enforceFixedQuotationLines(req, input.lineItems, { leadId: input.leadId, opportunityId: input.opportunityId || input.dealId })
+      await SalesFlow.enforceFixedQuotationLines(req, input.lineItems, { leadId: input.leadId, opportunityId: input.opportunityId || input.dealId, recordId: extensionRecordId, clientId })
     ),
     Number(settings.tax_rate || 0),
     input.discountPercent,
@@ -487,7 +494,7 @@ async function create(req, input) {
   // gives one); without a valid till: the default validity, never past the extension's limit
   // (e.g. a travel quotation: the trip's start date).
   const DateOnly = require('../utils/date-only.util');
-  const dateRules = await SalesFlow.quotationDateRules(req, { leadId, opportunityId });
+  const dateRules = await SalesFlow.quotationDateRules(req, { leadId, opportunityId, recordId: extensionRecordId, clientId });
   const issueDay = input.issueDate ? DateOnly.dayOf(input.issueDate) : dateRules.issueDateMin || DateOnly.localDay();
   const issueDate = input.issueDate ? new Date(input.issueDate) : DateOnly.dayToDate(issueDay);
   const validDays = Number(settings.quotation_valid_days || 30);
@@ -533,6 +540,7 @@ async function create(req, input) {
     leadId,
     opportunityId,
     dealId: opportunityId,
+    extensionRecordId,
     quotationNo,
     title: input.title ? String(input.title).trim() : '',
     description: input.description ? String(input.description).trim() : '',
@@ -650,7 +658,9 @@ async function update(req, id, input) {
         req,
         await require('./sales-flow.service').enforceFixedQuotationLines(req, input.lineItems, {
           leadId: existing.leadId,
-          opportunityId: existing.opportunityId || existing.dealId
+          opportunityId: existing.opportunityId || existing.dealId,
+          recordId: existing.extensionRecordId,
+          clientId: existing.clientId
         })
       )
     : existing.lineItems;
@@ -686,6 +696,8 @@ async function update(req, id, input) {
     await assertCommercialDates(req, {
       leadId: updates.leadId !== undefined ? updates.leadId : existing.leadId,
       opportunityId: updates.opportunityId !== undefined ? updates.opportunityId : existing.opportunityId || existing.dealId,
+      recordId: existing.extensionRecordId,
+      clientId: existing.clientId,
       issueDate: issueDay,
       validTill: updates.expiryDate !== undefined ? updates.expiryDate : existing.expiryDate,
       checkIssueMin: input.issueDate !== undefined && issueDay !== dayOf(existing.issueDate)
@@ -805,6 +817,8 @@ async function send(req, id) {
     await assertCommercialDates(req, {
       leadId: existing.leadId,
       opportunityId: existing.opportunityId || existing.dealId,
+      recordId: existing.extensionRecordId,
+      clientId: existing.clientId,
       issueDate: existing.issueDate,
       validTill: existing.expiryDate
     });
@@ -1537,7 +1551,9 @@ async function createRevision(req, id, options = {}) {
   const DateOnly = require('../utils/date-only.util');
   const revisionRules = await require('./sales-flow.service').quotationDateRules(req, {
     leadId: refId(existing.leadId),
-    opportunityId: refId(existing.opportunityId || existing.dealId)
+    opportunityId: refId(existing.opportunityId || existing.dealId),
+    recordId: existing.extensionRecordId,
+    clientId: refId(existing.clientId)
   });
   const revisionIssueDay = revisionRules.issueDateMin || DateOnly.localDay();
   let revisionExpiry = options.expiryDate ? new Date(options.expiryDate) : existing.expiryDate;
@@ -1593,6 +1609,8 @@ async function createRevision(req, id, options = {}) {
     leadId: existing.leadId || '',
     opportunityId: existing.opportunityId || existing.dealId || '',
     dealId: existing.dealId || existing.opportunityId || '',
+    // 3.51.0: a revision stays on the same extension record.
+    extensionRecordId: existing.extensionRecordId || '',
     quotationNo: revisionQuotationNo,
     title: existing.title || '',
     description: existing.description || '',

@@ -104,7 +104,7 @@ module.exports = function registerSalesFlowRoutes(app) {
   app.post('/sales-flow/quotation-dates', requireAnyPermission(['crm.finance.read', 'crm.finance.write', 'crm.quotes.write']), async (req, res) => {
     try {
       const body = req.body || {};
-      const rules = await SalesFlowService.quotationDateRules(req, { leadId: body.leadId, opportunityId: body.opportunityId });
+      const rules = await SalesFlowService.quotationDateRules(req, { leadId: body.leadId, opportunityId: body.opportunityId, recordId: body.recordId, clientId: body.clientId });
       res.json({ success: true, data: { today: require('../utils/date-only.util').localDay(), ...rules } });
     } catch (error) {
       fail(res, error, 'Failed to load the quotation date rules');

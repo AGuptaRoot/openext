@@ -100,6 +100,11 @@ exports.quotationDates = async (req, sdk) => {
   }
   let values = body.leadValues && typeof body.leadValues === 'object' && !Array.isArray(body.leadValues) ? body.leadValues : null;
   if (!values && ID_RE.test(leadId)) values = await sdk.values.get('lead', leadId).catch(() => ({}));
+  // 2.28.0 (CRM 3.51.0): a client trip — its saved Travel Information (no lead).
+  if (!values && !ID_RE.test(leadId) && ID_RE.test(str(body.recordId)) && ID_RE.test(str(body.clientId))) {
+    const row = await sdk.models.ClientTravelRequirement.findById(str(body.recordId)).catch(() => null);
+    if (row && str(row.client_id) === str(body.clientId) && !str(row.lead_id)) values = row.values || {};
+  }
   let { start } = tripOf(values || {});
   // A lead without dates: the trip opportunity's own start date, when it has one.
   if (!start && ID_RE.test(opportunityId)) start = tripOf(await sdk.values.get('opportunity', opportunityId).catch(() => ({}))).start;
