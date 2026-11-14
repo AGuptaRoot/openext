@@ -444,7 +444,7 @@ function renderBookingsPage(root, ctx) {
     return h('section', { class: 'tvx-card tvx-bk-travellers' }, [
       h('div', { class: 'tvx-card-head' }, [
         h('h3', { class: 'tvx-h3', text: `Travellers (${travellers.length})` }),
-        can.write && open ? h('button', { type: 'button', class: 'tvx-btn tvx-btn-ghost', text: 'Choose travellers', onclick: () => travellersDialog(b) }) : null
+        // 2.27.1: travellers come from the paid quotation's trip and are fixed on the booking; they are not picked here.
       ]),
       travellers.length
         ? h('ul', { class: 'tvx-bk-traveller-list' }, travellers.map((t) => h('li', { class: 'tvx-bk-traveller' }, [
@@ -457,107 +457,6 @@ function renderBookingsPage(root, ctx) {
         ])))
         : h('p', { class: 'tvx-muted', text: 'No travellers on this booking yet.' })
     ]);
-  }
-
-  function travellersDialog(b) {
-    let options = [];
-    const chosen = new Set(b.traveller_ids || []);
-    const added = new Set();
-    let dlg;
-
-    const listView = () => {
-      if (!options.length) return [h('p', { class: 'tvx-muted', text: 'The lead has no travellers yet.' }), addButton()];
-      return [
-        h('ul', { class: 'tvx-bx-checks' }, options.map((t) => {
-          const box = h('input', { type: 'checkbox', id: ui.nextId('tvx-bk-t'), checked: chosen.has(t.id) });
-          box.addEventListener('change', () => {
-            if (box.checked) chosen.add(t.id);
-            else chosen.delete(t.id);
-          });
-          return h('li', {}, [
-            box,
-            h('label', { for: box.id }, [
-              h('span', { text: t.fullName }),
-              h('span', { class: 'tvx-muted', text: [t.ageCategory, t.relation, t.current ? '' : `from ${t.lead_title || 'another trip'}`, t.passport && t.passport.numberMasked ? `Passport ${t.passport.numberMasked}` : ''].filter(Boolean).join(' · ') })
-            ])
-          ]);
-        })),
-        addButton()
-      ];
-    };
-    const addButton = () => h('button', { type: 'button', class: 'tvx-btn tvx-btn-ghost tvx-bk-add-traveller', text: '+ Add new traveller', onclick: () => showAddForm() });
-
-    async function loadOptions() {
-      const before = new Set(options.map((t) => t.id));
-      const data = await ctx.api.get(`/bookings/${b.id}/traveller-options`);
-      options = data.travellers || [];
-      // A traveller added in the form below is ticked (ctx.onSaved, or anything new since the last load).
-      for (const t of options) if (added.has(t.id) || (before.size && !before.has(t.id) && t.current)) chosen.add(t.id);
-    }
-
-    async function showAddForm() {
-      dlg.setError('');
-      dlg.showFooter(false);
-      dlg.setContent([h('p', { class: 'tvx-loading', text: 'Opening the traveller form…' })]);
-      try {
-        const mod = await import('../lead-travellers/lead-travellers.js');
-        useStyles(new URL('../lead-travellers/lead-travellers.css', import.meta.url));
-        const form = document.createElement(mod.TAG);
-        form.className = 'tvx-root tvx-bk-embed';
-        form.ctx = {
-          ...ctx,
-          slot: 'lead.tab.travellers',
-          record: { type: 'lead', id: b.lead_id, name: b.guest_name || '' },
-          startWith: 'add',
-          onSaved: (travellerId) => {
-            if (travellerId) added.add(String(travellerId));
-          },
-          onDone: () => backToList(),
-          onValuesChanged: () => () => {},
-          onSettingsChanged: () => () => {}
-        };
-        dlg.setContent([
-          h('button', { type: 'button', class: 'tvx-btn tvx-btn-ghost', text: '← Back to the list', onclick: () => backToList() }),
-          form
-        ]);
-      } catch (err) {
-        dlg.showFooter(true);
-        dlg.setContent(listView());
-        dlg.setError(errorText(err));
-      }
-    }
-
-    async function backToList() {
-      dlg.setContent([h('p', { class: 'tvx-loading', text: 'Loading travellers…' })]);
-      try {
-        await loadOptions();
-        dlg.setContent(listView());
-      } catch (err) {
-        dlg.setError(errorText(err));
-      }
-      dlg.showFooter(true);
-    }
-
-    dlg = ui.openDialog(root, {
-      title: 'Choose travellers',
-      intro: 'Travellers of this lead and of the contact’s other trips. Document numbers stay masked.',
-      wide: true,
-      content: [h('p', { class: 'tvx-loading', text: 'Loading travellers…' })],
-      actions: [{
-        label: 'Save travellers',
-        onClick: async () => {
-          const ids = options.filter((t) => chosen.has(t.id)).map((t) => t.id);
-          await ctx.api.put(`/bookings/${b.id}`, { traveller_ids: ids });
-          await reload({ kind: 'success', text: `${ids.length} traveller${ids.length === 1 ? '' : 's'} on the booking` });
-        }
-      }]
-    });
-    loadOptions()
-      .then(() => dlg.setContent(listView()))
-      .catch((err) => {
-        dlg.setContent([]);
-        dlg.setError(errorText(err));
-      });
   }
 
   /* ------------------------------------------------------------- services */

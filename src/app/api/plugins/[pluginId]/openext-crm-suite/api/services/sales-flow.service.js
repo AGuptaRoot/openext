@@ -580,7 +580,13 @@ async function config(req) {
       ? {
           notEligibleText: text(flow.clientQuotation.notEligibleText, 200),
           notEligibleLabel: text(flow.clientQuotation.notEligibleLabel, 60),
-          withoutOpportunity: flow.clientQuotation.withoutOpportunity === true
+          withoutOpportunity: flow.clientQuotation.withoutOpportunity === true,
+          // 3.46.0: where new business for an existing client starts (a client tab of the extension).
+          clientTab: /^[a-z][a-z0-9_-]{1,59}$/.test(String(flow.clientQuotation.clientTab || '')) ? flow.clientQuotation.clientTab : '',
+          // 3.47.0: the checkbox Lead create shows for "Add as Secondary Contact" (routes stay on the server).
+          leadFormSync: isPlainObject(flow.clientQuotation.leadFormSync) && flow.clientQuotation.leadFormSync.syncRoute
+            ? { label: text(flow.clientQuotation.leadFormSync.label, 60), help: text(flow.clientQuotation.leadFormSync.help, 200) }
+            : null
         }
       : null,
     // 3.32.0: the quotation pages ask POST /sales-flow/quotation-dates for Issue Date / Valid Till limits.
@@ -1207,6 +1213,41 @@ async function assertClientQuotationEligible(req, clientId) {
 }
 
 /** POST: the extension prepares the quotation's lead / opportunity → { leadId, opportunityId }. */
+/* ------------------------------- 3.47.0: Lead create → existing client → copy the lead form's values */
+
+function leadFormSyncContract(flow) {
+  const cq = clientQuotationContract(flow);
+  const ls = isPlainObject(cq.leadFormSync) ? cq.leadFormSync : null;
+  if (!ls || !ls.statusRoute || !ls.syncRoute) {
+    const error = new Error('Copying lead form values to a client is not offered by the active extension');
+    error.status = 404;
+    throw error;
+  }
+  return ls;
+}
+
+/** GET: may the lead form's values be copied to this client now? → { available, message } */
+async function clientLeadFormSyncStatus(req, clientId) {
+  const id = text(clientId, 24);
+  if (!ID_RE.test(id)) throw badRequest('clientId is not valid');
+  const ls = leadFormSyncContract(await contract(req));
+  const data = await callRoute(req, 'GET', routeFor(ls.statusRoute, id));
+  return { available: data.available === true, message: text(data.message, 300) };
+}
+
+/** POST { values }: the extension copies what it owns from the lead form's declared values → { synced } */
+async function clientLeadFormSync(req, clientId, body = {}) {
+  const id = text(clientId, 24);
+  if (!ID_RE.test(id)) throw badRequest('clientId is not valid');
+  const ls = leadFormSyncContract(await contract(req));
+  const raw = isPlainObject(body) && isPlainObject(body.values) ? body.values : {};
+  // Field values only: short keys, plain JSON, at most 16 KB.
+  const values = Object.fromEntries(Object.entries(raw).filter(([k]) => /^[a-z][a-z0-9_]{0,59}$/i.test(k)).slice(0, 100));
+  if (JSON.stringify(values).length > 16 * 1024) throw badRequest('The lead form values are too large');
+  const data = await callRoute(req, 'POST', routeFor(ls.syncRoute, id), { values });
+  return { synced: data.synced === true };
+}
+
 async function clientQuotationStart(req, clientId, body = {}) {
   const id = text(clientId, 24);
   if (!ID_RE.test(id)) throw badRequest('clientId is not valid');
@@ -1226,4 +1267,4 @@ async function clientQuotationStart(req, clientId, body = {}) {
   return { leadId: ID_RE.test(leadId) ? leadId : '', opportunityId: ID_RE.test(opportunityId) ? opportunityId : '' };
 }
 
-module.exports = { clientQuotationWithoutOpportunity, assertClientQuotationEligible, clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };
+module.exports = { clientLeadFormSyncStatus, clientLeadFormSync, clientQuotationWithoutOpportunity, assertClientQuotationEligible, clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };

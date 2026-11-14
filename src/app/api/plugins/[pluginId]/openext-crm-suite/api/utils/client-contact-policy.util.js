@@ -3,20 +3,20 @@
 const { resolveTenantId } = require('./tenant.util');
 
 /**
- * Client ↔ Contact rule (CRM 3.42.0): for now ONE Client has ONE Contact.
+ * Client ↔ Contact rule.
  *
- * The data model already allows more (Contact rows carry companyId + isPrimary; PersonContact keeps
- * clientIds as a list), so the later upgrade "1 Client → many Contacts → 1 Primary" only needs
- * MAX_CONTACTS_PER_CLIENT raised (or made a setting) and the UI to list them — no data change.
+ * CRM 3.46.0: ONE Client has ONE Primary Contact and any number of Secondary Contacts (up to
+ * MAX_CONTACTS_PER_CLIENT, a safety cap). CRM 3.42.0 allowed only one; no data changed between them
+ * (Contact rows carry companyId + isPrimary; PersonContact keeps clientIds as a list).
  *
- * - The linked Contact is the primary row, else the oldest one. Every client flow (documents,
- *   portal access, detail page) reads it through linkedContact().
- * - A new row is always the primary while the client has none.
- * - Clients that already have more rows (older data, merges) keep them all — nothing is deleted;
- *   only the linked one is shown and used, and no further row can be added.
+ * - The linked (Primary) Contact is the primary row, else the oldest one. Every client flow (documents,
+ *   portal access, quotations) reads it through linkedContact().
+ * - A new row is always the primary while the client has none; later rows are Secondary unless asked.
+ * - The primary moves only by making another row primary; removing the primary promotes the oldest one left.
+ * - The client keeps at least one Contact.
  */
 
-const MAX_CONTACTS_PER_CLIENT = 1;
+const MAX_CONTACTS_PER_CLIENT = 50;
 
 function getContactModel(req) {
   return req?.cms?.models?.get?.('Contact') || null;
@@ -60,7 +60,7 @@ async function assertCanAddContact(req, companyId) {
   const count = await countContacts(req, companyId);
   if (count >= MAX_CONTACTS_PER_CLIENT) {
     throw codedError(
-      'This client already has its contact. A client can have only one contact — edit the existing contact instead.',
+      `This client already has ${MAX_CONTACTS_PER_CLIENT} contacts, the most a client can have. Remove one first.`,
       409,
       'CLIENT_CONTACT_LIMIT'
     );

@@ -671,7 +671,7 @@ async function addContact(req, companyId, input) {
   if (input.email && !isValidEmail(input.email)) throw appError('Email is invalid');
   if (input.phone && !isValidMobile(normalizeMobile(input.phone))) throw appError('Mobile number is invalid');
 
-  // One Client = one Contact (utils/client-contact-policy.util.js); the first one is the primary.
+  // One Primary + Secondary contacts (utils/client-contact-policy.util.js); the first one is the primary.
   const existingCount = await ClientContactPolicy.assertCanAddContact(req, companyId);
   if (existingCount === 0) input = { ...input, isPrimary: true };
 
@@ -762,10 +762,9 @@ async function updateContact(req, companyId, contactId, input) {
       { $set: { isPrimary: false, updatedBy: userId } }
     );
     updates.isPrimary = true;
-  } else if (input.isPrimary === false) {
-    // The client's only Contact is its primary one (one Client = one Contact).
-    if ((await ClientContactPolicy.countContacts(req, companyId)) > 1) updates.isPrimary = false;
   }
+  // isPrimary false is ignored: a client always keeps one Primary contact, so the primary moves only by
+  // making another contact primary (CRM 3.46.0).
 
   const contact = await Contact.findOneAndUpdate(
     { ...contactFilter(req, companyId), _id: contactId },
@@ -810,7 +809,7 @@ async function removeContact(req, companyId, contactId) {
     _id: contactId
   }).lean();
   if (!existing) throw appError('Contact not found', 404);
-  // The client's only Contact stays (edit it instead); extra rows of older data may be removed.
+  // The client's only Contact stays (edit it instead); a Secondary one may be removed.
   await ClientContactPolicy.assertCanRemoveContact(req, companyId);
 
   await Contact.findOneAndUpdate(
@@ -824,6 +823,17 @@ async function removeContact(req, companyId, contactId) {
       }
     }
   );
+
+  // Removing the Primary contact promotes the oldest contact left, so the client keeps one Primary.
+  if (existing.isPrimary) {
+    const next = await ClientContactPolicy.linkedContact(req, companyId);
+    if (next && !next.isPrimary) {
+      await Contact.findOneAndUpdate(
+        { ...contactFilter(req, companyId), _id: next._id },
+        { $set: { isPrimary: true, updatedBy: userId } }
+      );
+    }
+  }
 
   if (existing.personContactId) {
     try {

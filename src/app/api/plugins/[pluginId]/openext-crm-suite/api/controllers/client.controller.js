@@ -1071,7 +1071,47 @@ async function listPendingPortalApprovals(req, res) {
   }
 }
 
+/**
+ * CRM 3.46.0 — Lead create: existing Clients whose company name matches the typed company.
+ * GET /clients/company-match?company=ABC%20Travels → { success, data: [{ id, name, canOpen, canAddContact, primaryContactName }] }
+ * Only reports matches; never links anything (the user must confirm).
+ */
+async function companyMatch(req, res) {
+  try {
+    const CompanyMatch = require('../services/client-company-match.service');
+    const data = await CompanyMatch.findClientsByCompany(req, req.query?.company);
+    res.json({ success: true, data });
+  } catch (error) {
+    sendError(res, error);
+  }
+}
+
+/**
+ * CRM 3.46.0 — "Add as Secondary Contact" from Lead create (after the user confirmed the matching Client).
+ * POST /clients/:id/secondary-contacts  body: { personContactId } or the new contact's fields (+ allowDuplicate)
+ * 201 { success, data: { client, contact, personContactId, alreadyLinked } }; 409 CONTACT_DUPLICATE carries duplicates.
+ */
+async function addSecondaryContact(req, res) {
+  try {
+    const CompanyMatch = require('../services/client-company-match.service');
+    const data = await CompanyMatch.addSecondaryContact(req, req.params.id, req.body || {});
+    res.status(data.alreadyLinked ? 200 : 201).json({
+      success: true,
+      data,
+      message: data.alreadyLinked ? 'Contact is already linked to this client' : 'Secondary contact added'
+    });
+  } catch (error) {
+    if (error && error.code === 'CONTACT_DUPLICATE' && Array.isArray(error.duplicates)) {
+      res.status(409).json({ success: false, error: error.message, code: error.code, duplicates: error.duplicates, details: [] });
+      return;
+    }
+    sendError(res, error);
+  }
+}
+
 module.exports = {
+  companyMatch,
+  addSecondaryContact,
   list,
   checkDuplicates,
   get,

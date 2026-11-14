@@ -31,6 +31,12 @@ module.exports = function registerClientsRoutes(app) {
   app.get('/clients/custom-fields', requirePermission('crm.clients.read'), clientController.listCustomFields);
   app.post('/clients/custom-fields', requirePermission('crm.clients.write'), clientController.addCustomField);
   app.get('/clients/statuses', requirePermission('crm.clients.read'), clientController.listStatuses);
+  // CRM 3.46.0: Lead create asks whether the typed company is an existing Client (report only).
+  app.get(
+    '/clients/company-match',
+    requireAnyPermission('crm.leads.write', 'crm.clients.read'),
+    clientController.companyMatch
+  );
 
   // Import / Export
   app.post(
@@ -78,6 +84,12 @@ module.exports = function registerClientsRoutes(app) {
     requirePermission('crm.clients.write'),
     validateBody(validateContactCreate),
     clientController.addContact
+  );
+  // CRM 3.46.0: "Add as Secondary Contact" (Lead create → matching Client, confirmed by the user).
+  app.post(
+    '/clients/:id/secondary-contacts',
+    requirePermission('crm.clients.write'),
+    clientController.addSecondaryContact
   );
   app.put(
     '/clients/:id/contacts/:contactId',

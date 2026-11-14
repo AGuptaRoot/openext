@@ -119,4 +119,29 @@ async function createOpportunityForLead(req, leadId, { title = '', clientId = ''
   return { id: oppId, title: text(created.title, 200), created: true };
 }
 
-module.exports = { createLeadForClient, createOpportunityForLead, markEnquiryForClient };
+/**
+ * CRM 3.47.0 — does this lead have any quotation (made on the lead, or on one of its opportunities)?
+ * Yes / no only, counted over the whole tenant: a sales rep's own view of quotations (only the ones they
+ * created) must not hide a colleague's quotation from a business rule. Deleted quotations do not count.
+ */
+async function leadHasQuotation(req, leadId) {
+  const id = text(leadId, 24);
+  if (!ID_RE.test(id)) return false;
+  const { resolveTenantId } = require('../utils/tenant.util');
+  const tenantId = resolveTenantId(req);
+  const Estimate = req.cms?.models?.get?.('Estimate');
+  if (!Estimate) return false;
+  const Opportunity = req.cms?.models?.get?.('Opportunity');
+  let opportunityIds = [];
+  if (Opportunity) {
+    const q = Opportunity.find({ tenantId, leadId: id, isDeleted: { $ne: true } });
+    const rows = await (q && typeof q.select === 'function' ? q.select('_id').lean() : q);
+    opportunityIds = (Array.isArray(rows) ? rows : []).map((r) => String(r._id));
+  }
+  const or = [{ leadId: id }];
+  if (opportunityIds.length) or.push({ opportunityId: { $in: opportunityIds } }, { dealId: { $in: opportunityIds } });
+  const count = await Estimate.countDocuments({ tenantId, isDeleted: { $ne: true }, $or: or });
+  return count > 0;
+}
+
+module.exports = { createLeadForClient, createOpportunityForLead, markEnquiryForClient, leadHasQuotation };

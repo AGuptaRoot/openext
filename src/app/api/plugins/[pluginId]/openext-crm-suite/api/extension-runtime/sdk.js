@@ -13,6 +13,8 @@
  *   sdk.values.get(recordType, id)  this extension's declared field values on a core record
  *   sdk.values.set(recordType, id, patch)  save them (CRM 3.34.0; the CRM's checks and permissions apply)
  *   sdk.crm.leads.createForClient(clientId, { title })  a new enquiry for a client (CRM 3.34.0, crm.leads.write)
+ *   sdk.crm.leads.hasQuotation(leadId)  true when the lead (or one of its opportunities) has any quotation
+ *                                      (CRM 3.47.0; a lead this user can see; yes / no only)
  *   sdk.crm.opportunities.createForLead(leadId, { title, clientId })  the lead's open opportunity or a new one (3.34.0;
  *                                                     clientId 3.44.0: the client the deal is for)
  *   sdk.access.leadIds()   leads this user may see (null = all) — for the extension's own lead-keyed records
@@ -404,6 +406,12 @@ function createSdk(req, def) {
       needWrite('crm.leads.write', 'crm.leads.createForClient');
       const clean = cloneJson(input || {}, 8 * 1024, 'lead') || {};
       return cloneJson(await require('../services/extension-records.service').createLeadForClient(req, String(clientId || ''), clean), 16 * 1024, 'lead');
+    },
+    /** CRM 3.47.0: true when the lead, or one of its opportunities, has any quotation (yes / no only). */
+    async hasQuotation(leadId) {
+      const lead = await crm.leads.findById(String(leadId || ''));
+      if (!lead) return false;
+      return Boolean(await require('../services/extension-records.service').leadHasQuotation(req, String(lead._id || lead.id || leadId)));
     }
   });
   crm.opportunities = Object.freeze({

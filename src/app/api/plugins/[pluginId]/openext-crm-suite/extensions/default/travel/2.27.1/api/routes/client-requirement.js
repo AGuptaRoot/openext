@@ -17,6 +17,10 @@
  * PUT  /clients/:client_id/travel-requirement        { values, requirements: { <service_key>: values } } →
  *                                                    checked as a whole, then saved (no lead is created)
  * POST /clients/:client_id/travel-requirement/trip   opens the trip from the saved requirement → { leadId }
+ * GET  /clients/:client_id/travel-requirement/lead-form-sync   may Lead create copy its Travel Information here?
+ *                                                    → { available, message } (not when the open trip has a quotation)
+ * POST /clients/:client_id/travel-requirement/lead-form-sync   { values } → Step 1 (Travel Information) only,
+ *                                                    into the one current requirement (2.27.0)
  * GET  /clients/quotation-ready                      clients whose Travel Requirement is complete → { clientIds }
  * GET  /clients/:client_id/quotation-travellers      the traveller picker shown before a client quotation
  * POST /clients/:client_id/quotation-start           { selected: [traveller ids] } → the trip is opened if
@@ -215,6 +219,76 @@ exports.saveForClient = async (req, sdk) => {
   else await sdk.models.ClientTravelRequirement.create({ client_id: clientId, lead_id: '', created_by: userId, ...row });
   await sdk.audit(current ? 'updated' : 'created', `Client travel requirement ${current ? 'saved' : 'added'}`, { clientId, services: selected });
   return exports.getForClient({ params: { client_id: clientId } }, sdk);
+};
+
+/* --------------------------- 2.27.0: Lead create → "Add as Secondary Contact" → Sync Travel Information */
+
+const SYNC_BLOCKED = 'This client’s open trip already has a quotation, so its Travel Information is not changed from a lead form.';
+
+/**
+ * Whether Step 1 may be copied from a lead form: always into a saved requirement (or a new one); into the
+ * client's open trip only while that trip has no quotation (the user's rule). An older CRM that cannot say
+ * whether the trip has a quotation is treated as "has one" (never changes a priced trip).
+ */
+async function leadFormSyncState(sdk, clientId) {
+  const current = await currentOf(sdk, clientId);
+  if (current && current.kind === 'lead') {
+    const leadId = str(current.lead._id);
+    const priced = typeof sdk.crm.leads.hasQuotation === 'function' ? await sdk.crm.leads.hasQuotation(leadId) : true;
+    if (priced) return { current, available: false, message: SYNC_BLOCKED };
+  }
+  return { current, available: true, message: '' };
+}
+
+exports.leadFormSyncStatus = async (req, sdk) => {
+  const clientId = clientIdOf(req, sdk);
+  await loadClient(sdk, clientId);
+  const { available, message } = await leadFormSyncState(sdk, clientId);
+  return { available, message };
+};
+
+/**
+ * Copies the lead form's Travel Information (From, To, Destination, Travel Start / End Date, Date Flexibility,
+ * Required Services) to the client's ONE current requirement — Number of Days and Travel Month follow from
+ * the dates. Step 2 forms of services that stay selected are kept (rechecked against the new dates when shown).
+ * Never creates a lead, a quotation or a second requirement.
+ */
+exports.leadFormSync = async (req, sdk) => {
+  const clientId = clientIdOf(req, sdk);
+  await loadClient(sdk, clientId);
+  const { current, available, message } = await leadFormSyncState(sdk, clientId);
+  if (!available) throw sdk.error(409, message, 'SYNC_NOT_ALLOWED');
+
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const raw = plain(body.values);
+  const values = Object.fromEntries(TRAVEL_KEYS.filter((k) => raw[k] !== undefined && raw[k] !== null).map((k) => [k, raw[k]]));
+  const services = (await readServices(sdk)).filter((s) => s.enabled !== false);
+  const { errors, selected } = await checkTravelInfo(sdk, values, services);
+  if (errors.length) {
+    const error = sdk.error(400, errors.slice(0, 8).join(' '), 'INVALID_TRAVEL_REQUIREMENT');
+    error.details = errors.slice(0, 30);
+    throw error;
+  }
+  values.required_services = selected;
+  const userId = str(sdk.user && sdk.user.id);
+  const meta = { clientId, services: selected, source: 'lead_create_secondary_contact' };
+
+  if (current && current.kind === 'lead') {
+    // The open trip has no quotation yet: its enquiry is the record (the CRM checks the values again).
+    const leadId = str(current.lead._id);
+    await sdk.values.set('lead', leadId, values);
+    await sdk.audit('updated', `Client travel information copied from a lead form (enquiry ${leadId})`, { ...meta, leadId });
+  } else {
+    const kept = current ? plain(current.draft.requirements) : {};
+    const requirements = Object.fromEntries(selected.filter((k) => plain(kept[k]) && Object.keys(plain(kept[k])).length).map((k) => [k, kept[k]]));
+    const draft = { values, requirements };
+    const status = completeOf(selected, draftRequirements(draft, services, selected)) ? 'Complete' : 'Draft';
+    const row = { values, requirements, status, updated_by: userId };
+    if (current) await sdk.models.ClientTravelRequirement.updateById(current.draft._id, row);
+    else await sdk.models.ClientTravelRequirement.create({ client_id: clientId, lead_id: '', created_by: userId, ...row });
+    await sdk.audit(current ? 'updated' : 'created', 'Client travel information copied from a lead form', meta);
+  }
+  return { synced: true, ...(await exports.getForClient({ params: { client_id: clientId } }, sdk)) };
 };
 
 /** Saves checked forms and Travel Information on a trip lead (the CRM checks the values again). */

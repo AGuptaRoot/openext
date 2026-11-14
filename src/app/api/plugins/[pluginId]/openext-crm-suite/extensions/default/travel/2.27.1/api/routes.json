@@ -425,6 +425,21 @@
       "timeoutMs": 30000
     },
     {
+      "method": "GET",
+      "path": "/clients/:client_id/travel-requirement/lead-form-sync",
+      "permission": "crm.leads.read",
+      "handler": "routes/client-requirement.js#leadFormSyncStatus",
+      "summary": "Lead create → existing client: may the lead form's Travel Information be copied to this client (not when its open trip has a quotation)"
+    },
+    {
+      "method": "POST",
+      "path": "/clients/:client_id/travel-requirement/lead-form-sync",
+      "permission": "crm.leads.write",
+      "handler": "routes/client-requirement.js#leadFormSync",
+      "summary": "Lead create → existing client: copy the lead form's Travel Information (Step 1 only) to the client's Travel Requirement",
+      "timeoutMs": 30000
+    },
+    {
       "method": "POST",
       "path": "/clients/:client_id/travel-requirement/trip",
       "permission": "crm.leads.write",

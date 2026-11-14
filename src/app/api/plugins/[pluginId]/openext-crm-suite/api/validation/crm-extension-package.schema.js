@@ -973,13 +973,36 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
             if (notEligibleLabel.length > 60) errors.push('salesFlow.clientQuotation.notEligibleLabel is too long (60 characters at most)');
             // 3.45.0: client quotations are saved without an opportunity (client + its enquiry).
             if (cq.withoutOpportunity !== undefined && typeof cq.withoutOpportunity !== 'boolean') errors.push('salesFlow.clientQuotation.withoutOpportunity must be true or false');
+            // 3.46.0: the client tab (tabs.json clientDetail id) where new business for an existing client starts.
+            const clientTab = str(cq.clientTab);
+            if (clientTab && !/^[a-z][a-z0-9_-]{1,59}$/.test(clientTab)) errors.push('salesFlow.clientQuotation.clientTab must be a client tab id');
+            // 3.47.0: Lead create → "Add as Secondary Contact" may copy the lead form's values to the client
+            // (statusRoute: may it now? syncRoute: copy them). The extension decides what is copied.
+            let leadFormSync = null;
+            if (cq.leadFormSync !== undefined) {
+              const ls = cq.leadFormSync;
+              if (!isObject(ls)) errors.push('salesFlow.clientQuotation.leadFormSync must be an object');
+              else {
+                const statusRoute = str(ls.statusRoute);
+                const syncRoute = str(ls.syncRoute);
+                const label = str(ls.label);
+                const help = str(ls.help);
+                if (!has('GET', statusRoute) || !oneParam(statusRoute)) errors.push(`salesFlow.clientQuotation.leadFormSync.statusRoute "${statusRoute}" must be a GET route with one ":param" (the client id)`);
+                if (!has('POST', syncRoute) || !oneParam(syncRoute)) errors.push(`salesFlow.clientQuotation.leadFormSync.syncRoute "${syncRoute}" must be a POST route with one ":param" (the client id)`);
+                if (!label || label.length > 60) errors.push('salesFlow.clientQuotation.leadFormSync.label is required (60 characters at most)');
+                if (help.length > 200) errors.push('salesFlow.clientQuotation.leadFormSync.help is too long (200 characters at most)');
+                leadFormSync = { statusRoute, syncRoute, label, ...(help ? { help } : {}) };
+              }
+            }
             salesFlow.clientQuotation = {
               eligibleRoute,
               pickerRoute,
               startRoute,
               ...(cq.withoutOpportunity === true ? { withoutOpportunity: true } : {}),
               ...(notEligibleText ? { notEligibleText } : {}),
-              ...(notEligibleLabel ? { notEligibleLabel } : {})
+              ...(notEligibleLabel ? { notEligibleLabel } : {}),
+              ...(clientTab && /^[a-z][a-z0-9_-]{1,59}$/.test(clientTab) ? { clientTab } : {}),
+              ...(leadFormSync ? { leadFormSync } : {})
             };
           }
         }

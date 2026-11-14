@@ -88,7 +88,7 @@ async function loadLead(req, leadId) {
 
 async function loadPrimaryContactEmail(req, companyId) {
   if (!getContactModel(req) || !companyId) return '';
-  // The client's linked Contact (primary, else the oldest) — one Client = one Contact.
+  // The client's linked (Primary) Contact: the primary row, else the oldest.
   const contact = await require('./client-contact-policy.util').linkedContact(req, companyId);
   return contact?.email || '';
 }
