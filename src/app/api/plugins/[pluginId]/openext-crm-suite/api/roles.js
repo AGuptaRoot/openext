@@ -390,17 +390,14 @@ module.exports = {
         'crm.customerSuccess.manage'
       ],
       pages: [
-        // No Dashboard: the CRM dashboard is an internal sales view, so the
-        // portal has no Dashboard page and cannot reach that route.
-        { id: 'projects', features: ['list'] },
-        { id: 'tasks', features: ['list', 'comments'] },
-        { id: 'samples', features: ['list', 'feedback', 'request', 'cancel'] },
+        // The portal menu is Quotations, Invoices and the active extension's portal pages
+        // (Travel → Bookings, added by GET /admin-nav). No Dashboard: the CRM dashboard is an
+        // internal sales view, so the portal cannot reach that route.
         { id: 'quotations', features: ['list', 'accept', 'reject'] },
-        { id: 'sales-orders', features: ['list', 'cancel', 'return'] },
         { id: 'invoices', features: ['list'] },
-        { id: 'payments', features: ['list'] },
-        { id: 'customer-success', features: ['view-summary', 'submit-csat'] },
-        { id: 'tickets', features: ['list', 'create'] }
+        // Workspace-extension pages open under this page id (not shown in the sidebar); the
+        // extension's own audience/permission decide which pages a client sees.
+        { id: 'extension', features: ['view'] }
       ]
     }
   ]
