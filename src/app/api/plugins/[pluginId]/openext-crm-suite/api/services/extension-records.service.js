@@ -82,6 +82,8 @@ async function createOpportunityForLead(req, leadId, { title = '', clientId = ''
   if (forClient && !ID_RE.test(forClient)) throw badRequest('clientId is not valid');
   if (forClient) await require('./client.service').getById(req, forClient, { includeQuality: false });
   const OpportunityService = require('./opportunity.service');
+  // Opportunities hidden by the active extension: refused (an existing open one is not handed out either).
+  await OpportunityService.assertOpportunitiesShown(req);
   const Opportunity = req.cms?.models?.get?.('Opportunity');
   if (Opportunity) {
     const { resolveTenantId } = require('../utils/tenant.util');

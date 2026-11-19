@@ -92,6 +92,8 @@ function validateClientAddress(body, isUpdate = false) {
  * the state from the GSTIN and the PAN are handled by the client service (lib/gstin.js).
  * PAN is never typed: it is taken from the GSTIN.
  */
+const AVATAR_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
 function parseClientGst(raw, errors) {
   if (raw === undefined) return undefined;
   if (raw === null) return { gstin: '', isSEZ: false, isDeemedExport: false };
@@ -103,7 +105,14 @@ function parseClientGst(raw, errors) {
   if (gstin.length > 15) errors.push('GSTIN has 15 characters');
   assertOptionalBoolean(errors, raw.isSEZ, 'gst.isSEZ');
   assertOptionalBoolean(errors, raw.isDeemedExport, 'gst.isDeemedExport');
-  return { gstin, isSEZ: raw.isSEZ === true, isDeemedExport: raw.isDeemedExport === true };
+  const out = { gstin, isSEZ: raw.isSEZ === true, isDeemedExport: raw.isDeemedExport === true };
+  // CRM 3.54.0: a PAN typed for a client without a GSTIN (undefined = keep the stored one, '' = remove).
+  if (raw.pan !== undefined) {
+    const pan = trimString(raw.pan).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) errors.push('PAN must be 10 characters: 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F)');
+    out.pan = pan;
+  }
+  return out;
 }
 
 function parseCompanyFields(source) {
@@ -113,6 +122,7 @@ function parseCompanyFields(source) {
     phone: normalizeMobile(source.phone),
     website: trimString(source.website),
     avatarUrl: source.avatarUrl !== undefined ? trimString(source.avatarUrl) : '',
+    avatarColor: source.avatarColor !== undefined ? trimString(source.avatarColor) : '',
     status: source.status !== undefined ? (String(source.status).trim() === 'Inactive' ? 'Inactive' : 'Active') : 'Active',
     category: source.category !== undefined ? trimString(source.category) : '',
     tags: source.tags !== undefined ? parseTags(source.tags) : [],
@@ -166,6 +176,9 @@ function validateClientUpdate(body) {
   if (source.phone !== undefined) value.phone = normalizeMobile(source.phone);
   if (source.website !== undefined) value.website = trimString(source.website);
   if (source.avatarUrl !== undefined) value.avatarUrl = trimString(source.avatarUrl);
+  // CRM 3.54.0: the avatar colour was sent by the client pages but never saved.
+  if (source.avatarColor !== undefined) value.avatarColor = trimString(source.avatarColor);
+  if (value.avatarColor && !AVATAR_COLOR_RE.test(value.avatarColor)) errors.push('Avatar colour must be a hex colour like #2563eb');
   if (source.status !== undefined) {
     const rawStatus = trimString(source.status);
     if (rawStatus && rawStatus !== 'Active' && rawStatus !== 'Inactive') {
@@ -199,7 +212,7 @@ function validateClientUpdate(body) {
   validateCompanyLengths(errors, value);
   assertOptionalBoolean(errors, source.allowSimilarCompany, 'allowSimilarCompany');
   assertOptionalBoolean(errors, source.allowExactDuplicate, 'allowExactDuplicate');
-  if (!['name', 'email', 'phone', 'website', 'avatarUrl', 'billingAddress', 'status', 'category', 'tags', 'customFields', 'gst'].some((field) => source[field] !== undefined) && !errors.length) {
+  if (!['name', 'email', 'phone', 'website', 'avatarUrl', 'avatarColor', 'billingAddress', 'status', 'category', 'tags', 'customFields', 'gst'].some((field) => source[field] !== undefined) && !errors.length) {
     errors.push('No supported fields were provided');
   }
 

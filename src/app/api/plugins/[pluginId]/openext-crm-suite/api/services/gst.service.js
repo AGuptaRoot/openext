@@ -121,6 +121,17 @@ async function clientFor(req, clientId) {
   };
 }
 
+/**
+ * The amount the GST app's engine works TCS out on (computeInvoiceTotals: the receipt including GST =
+ * taxable value + line GST + cess), read off a first engine run without TCS.
+ */
+function tcsBaseOf(totals) {
+  const lines = Array.isArray(totals && totals.lines) ? totals.lines : [];
+  const tax = r2(lines.reduce((s, l) => s + (Number(l.tax) || 0), 0));
+  const cess = r2(lines.reduce((s, l) => s + (Number(l.cess) || 0), 0));
+  return r2((Number(totals && totals.taxableAmount) || 0) + tax + cess);
+}
+
 /** Clean SAC / service key of a line (bad values become ''). */
 function lineCodes(line) {
   const sac = String((line && line.sac) || '').trim();
@@ -151,7 +162,7 @@ async function calculate(req, input = {}) {
   const lutProfile = { lutArn: settings.lut.number, lutFy: settings.lut.fy };
   const isLUT = (foreign || client.isSEZ === true) && lut.lutCoversDate(lutProfile, issueIso);
 
-  const totals = utils.computeInvoiceTotals(Adapter.toGstTotalsInput({
+  const totalsInput = {
     seller: { gstin: settings.gstin, state: settings.stateName },
     client,
     lines,
@@ -161,8 +172,28 @@ async function calculate(req, input = {}) {
     compositionScheme: settings.compositionScheme,
     discountAmount: input.discountAmount,
     taxCalculation: input.taxCalculation
-  }));
+  };
+  let totals = utils.computeInvoiceTotals(Adapter.toGstTotalsInput(totalsInput));
   if (totals.needsProfileFix) throw appError('The seller state or GSTIN is incomplete in Settings → GST', 409, 'GST_SELLER_NOT_READY');
+
+  // TCS by rule (03 §5, Step 5): only for a document with a tcsRuleKey. The rule's slabs give the rate;
+  // the engine adds the TCS on top of the total (computeInvoiceTotals showTCS / tcsRate).
+  let tcsResult = { tcs: { applicable: false }, warnings: [] };
+  if (String(input.tcsRuleKey || '').trim()) {
+    tcsResult = await require('./tcs.service').forInvoice(req, {
+      settings,
+      tcsRuleKey: input.tcsRuleKey,
+      clientId: input.clientId,
+      clientGstin: client.gstin || '',
+      issueDate: issueIso,
+      base: tcsBaseOf(totals),
+      excludeInvoiceId: input.invoiceId
+    });
+    if (tcsResult.tcs.applicable) {
+      totals = utils.computeInvoiceTotals(Adapter.toGstTotalsInput({ ...totalsInput, tcs: tcsResult.tcs }));
+      tcsResult.tcs.amount = r2(totals.tcsAmount);
+    }
+  }
 
   const posCode = utils.getStateCode(placeOfSupply || client.gstin || '') || '';
   const engineLines = Array.isArray(totals.lines) ? totals.lines : [];
@@ -208,9 +239,10 @@ async function calculate(req, input = {}) {
     total: r2((Number(totals.total) || 0) + Math.max(0, Number(input.otherCharges) || 0)),
     amountInWords: utils.numberToWords(Math.round((Number(totals.total) || 0) + Math.max(0, Number(input.otherCharges) || 0))),
     lines: snapshotLines,
-    tcs: { applicable: false },
+    tcs: tcsResult.tcs,
     warnings: [
       ...(posFallback ? ['The client has no state on record, so the place of supply is your own state. Add the client billing state if it is different.'] : []),
+      ...tcsResult.warnings,
       ...(Array.isArray(totals.warnings) ? totals.warnings.slice(0, 10).map(String) : [])
     ]
   };
@@ -237,7 +269,9 @@ async function applyToTaxInvoice(req, data, { otherCharges = 0, agreedTotal } = 
       issueDate: data.issueDate,
       discountAmount: data.discountAmount,
       taxCalculation: data.taxCalculation,
-      otherCharges
+      otherCharges,
+      tcsRuleKey: data.tcsRuleKey,
+      invoiceId: data._id ? String(data._id) : ''
     });
   } catch (error) {
     console.error('[plugin:openext-crm-suite] GST not applied to an invoice:', error?.code || '', error?.message || error);
@@ -246,8 +280,10 @@ async function applyToTaxInvoice(req, data, { otherCharges = 0, agreedTotal } = 
   const { snapshot } = result;
   // A conversion bills an amount the client already agreed to (and may have paid). If the GST figures
   // do not match it within ₹1, the invoice keeps the CRM figures and gets no snapshot; this is logged.
-  if (agreedTotal !== undefined && Math.abs(snapshot.total - (Number(agreedTotal) || 0)) > 1) {
-    console.error(`[plugin:openext-crm-suite] GST not applied to a converted invoice: GST total differs from the agreed total by ${r2(snapshot.total - (Number(agreedTotal) || 0))}`);
+  // TCS (income tax, Step 5) is collected ON TOP of the agreed amount, so it is left out of this check.
+  const tcsAmount = snapshot.tcs && snapshot.tcs.applicable ? Number(snapshot.tcs.amount) || 0 : 0;
+  if (agreedTotal !== undefined && Math.abs(snapshot.total - tcsAmount - (Number(agreedTotal) || 0)) > 1) {
+    console.error(`[plugin:openext-crm-suite] GST not applied to a converted invoice: GST total differs from the agreed total by ${r2(snapshot.total - tcsAmount - (Number(agreedTotal) || 0))}`);
     return data;
   }
   if (data.status && data.status !== 'Draft') snapshot.issuedAt = new Date();
@@ -293,6 +329,44 @@ async function markIssued(req, invoiceId) {
   } catch (error) {
     console.error('[plugin:openext-crm-suite] GST snapshot not frozen:', error?.message || error);
   }
+}
+
+/**
+ * A draft tax invoice with a TCS rule is being issued (sent): its GST snapshot is worked out once more, so
+ * the TCS slab split uses the PAN's cumulative base AT ISSUE (03 §5 "working it out on issue"). Returns the
+ * fields to $set ({ gst, taxTotal, grandTotal, balanceDue }) or null (no TCS rule, no snapshot, already
+ * issued, or the engine failed: then the draft's figures stay, as before). Invoices without a
+ * tcsRuleKey are never touched here.
+ */
+async function refreshForIssue(req, invoice) {
+  const inv = invoice || {};
+  if (inv.documentType === 'proforma' || !String(inv.tcsRuleKey || '').trim()) return null;
+  if (!inv.gst || !inv.gst.engine || inv.gst.issuedAt) return null;
+  const lines = Array.isArray(inv.lineItems) ? inv.lineItems : [];
+  const gross = lines.reduce((sum, l) => sum + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0);
+  const dType = inv.discountType || 'percent';
+  const data = {
+    _id: inv._id,
+    documentType: inv.documentType,
+    currency: inv.currency,
+    clientId: inv.clientId,
+    lineItems: lines,
+    placeOfSupply: inv.placeOfSupply || '',
+    issueDate: inv.issueDate,
+    discountAmount: dType === 'amount' ? Math.min(gross, Number(inv.discountAmount) || 0) : Math.round(gross * (Number(inv.discountPercent) || 0)) / 100,
+    taxCalculation: inv.taxCalculation || 'after_discount',
+    tcsRuleKey: inv.tcsRuleKey,
+    status: 'Sent'
+  };
+  await applyToTaxInvoice(req, data, { otherCharges: Number(inv.gst.otherCharges) || 0 });
+  if (!data.gst) return null;
+  const paidAndCredited = (Number(inv.amountPaid) || 0) + (Number(inv.creditAmount) || 0);
+  return {
+    gst: data.gst,
+    taxTotal: data.taxTotal,
+    grandTotal: data.grandTotal,
+    balanceDue: r2(Math.max(0, data.grandTotal - paidAndCredited))
+  };
 }
 
 /** True when the invoice's GST snapshot is frozen (issued) and must not be worked out again. */
@@ -363,6 +437,8 @@ module.exports = {
   applyToTaxInvoice,
   otherChargesOf,
   markIssued,
+  refreshForIssue,
+  tcsBaseOf,
   isFrozen,
   upiLink,
   calculateForExtension

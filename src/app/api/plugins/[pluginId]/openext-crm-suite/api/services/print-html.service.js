@@ -191,7 +191,6 @@ function buildFinanceDocumentBody(payload) {
     <section class="bill-to">
       <h2>Bill To</h2>
       <p><strong>${escapeHtml(client.name || '—')}</strong></p>
-      ${client.taxId ? `<p>Tax ID: ${escapeHtml(client.taxId)}</p>` : ''}
       ${g && g.totals ? `<p>GSTIN: ${escapeHtml(g.clientGstin || 'Unregistered')}</p>` : ''}
       ${g && g.placeOfSupply ? `<p>Place of supply: ${escapeHtml(g.placeOfSupply)}</p>` : ''}
       ${client.email ? `<p>${escapeHtml(client.email)}</p>` : ''}
@@ -700,7 +699,6 @@ function renderFinanceEmailHtml(payload, options = {}) {
                     ${client?.email ? `<div style="color:#475569;">${escapeHtml(client.email)}</div>` : ''}
                     ${client?.phone ? `<div style="color:#475569;">${escapeHtml(client.phone)}</div>` : ''}
                     ${address ? `<div style="color:#64748b; margin-top:3px;">${escapeHtml(address)}</div>` : ''}
-                    ${client?.taxId ? `<div style="color:#64748b; margin-top:2px;">Tax ID: ${escapeHtml(client.taxId)}</div>` : ''}
                   </td>
                   <td valign="top" width="45%" style="text-align:right; font-size:12px; line-height:1.6;">
                     <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8; margin-bottom:4px;">

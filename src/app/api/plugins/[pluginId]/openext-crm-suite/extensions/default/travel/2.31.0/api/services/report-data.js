@@ -6,13 +6,13 @@
  *
  * Scope ("universe"): the leads this user may see (sdk.crm applies tenant and sales-agent rules), narrowed by
  * the lead filters (sales person, lead source, destination, travel service) and by the record filters
- * (opportunity stage, booking status, payment status: leads that have such a record). Every figure then
- * counts the universe's records by their own date (lead created, opportunity created, quotation sent /
- * accepted, booking created, payment date).
+ * (booking status, payment status: leads that have such a record). Every figure then counts the universe's
+ * records by their own date (lead created, quotation sent / accepted, booking created, payment date).
+ * Opportunities are hidden in Travel: reports read leads, quotations and bookings only.
  *
  * Accuracy rules:
- *  - quotation revisions count once (per root quotation); an opportunity with an accepted quotation is one
- *    conversion, whatever earlier revisions exist
+ *  - quotation revisions count once (per root quotation); an accepted quotation is one conversion, whatever
+ *    earlier revisions exist
  *  - money only through sdk.finance.summary (verified payments, advance moved onto the tax invoice counted once)
  *  - cancelled bookings never count as bookings or value
  *  - no passport / Aadhaar numbers, file ids or document images are read into reports (only expiry dates and
@@ -88,7 +88,6 @@ function readFilters(query = {}) {
     source: str(q.source).slice(0, 80),
     destination: keyOf(q.destination).slice(0, 80),
     service: str(q.service).slice(0, 60),
-    stage: str(q.stage).slice(0, 80),
     bookingStatus: str(q.booking_status).slice(0, 40),
     paymentStatus: str(q.payment_status).slice(0, 40),
     upcomingDays: ['7', '15', '30'].includes(str(q.p_upcoming_trips)) ? Number(q.p_upcoming_trips) : 15
@@ -142,14 +141,11 @@ async function load(sdk, query) {
     leadIds = leads.map((l) => str(l._id));
   }
 
-  let opportunities = (await coreIn(sdk.crm.opportunities, 'leadId', leadIds)).filter((o) => !o.isDeleted);
-  const oppIds = opportunities.map((o) => str(o._id));
+  // Quotations are made from the lead (no opportunities in Travel).
   let quotations = [];
   if (canFinance) {
-    const byLead = await coreIn(sdk.crm.quotations, 'leadId', leadIds);
-    const byOpp = await coreIn(sdk.crm.quotations, 'opportunityId', oppIds);
     const seen = new Map();
-    for (const q of [...byLead, ...byOpp]) seen.set(str(q._id), q);
+    for (const q of await coreIn(sdk.crm.quotations, 'leadId', leadIds)) seen.set(str(q._id), q);
     quotations = [...seen.values()].filter((q) => !q.isArchived);
   }
   let bookings = await modelIn(sdk.models.Booking, 'lead_id', leadIds);
@@ -161,21 +157,18 @@ async function load(sdk, query) {
     finance = await sdk.finance.summary({ quotationIds: accepted, from: f.from, to: f.to });
   }
 
-  // Record filters: leads that have such an opportunity / booking / payment state.
+  // Record filters: leads that have such a booking / payment state.
   const keepLeads = (set) => {
     leads = leads.filter((l) => set.has(str(l._id)));
     leadIds = leads.map((l) => str(l._id));
   };
-  const leadOfOpp = new Map(opportunities.map((o) => [str(o._id), str(o.leadId)]));
-  const leadOfQuotation = (q) => str(q.leadId) || leadOfOpp.get(str(q.opportunityId || q.dealId)) || '';
-  if (f.stage) keepLeads(new Set(opportunities.filter((o) => str(o.stage) === f.stage).map((o) => str(o.leadId))));
+  const leadOfQuotation = (q) => str(q.leadId);
   if (f.bookingStatus) keepLeads(new Set(bookings.filter((b) => str(b.status) === f.bookingStatus).map((b) => str(b.lead_id))));
   if (f.paymentStatus && finance) {
     keepLeads(new Set(quotations.filter((q) => ACCEPTED(q) && finance.quotations[str(q._id)] && finance.quotations[str(q._id)].paymentGroup === f.paymentStatus).map(leadOfQuotation)));
   }
-  if (f.stage || f.bookingStatus || (f.paymentStatus && finance)) {
+  if (f.bookingStatus || (f.paymentStatus && finance)) {
     const set = new Set(leadIds);
-    opportunities = opportunities.filter((o) => set.has(str(o.leadId)));
     quotations = quotations.filter((q) => set.has(leadOfQuotation(q)));
     bookings = bookings.filter((b) => set.has(str(b.lead_id)));
     if (canFinance) {
@@ -204,7 +197,6 @@ async function load(sdk, query) {
     destOf,
     destinationLabel,
     requirements: requirements.filter((r) => finalLeads.has(str(r.lead_id))),
-    opportunities,
     quotations,
     leadOfQuotation,
     bookings,
@@ -233,7 +225,7 @@ function latestByRoot(quotations) {
   return roots;
 }
 
-/** One conversion per opportunity (or per root quotation without one): the accepted quotation. */
+/** One conversion per root quotation (or per opportunity on older data): the accepted quotation. */
 function conversions(quotations) {
   const out = new Map();
   for (const q of quotations.filter(ACCEPTED)) {

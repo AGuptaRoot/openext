@@ -139,7 +139,10 @@ function calculateItemTotals(items = []) {
       quantity: qty,
       unitPrice,
       tax: taxRate,
-      amount: lineTotal
+      amount: lineTotal,
+      // GST suite (Step 5): the line's SAC / service key are kept (schema fields since 3.53.0; were dropped here).
+      sac: /^\d{4,8}$/.test(String(raw.sac || '').trim()) ? String(raw.sac).trim() : '',
+      serviceType: /^[a-z][a-z0-9_]{1,40}$/.test(String(raw.serviceType || '').trim()) ? String(raw.serviceType).trim() : ''
     });
   }
 
@@ -148,6 +151,54 @@ function calculateItemTotals(items = []) {
   const totalAmount = Math.round((subtotal + taxTotal) * 100) / 100;
 
   return { items: processed, subtotal, taxTotal, totalAmount };
+}
+
+/**
+ * GST suite (Step 5): the note's place of supply — the one given, else the original invoice's, else ''
+ * (the client's state). Never throws.
+ */
+async function notePlaceOfSupply(req, payload) {
+  if (payload.placeOfSupply) return String(payload.placeOfSupply).trim().slice(0, 60);
+  if (!payload.invoiceId) return '';
+  try {
+    const Invoice = req.cms?.models?.get?.('Invoice');
+    if (!Invoice) return '';
+    let q = Invoice.findOne({ tenantId: req.tenantId || resolveTenantId(req), _id: String(payload.invoiceId) });
+    if (q && typeof q.select === 'function') q = q.select('placeOfSupply gst.placeOfSupply');
+    const inv = q && typeof q.lean === 'function' ? await q.lean() : await q;
+    return String((inv && ((inv.gst && inv.gst.placeOfSupply) || inv.placeOfSupply)) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * GST suite (Step 5; 03 §2): the note's GST snapshot by the GST app's engine, frozen at issue — the same
+ * way as a tax invoice. Only with Settings → GST saved and an INR note. If the engine's total differs from
+ * the note's total by more than ₹1 the note keeps no snapshot (logged without personal data): the CRM
+ * figures are never changed here. Never throws; never blocks the note.
+ */
+async function gstSnapshotFor(req, { clientId, items, creditDate, currency, placeOfSupply, totalAmount }) {
+  if (String(currency || 'INR').toUpperCase() !== 'INR') return null;
+  try {
+    const GstService = require('./gst.service');
+    if (!(await GstService.context(req)).ready) return null;
+    const { snapshot } = await GstService.calculate(req, {
+      clientId,
+      lines: (items || []).map((i) => ({ description: i.description, qty: i.quantity, rate: i.unitPrice, tax: i.tax, sac: i.sac, serviceType: i.serviceType })),
+      placeOfSupply,
+      issueDate: creditDate
+    });
+    if (Math.abs((Number(snapshot.total) || 0) - (Number(totalAmount) || 0)) > 1) {
+      console.error('[plugin:openext-crm-suite] GST snapshot not kept on a credit note: GST total differs from the note total');
+      return null;
+    }
+    snapshot.issuedAt = new Date();
+    return snapshot;
+  } catch (error) {
+    console.error('[plugin:openext-crm-suite] GST not applied to a credit note:', error?.code || '', error?.message || error);
+    return null;
+  }
 }
 
 async function create(req, payload = {}) {
@@ -162,6 +213,12 @@ async function create(req, payload = {}) {
   const clientName = client.companyName || client.name || 'Client';
 
   const totals = calculateItemTotals(payload.items || []);
+  const creditDate = payload.creditDate ? new Date(payload.creditDate) : new Date();
+  // GST suite (Step 5): no credit note dated on or before Settings → GST "Books locked up to" (409).
+  await require('./period-lock.service').assertIssueNotLocked(req, { creditDate }, 'credit-note');
+  const currency = payload.currency || defaultCurrency;
+  const placeOfSupply = await notePlaceOfSupply(req, payload);
+  const gst = await gstSnapshotFor(req, { clientId: String(payload.clientId), items: totals.items, creditDate, currency, placeOfSupply, totalAmount: totals.totalAmount });
   const creditNoteNumber = await getNextNumber(req, 'creditNote');
 
   const doc = await CreditNote.create({
@@ -171,16 +228,18 @@ async function create(req, payload = {}) {
     clientName,
     invoiceId: payload.invoiceId ? String(payload.invoiceId) : null,
     invoiceNumber: payload.invoiceNumber ? String(payload.invoiceNumber) : '',
-    creditDate: payload.creditDate ? new Date(payload.creditDate) : new Date(),
+    creditDate,
     subtotal: totals.subtotal,
     taxTotal: totals.taxTotal,
     totalAmount: totals.totalAmount,
     remainingBalance: totals.totalAmount,
     refundAmount: 0,
-    currency: payload.currency || defaultCurrency,
+    currency,
     status: 'Open',
     reason: payload.reason || 'Customer Return / Adjustment',
     items: totals.items,
+    placeOfSupply: gst ? gst.placeOfSupply : placeOfSupply,
+    ...(gst ? { gst } : {}),
     appliedInvoices: [],
     notes: payload.notes || '',
     createdBy: userId,
@@ -268,6 +327,7 @@ async function createFromInvoice(req, invoiceId, payload = {}) {
     reason: payload.reason || `Credit for invoice ${invoice.invoiceNo}`,
     currency: invoice.currency,
     items,
+    placeOfSupply: (invoice.gst && invoice.gst.placeOfSupply) || invoice.placeOfSupply || '',
     notes: payload.notes || `Issued against invoice ${invoice.invoiceNo}`
   };
 
@@ -442,6 +502,7 @@ async function voidCreditNote(req, id, { reason = 'Voided by user' } = {}) {
   if ((creditNote.refundAmount || 0) > 0) {
     throw appError('Cannot void a Credit Note with refunds recorded.', 409);
   }
+  await require('./period-lock.service').assertDocumentNotLocked(req, creditNote, { ...creditNote, status: 'Void' }, 'credit-note');
 
   const updated = await CreditNote.findOneAndUpdate(
     { ...baseFilter(req), _id: id },
@@ -477,6 +538,7 @@ async function remove(req, id) {
   if (existing.status !== 'Draft' && existing.status !== 'Void') {
     throw appError('Only Draft or Void credit notes can be deleted.', 409);
   }
+  await require('./period-lock.service').assertDocumentNotLocked(req, existing, null, 'credit-note');
 
   await CreditNote.findOneAndUpdate(
     { ...baseFilter(req), _id: id },

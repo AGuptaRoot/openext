@@ -41,9 +41,10 @@ exports.options = async (req, sdk) => {
 /* ------------------------------------------------------------- per-lead stage */
 
 /**
- * How far each lead got (revisions never count twice): 0 enquiry · 1 requirement ready · 2 opportunity ·
- * 3 quotation sent · 4 accepted · 5 booking · 6 fully paid · 7 trip complete. A later stage implies the
- * earlier ones (e.g. a booked lead counts as ready).
+ * How far each lead got (revisions never count twice): 0 enquiry · 1 ready / qualified · 3 quotation sent ·
+ * 4 accepted · 5 booking · 6 fully paid · 7 trip complete (2 was the opportunity step: opportunities are hidden
+ * in Travel). A later stage implies the earlier ones (e.g. a booked lead counts as ready). Built from leads,
+ * quotations (with crm.finance.read) and bookings.
  */
 async function leadStages(sdk, ctx) {
   const { readinessFor } = require('../services/readiness.js');
@@ -62,7 +63,7 @@ async function leadStages(sdk, ctx) {
     }
     return m;
   };
-  const opps = by(ctx.opportunities, 'leadId');
+  const leadById = new Map(ctx.leads.map((l) => [str(l._id), l]));
   const quotes = new Map();
   for (const q of ctx.quotations) {
     const l = ctx.leadOfQuotation(q);
@@ -72,17 +73,17 @@ async function leadStages(sdk, ctx) {
   const books = by(ctx.bookings.filter(LIVE), 'lead_id');
   const stage = new Map();
   for (const id of ctx.leadIds) {
-    const o = opps.get(id) || [];
     const q = quotes.get(id) || [];
     const b = books.get(id) || [];
     const accepted = ctx.canFinance ? q.filter(ACCEPTED) : [];
-    const sent = ctx.canFinance ? q.some(SENT) : o.some((x) => ['QUOTATION_SENT', 'NEGOTIATION', 'WON'].includes(str(x.stageType).toUpperCase()) || x.generatedQuotationId);
-    const isAccepted = ctx.canFinance ? accepted.length > 0 : o.some((x) => x.acceptedQuotationId);
+    // Without crm.finance.read no quotation is read: a booking still implies sent and accepted.
+    const sent = ctx.canFinance && q.some(SENT);
+    const isAccepted = accepted.length > 0;
     const paid = Boolean(ctx.finance) && accepted.some((x) => ctx.finance.quotations[str(x._id)] && ctx.finance.quotations[str(x._id)].status === 'Paid');
     let s = 0;
     const info = ready.get ? ready.get(id) : null;
-    if (info && info.ready) s = 1;
-    if (o.length) s = 2;
+    const lead = leadById.get(id);
+    if ((info && info.ready) || (lead && /qualif/i.test(str(lead.stage)))) s = 1;
     if (sent) s = 3;
     if (isAccepted) s = 4;
     if (b.length) s = 5;
@@ -98,12 +99,11 @@ async function leadStages(sdk, ctx) {
 function groupRows(ctx, keyFn, stageOf) {
   const rows = new Map();
   const row = (key) => {
-    if (!rows.has(key)) rows.set(key, { key, enquiries: 0, opportunities: 0, sent: 0, accepted: 0, bookings: 0, value: 0, collected: 0 });
+    if (!rows.has(key)) rows.set(key, { key, enquiries: 0, sent: 0, accepted: 0, bookings: 0, value: 0, collected: 0 });
     return rows.get(key);
   };
   const leadKey = new Map(ctx.leads.map((l) => [str(l._id), keyFn(l)]));
   for (const l of ctx.leads) if (ctx.inRange(day(l.createdAt))) row(keyFn(l)).enquiries += 1;
-  for (const o of ctx.opportunities) if (ctx.inRange(day(o.createdAt))) row(leadKey.get(str(o.leadId)) ?? '').opportunities += 1;
   const roots = data.latestByRoot(ctx.quotations.filter(SENT));
   for (const q of roots.values()) if (ctx.inRange(sentDay(q))) row(leadKey.get(ctx.leadOfQuotation(q)) ?? '').sent += 1;
   for (const q of data.conversions(ctx.quotations)) {
@@ -133,12 +133,12 @@ exports.sales = async (req, sdk) => {
   const stages = await leadStages(sdk, ctx);
   const cohort = enquiries.map((l) => stages.get(str(l._id)) || 0);
   const reached = (n) => cohort.filter((s) => s >= n).length;
-  const acceptedCount = canFinance ? conversionsInRange.length : ctx.opportunities.filter((o) => o.acceptedQuotationId && inRange(day(o.updatedAt))).length;
+  // Without crm.finance.read: the period's enquiries that reached a booking (accepted implied).
+  const acceptedCount = canFinance ? conversionsInRange.length : reached(4);
 
   const kpis = {
     items: [
       { key: 'enquiries', label: 'Travel Enquiries', value: enquiries.length, link: '/leads' },
-      { key: 'opportunities', label: 'Opportunities', value: ctx.opportunities.filter((o) => inRange(day(o.createdAt))).length, link: '/opportunities' },
       { key: 'accepted', label: 'Accepted Quotations', value: acceptedCount, link: '/quotations?status=Accepted' },
       { key: 'bookings', label: 'Bookings', value: periodBookings.length, link: BOOKINGS, hint: 'Cancelled bookings are not counted' },
       ...(canFinance
@@ -154,15 +154,14 @@ exports.sales = async (req, sdk) => {
 
   const funnelStages = [
     ['enquiries', 'Travel Enquiry', '/leads'],
-    ['ready', 'Requirement Ready', ''],
-    ['opportunity', 'Opportunity', '/opportunities'],
+    ['ready', 'Ready / Qualified', ''],
     ['sent', 'Quotation Sent', '/quotations'],
     ['accepted', 'Quotation Accepted', '/quotations?status=Accepted'],
     ['booked', 'Booking Created', BOOKINGS],
     ...(canFinance ? [['paid', 'Fully Paid', '']] : []),
     ['complete', 'Trip Complete', `${BOOKINGS}?status=Completed`]
   ];
-  const stageIndex = { enquiries: 0, ready: 1, opportunity: 2, sent: 3, accepted: 4, booked: 5, paid: 6, complete: 7 };
+  const stageIndex = { enquiries: 0, ready: 1, sent: 3, accepted: 4, booked: 5, paid: 6, complete: 7 };
   const funnel = { stages: funnelStages.map(([key, label, link]) => ({ key, label, count: reached(stageIndex[key]), ...(link ? { link } : {}) })) };
 
   const out = { kpis, funnel };
@@ -309,7 +308,6 @@ exports.sales = async (req, sdk) => {
     columns: [
       { key: 'owner', label: 'Sales Person', type: 'user' },
       { key: 'enquiries', label: 'Enquiries', type: 'number' },
-      { key: 'opportunities', label: 'Opportunities', type: 'number' },
       { key: 'sent', label: 'Quotations Sent', type: 'number' },
       { key: 'accepted', label: 'Accepted', type: 'number' },
       { key: 'bookings', label: 'Bookings', type: 'number' },
@@ -330,7 +328,6 @@ exports.sales = async (req, sdk) => {
     columns: [
       { key: 'source', label: 'Lead Source', type: 'text' },
       { key: 'enquiries', label: 'Enquiries', type: 'number' },
-      { key: 'opportunities', label: 'Opportunities', type: 'number' },
       { key: 'accepted', label: 'Accepted', type: 'number' },
       { key: 'bookings', label: 'Bookings', type: 'number' },
       ...(canFinance ? [{ key: 'value', label: 'Booking Value', type: 'money' }] : []),
@@ -342,7 +339,6 @@ exports.sales = async (req, sdk) => {
       labelKey: 'source',
       series: [
         { key: 'enquiries', label: 'Enquiries', format: 'number' },
-        { key: 'opportunities', label: 'Opportunities', format: 'number' },
         { key: 'bookings', label: 'Bookings', format: 'number' }
       ]
     }
@@ -360,7 +356,7 @@ exports.sales = async (req, sdk) => {
         { key: 'accepted', label: 'Accepted', count: count('Accepted'), value: count('Accepted'), tone: 'success', link: '/quotations?status=Accepted' },
         { key: 'rejected', label: 'Rejected', count: count('Rejected'), value: count('Rejected'), tone: 'danger', link: '/quotations?status=Rejected' },
         { key: 'expired', label: 'Expired', count: count('Expired'), value: count('Expired'), tone: 'warning', link: '/quotations?status=Expired' },
-        { key: 'closed', label: 'Closed / Superseded', count: count('Closed'), value: count('Closed'), hint: 'Another quotation of the opportunity was accepted' }
+        { key: 'closed', label: 'Closed / Superseded', count: count('Closed'), value: count('Closed'), hint: 'Another quotation of the same lead was accepted' }
       ]
     };
     const sentRoots = [...roots.values()].filter((q) => inRange(sentDay(q)));

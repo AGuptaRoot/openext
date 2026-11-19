@@ -421,6 +421,9 @@ async function invoiceQuotationWithPayments(req, quotationId, { requireFullPayme
       }
       quotation = (await Estimate.findOne({ ...baseFilter(req), _id: String(quotationId) }).lean()) || quotation;
       if (quotation.convertedInvoiceId) return { invoiced: false, alreadyInvoiced: true };
+      // A Closed quotation raises no tax invoice: the money stays recorded on its payment request
+      // (audited for a refund or a transfer by the auto-accept step).
+      if (String(quotation.status) === 'Closed') return { invoiced: false, reason: 'quotation_closed' };
     }
 
     const claim = `${INVOICE_CLAIM_PREFIX}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -590,7 +593,7 @@ async function ensureProformaForQuotation(req, quotationId, options = {}) {
   const QuotationService = require('./quotation.service');
   const quotation = await QuotationService.getById(req, quotationId);
 
-  if (['Rejected', 'Expired'].includes(String(quotation.status))) {
+  if (['Rejected', 'Expired', 'Closed'].includes(String(quotation.status))) {
     throw appError(`A ${String(quotation.status).toLowerCase()} quotation cannot be paid.`, 409);
   }
 
@@ -1010,11 +1013,17 @@ async function maybeAutoAcceptQuotationForInvoice(req, invoice) {
   const quotationId = String(invoice.quotationId || invoice.convertedQuotationId || '').trim();
   if (!quotationId) return { accepted: false };
 
+  let quotation = null;
   try {
     const QuotationService = require('./quotation.service');
-    const quotation = await QuotationService.getById(req, quotationId);
+    quotation = await QuotationService.getById(req, quotationId);
     if (String(quotation.status) === 'Accepted' || String(quotation.status) === 'Converted') {
       return { accepted: false, alreadyAccepted: true };
+    }
+    if (String(quotation.status) === 'Closed') {
+      // The money is recorded; the quotation stays Closed and staff must refund or move it.
+      await auditPaymentNotAccepted(req, invoice, quotation, 'Payment received on a closed quotation — refund or transfer it');
+      return { accepted: false, closed: true, quotationId };
     }
     await QuotationService.accept(req, quotationId, { system: true, paymentVerified: true });
     return { accepted: true, quotationId };
@@ -1024,7 +1033,34 @@ async function maybeAutoAcceptQuotationForInvoice(req, invoice) {
       '[plugin:openext-crm-suite] auto-accept after payment failed:',
       error?.message || error
     );
+    await auditPaymentNotAccepted(
+      req,
+      invoice,
+      quotation || { _id: quotationId },
+      `Payment received, but the quotation could not be accepted (${error?.message || 'auto-accept failed'}) — refund or transfer it`
+    );
     return { accepted: false, error: error?.message || 'auto-accept failed' };
+  }
+}
+
+/** Audit: verified money landed on a quotation that cannot be accepted. Never throws. */
+async function auditPaymentNotAccepted(req, invoice, quotation, message) {
+  try {
+    const quotationId = String((quotation && quotation._id) || '');
+    await AuditService.log(req, {
+      action: 'payment_not_accepted',
+      module: 'quotation',
+      recordId: quotationId,
+      description: `${message} (quotation ${(quotation && quotation.quotationNo) || quotationId}, payment request ${invoice.invoiceNo || invoice._id})`,
+      metadata: {
+        quotationId,
+        quotationStatus: String((quotation && quotation.status) || ''),
+        invoiceId: String(invoice._id || ''),
+        amountPaid: round2(invoice.amountPaid)
+      }
+    });
+  } catch (err) {
+    console.warn('[plugin:openext-crm-suite] audit of a payment on an unaccepted quotation failed:', err?.message || err);
   }
 }
 

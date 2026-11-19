@@ -41,12 +41,6 @@
       "optionsKey": "services"
     },
     {
-      "key": "stage",
-      "label": "Opportunity Stage",
-      "type": "select",
-      "source": "pipelineStages"
-    },
-    {
       "key": "booking_status",
       "label": "Booking Status",
       "type": "select",

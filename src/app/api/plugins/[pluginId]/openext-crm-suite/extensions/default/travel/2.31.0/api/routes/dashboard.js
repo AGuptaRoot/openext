@@ -50,7 +50,8 @@ exports.overview = async (req, sdk) => {
   /* ---------------------------------------------------------------- records */
   const isOpenLead = (l) => !l.convertedClientId && !/(^|\b)(won|lost)(\b|$)/i.test(str(l.stage));
   const openLeads = ctx.leads.filter(isOpenLead);
-  const openOpps = ctx.opportunities.filter((o) => !['WON', 'LOST'].includes(str(o.stageType).toUpperCase()) && !o.acceptedQuotationId);
+  // Quotations sent and still waiting for the client's answer (latest revision of each; needs crm.finance.read).
+  const awaiting = canFinance ? [...data.latestByRoot(ctx.quotations.filter(SENT)).values()].filter((q) => str(q.status) === 'Sent') : [];
   const active = ctx.bookings.filter((b) => ACTIVE.includes(str(b.status)));
   const upcoming = active.filter((b) => str(b.travel_start_date) >= today).sort((a, b) => (str(a.travel_start_date) < str(b.travel_start_date) ? -1 : 1));
   const monthEnd = `${today.slice(0, 7)}-31`;
@@ -89,11 +90,13 @@ exports.overview = async (req, sdk) => {
     const updated = day(l.updatedAt || l.createdAt);
     return !updated || daysBetween(updated, today) >= 3;
   }).length;
-  const pipelineValue = money(openOpps.reduce((s, o) => s + (Number(o.expectedRevenue || o.estimatedDealValue || o.value) || 0), 0));
+  const awaitingValue = money(awaiting.reduce((s, q) => s + (Number(q.grandTotal) || 0), 0));
   const kpis = {
     items: [
       { key: 'enquiries', label: 'Open Enquiries', value: openLeads.length, hint: needAttention ? `${needAttention} need attention` : 'All followed up', tone: needAttention ? 'warning' : 'neutral', link: '/leads' },
-      { key: 'opportunities', label: 'Open Opportunities', value: openOpps.length, hint: canFinance ? `${short(pipelineValue)} pipeline` : 'In progress', link: '/opportunities' },
+      ...(canFinance
+        ? [{ key: 'quotations_sent', label: 'Quotations sent (awaiting answer)', value: awaiting.length, hint: `${short(awaitingValue)} quoted`, link: '/quotations?status=Sent' }]
+        : []),
       { key: 'bookings', label: 'Active Bookings', value: active.length, hint: `${upcoming.filter((b) => str(b.travel_start_date) <= monthEnd).length} upcoming this month`, link: BOOKINGS },
       ...(canFinance
         ? [{ key: 'outstanding', label: 'Outstanding Payment', value: finance.totals.outstanding, format: 'money', currency: 'INR', hint: `${finance.totals.outstandingCount} invoices`, tone: finance.totals.outstanding > 0 ? 'warning' : 'neutral', link: '/invoices' }]
@@ -156,9 +159,9 @@ exports.overview = async (req, sdk) => {
   });
 
   /* --------------------------------------------------------------- Pipeline */
-  const openQuotes = canFinance
-    ? [...data.latestByRoot(ctx.quotations.filter(SENT)).values()].filter((q) => str(q.status) === 'Sent').length
-    : ctx.opportunities.filter((o) => str(o.stageType).toUpperCase() === 'QUOTATION_SENT').length;
+  const openQuotes = awaiting.length;
+  // Ready / Qualified enquiries (the step before a quotation; opportunities are hidden in Travel).
+  const qualified = openLeads.filter((l) => /qualif/i.test(str(l.stage))).length;
 
   /* ----------------------------------------------------------- Attention */
   const all = active.map(facts);
@@ -227,8 +230,8 @@ exports.overview = async (req, sdk) => {
     pipeline: {
       stages: [
         { key: 'enquiries', label: 'Enquiries', count: openLeads.length, link: '/leads' },
-        { key: 'opportunities', label: 'Opportunities', count: openOpps.length, link: '/opportunities' },
-        { key: 'quotations', label: 'Quotations', count: openQuotes, link: '/quotations?status=Sent' },
+        { key: 'qualified', label: 'Qualified', count: qualified, link: '/leads' },
+        ...(canFinance ? [{ key: 'quotations', label: 'Quotations', count: openQuotes, link: '/quotations?status=Sent' }] : []),
         { key: 'bookings', label: 'Bookings', count: active.length, link: BOOKINGS }
       ]
     },

@@ -6,13 +6,58 @@
  * - B2B or B2C is decided by whether a GSTIN is filled (no separate client type).
  * - A GSTIN must pass its checksum. An empty billing state is filled from it. A different state is
  *   saved, with a warning (the state decides CGST + SGST or IGST).
- * - The PAN is taken from the GSTIN.
+ * - The PAN is taken from the GSTIN. CRM 3.54.0: without a GSTIN a PAN may be typed; it is stored
+ *   encrypted (panEnc + panHash fingerprint, select: false) and shown masked from panLast4.
  * - The same GSTIN on another client is a warning, not an error (branches).
  * No personal data is logged.
  */
 
 const { checkGstin, stateCodeOf } = require('../lib/gstin');
 const { resolveTenantId } = require('../utils/tenant.util');
+const Protect = require('../extension-runtime/data-protection');
+
+// Encryption scope of client PANs (bound to the tenant; never readable as another kind of value).
+const PAN_SCOPE = 'crm-core:client-pan';
+const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/;
+
+const tenantOf = (req) => req.tenantId || resolveTenantId(req);
+const panMask = (last4) => (last4 ? `XXXXXX${last4}` : '');
+
+/** Another client with the same typed PAN (names only). */
+async function panDuplicateNames(req, hash, excludeId) {
+  const Company = req.cms?.models?.get?.('Company');
+  if (!Company || !hash) return [];
+  const filter = { tenantId: tenantOf(req), 'gst.panHash': hash, isDeleted: { $ne: true } };
+  if (excludeId) filter._id = { $ne: excludeId };
+  let query = Company.find(filter);
+  if (query && typeof query.select === 'function') query = query.select('name');
+  if (query && typeof query.limit === 'function') query = query.limit(3);
+  const rows = query && typeof query.lean === 'function' ? await query.lean() : await query;
+  return (Array.isArray(rows) ? rows : []).map((r) => r.name).filter(Boolean);
+}
+
+/**
+ * The client's full PAN for GST reports (GSTR-1, TCS register): from the GSTIN, or the typed one decrypted.
+ * Never logged; callers must not return it to the browser except where the law needs it in a filing.
+ */
+async function clientPan(req, companyOrId) {
+  const Company = req.cms?.models?.get?.('Company');
+  let doc = companyOrId && typeof companyOrId === 'object' ? companyOrId : null;
+  if ((!doc || doc.gst?.panEnc === undefined) && Company) {
+    const id = doc ? doc._id : companyOrId;
+    let q = Company.findOne({ tenantId: tenantOf(req), _id: id });
+    if (q && typeof q.select === 'function') q = q.select('+gst.panEnc gst');
+    doc = q && typeof q.lean === 'function' ? await q.lean() : await q;
+  }
+  const gst = (doc && doc.gst) || {};
+  if (gst.gstin && gst.pan) return gst.pan;
+  if (!gst.panEnc) return '';
+  try {
+    return Protect.decryptText(tenantOf(req), PAN_SCOPE, gst.panEnc);
+  } catch {
+    return '';
+  }
+}
 
 function appError(message, status = 400) {
   const error = new Error(message);
@@ -61,7 +106,27 @@ async function prepare(req, { gst, billingAddress, existing, excludeId } = {}) {
       isDeemedExport: gst.isDeemedExport === true
     };
   }
-  if (!gstin) return gst !== undefined ? out : (out.warnings.length ? out : null);
+  if (!gstin) {
+    if (gst === undefined) return out.warnings.length ? out : null;
+    // 3.54.0: no GSTIN. A typed PAN is encrypted; none sent keeps the stored typed one; '' removes it.
+    const typed = gst.pan === undefined ? undefined : String(gst.pan || '').toUpperCase();
+    if (typed) {
+      if (!PAN_RE.test(typed)) throw appError('PAN must be 10 characters: 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F)');
+      const hash = Protect.hashText(tenantOf(req), PAN_SCOPE, typed);
+      Object.assign(out.gst, {
+        panEnc: Protect.encryptText(tenantOf(req), PAN_SCOPE, typed),
+        panHash: hash,
+        panLast4: typed.slice(-4),
+        panSource: 'typed'
+      });
+      const names = await panDuplicateNames(req, hash, excludeId);
+      if (names.length) out.warnings.push(`Another client already has this PAN: ${names.join(', ')}.`);
+    } else if (typed === '' || prior.panSource === 'gstin' || prior.gstin) {
+      // Removed, or the PAN came from the GSTIN that is now removed.
+      Object.assign(out.gst, { panEnc: '', panHash: '', panLast4: '', panSource: '' });
+    }
+    return out;
+  }
 
   const check = await checkGstin(gstin);
   if (!check.ok) {
@@ -72,6 +137,8 @@ async function prepare(req, { gst, billingAddress, existing, excludeId } = {}) {
   if (out.gst) {
     out.gst.gstin = check.gstin;
     out.gst.pan = check.pan;
+    // The GSTIN's PAN replaces a typed one (no encrypted copy kept).
+    Object.assign(out.gst, { panEnc: '', panHash: '', panLast4: String(check.pan || '').slice(-4), panSource: 'gstin' });
   }
 
   if (isForeign(address.country)) {
@@ -97,4 +164,4 @@ async function prepare(req, { gst, billingAddress, existing, excludeId } = {}) {
   return out;
 }
 
-module.exports = { prepare, isForeign };
+module.exports = { prepare, isForeign, clientPan, panMask, PAN_SCOPE };

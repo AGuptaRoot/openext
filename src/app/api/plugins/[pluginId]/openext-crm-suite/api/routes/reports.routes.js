@@ -14,6 +14,12 @@ module.exports = function registerReportsRoutes(app) {
   );
 
   app.get(
+    '/reports/location-wise',
+    requirePermission('crm.reports.read'),
+    reportController.locationWise
+  );
+
+  app.get(
     '/reports/sales',
     requirePermission('crm.reports.read'),
     reportController.sales

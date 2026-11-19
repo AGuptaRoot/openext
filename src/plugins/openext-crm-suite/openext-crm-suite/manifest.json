@@ -1,7 +1,7 @@
 {
   "id": "openext-crm-suite",
   "name": "Root CRM",
-  "version": "3.54.0",
+  "version": "3.55.0",
   "description": "Modernized tenant-secure CRM with React-powered modular dashboard, analytics, sales pipeline, and multi-persona access control. Workspace extensions add their own fields, tabs, pages, settings, backend routes and data tables without changes to the CRM core.",
   "author": "OpenNext",
   "type": "crm",
@@ -87,6 +87,12 @@
       "label": "Bank Reconciliation",
       "entry": "ui/admin/mount.js",
       "icon": "landmark"
+    },
+    {
+      "id": "gst-reports",
+      "label": "GST Reports",
+      "entry": "ui/admin/mount.js",
+      "icon": "receipt"
     },
     {
       "id": "projects",

@@ -534,6 +534,8 @@ async function resolveBudgetContext(req, lead) {
  * can be refined on the opportunity afterwards.
  */
 async function convertToOpportunity(req, leadId, eventId, input = {}) {
+  // Opportunities hidden by the active extension: refused before anything else is checked.
+  await require('./opportunity.service').assertOpportunitiesShown(req);
   const lead = await assertLeadWrite(req, leadId);
   const LeadEvent = getModel(req);
   const userId = resolveUserId(req);

@@ -1105,7 +1105,9 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
         // hideInvoiceWriteOff (3.39.0): no Write off on invoices (button hidden, server refuses).
         // hideQuotationTemplates (3.41.0): no quotation templates (no Templates button on the quotation list,
         //   no Load / Save as Template on the quotation form, the template pages redirect). Stored templates are kept.
-        for (const key of ['hideShipping', 'lockOpportunityContact', 'invoiceFromQuotation', 'hideRecurringInvoices', 'hideInvoiceTemplates', 'hideQuotationTemplates', 'hideInvoiceWriteOff', 'lockOpportunityOnAccept', 'lockConvertedLead', 'completeOpportunitiesOnConversion', 'clientQuotationStartsWithLead', 'bookingAfterAdvance', 'lockWonLead']) {
+        // oneAcceptedQuotationPerLead: a lead has at most one Accepted / Converted quotation (counting the
+        //   quotations of its opportunities too); on accept its other Draft / Sent quotations are Closed.
+        for (const key of ['hideShipping', 'lockOpportunityContact', 'invoiceFromQuotation', 'hideRecurringInvoices', 'hideInvoiceTemplates', 'hideQuotationTemplates', 'hideInvoiceWriteOff', 'lockOpportunityOnAccept', 'lockConvertedLead', 'completeOpportunitiesOnConversion', 'clientQuotationStartsWithLead', 'bookingAfterAdvance', 'lockWonLead', 'oneAcceptedQuotationPerLead']) {
           if (source.salesFlow[key] === undefined) continue;
           if (typeof source.salesFlow[key] !== 'boolean') errors.push(`salesFlow.${key} must be true or false`);
           else if (source.salesFlow[key]) salesFlow[key] = true;

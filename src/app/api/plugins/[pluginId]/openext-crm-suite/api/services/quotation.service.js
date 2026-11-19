@@ -466,7 +466,15 @@ async function create(req, input) {
   if (input.clientId && (!input.leadId || clientEnquiry)) await SalesFlowRules.assertClientQuotationEligible(req, clientId);
   if (leadId) {
     const LeadService = require('./lead.service');
-    await LeadService.getById(req, leadId, { includeQuality: false });
+    const leadDoc = await LeadService.getById(req, leadId, { includeQuality: false });
+    // A NEW quotation straight from a lead (revisions and conversions do not come here): the lead must be
+    // open, of the active extension's Request Type, without an accepted quotation (salesFlow
+    // .oneAcceptedQuotationPerLead) and ready when the extension answers leadWorkflow.readinessRoute.
+    if (!opportunityId && !clientEnquiry && !clientRecord) {
+      await require('./lead-workflow.service').assertQuotationLeadAllowed(req, leadDoc, {
+        assertNotAccepted: () => assertLeadNotAccepted(req, Estimate, tenantFilter(req), { _id: null, leadId })
+      });
+    }
     // Lead workflow rule: a quotation straight from a lead needs a Qualified or ready lead
     // (a quotation from an opportunity already passed it when the opportunity was created).
     if (!opportunityId && !clientEnquiry) await require('./lead-workflow.service').assertOpportunityAllowed(req, leadId, 'quotation');
@@ -1060,6 +1068,58 @@ async function assertRecordNotAccepted(Estimate, filter, quote) {
   }
 }
 
+/**
+ * The quotations of a quotation's lead: made on the lead, or on one of the lead's opportunities.
+ * `filter` = the tenant part of the query. { leadId, or } or null when the quotation has no lead.
+ */
+async function leadQuotationScope(req, filter, quote) {
+  let leadId = refId(quote && quote.leadId);
+  const opportunityId = refId(quote && (quote.opportunityId || quote.dealId));
+  const Opportunity = req.cms?.models?.get?.('Opportunity');
+  if (!leadId && opportunityId && Opportunity) {
+    const query = Opportunity.findOne({ tenantId: filter.tenantId, _id: opportunityId });
+    const opp = query && typeof query.select === 'function' ? await query.select('leadId').lean() : await query;
+    leadId = refId(opp && opp.leadId);
+  }
+  if (!leadId) return null;
+  let opportunityIds = [];
+  if (Opportunity) {
+    const query = Opportunity.find({ tenantId: filter.tenantId, leadId, isDeleted: { $ne: true } });
+    const rows = query && typeof query.select === 'function' ? await query.select('_id').lean() : await query;
+    opportunityIds = (Array.isArray(rows) ? rows : []).map((r) => String(r._id));
+  }
+  const or = [{ leadId }];
+  if (opportunityIds.length) or.push({ opportunityId: { $in: opportunityIds } }, { dealId: { $in: opportunityIds } });
+  return { leadId, or };
+}
+
+/**
+ * salesFlow.oneAcceptedQuotationPerLead: a lead has ONE accepted commercial flow. A second quotation of the
+ * same lead (on the lead or on any of its opportunities) cannot be accepted. 409 LEAD_ALREADY_ACCEPTED.
+ * `filter` = the tenant part of the query (tenantFilter(req), or { tenantId, isDeleted: false } on the portal).
+ */
+async function assertLeadNotAccepted(req, Estimate, filter, quote) {
+  const rules = await require('./sales-flow.service').recordRules(req);
+  if (!rules.oneAcceptedQuotationPerLead) return;
+  const scope = await leadQuotationScope(req, filter, quote);
+  if (!scope) return;
+  const other = await Estimate.findOne({
+    ...filter,
+    _id: { $ne: quote._id },
+    status: { $in: ['Accepted', 'Converted'] },
+    $or: scope.or
+  })
+    .select('_id quotationNo')
+    .lean();
+  if (other) {
+    throw appError(
+      `This lead already has an accepted quotation (${other.quotationNo || 'another quotation'}). Make a new enquiry for another request.`,
+      409,
+      { code: 'LEAD_ALREADY_ACCEPTED' }
+    );
+  }
+}
+
 async function accept(req, id, options = {}) {
   const { isClientUser } = require('../utils/tenant.util');
   if (!options?.system && !isClientUser(req)) {
@@ -1097,6 +1157,7 @@ async function accept(req, id, options = {}) {
   }
 
   await assertRecordNotAccepted(Estimate, tenantFilter(req), existing);
+  await assertLeadNotAccepted(req, Estimate, tenantFilter(req), existing);
 
   const clientId = await resolveQuotationClientId(req, existing, { convertLead: true });
 
@@ -1142,6 +1203,7 @@ async function accept(req, id, options = {}) {
   }
 
   await closeOtherOpportunityQuotations(req, doc || existing);
+  await closeOtherLeadQuotations(req, doc || existing);
   await afterAccepted(req, doc || existing);
 
   return doc;
@@ -1196,6 +1258,60 @@ async function closeOtherOpportunityQuotations(req, accepted) {
     return closed;
   } catch (err) {
     console.warn('[plugin:openext-crm-suite] closing other quotations of the opportunity failed:', err?.message || err);
+    return [];
+  }
+}
+
+/**
+ * salesFlow.oneAcceptedQuotationPerLead: once one quotation of a lead is accepted, the lead's other open
+ * quotations (Draft / Sent, older revisions too, on the lead or its opportunities) are Closed: kept as
+ * history, never sent, accepted, paid or revised again. Each is audited. Never throws: the acceptance stands.
+ */
+async function closeOtherLeadQuotations(req, accepted) {
+  try {
+    const acceptedId = String(accepted?._id || '').trim();
+    if (!acceptedId) return [];
+    const rules = await require('./sales-flow.service').recordRules(req);
+    if (!rules.oneAcceptedQuotationPerLead) return [];
+    const Estimate = getEstimateModel(req);
+    const scope = await leadQuotationScope(req, tenantFilter(req), accepted);
+    if (!scope) return [];
+    const others = await Estimate.find({
+      ...tenantFilter(req),
+      _id: { $ne: acceptedId },
+      status: { $in: ['Draft', 'Sent'] },
+      $or: scope.or
+    })
+      .select('_id quotationNo status')
+      .lean();
+    const closed = [];
+    for (const other of others || []) {
+      const row = await Estimate.findOneAndUpdate(
+        { ...tenantFilter(req), _id: other._id, status: other.status },
+        {
+          $set: {
+            status: 'Closed',
+            closedAt: new Date(),
+            closedReason: 'Another quotation of this lead was accepted',
+            closedByQuotationId: acceptedId,
+            updatedBy: resolveUserId(req) || 'system'
+          }
+        },
+        { new: true }
+      ).lean();
+      if (!row) continue;
+      closed.push(String(other._id));
+      await AuditService.log(req, {
+        action: 'closed',
+        module: 'quotation',
+        recordId: String(other._id),
+        description: `Quotation ${other.quotationNo || other._id} closed: quotation ${accepted.quotationNo || acceptedId} of the same lead was accepted`,
+        metadata: { previousStatus: other.status, acceptedQuotationId: acceptedId, leadId: scope.leadId, reason: 'lead_quotation_accepted' }
+      });
+    }
+    return closed;
+  } catch (err) {
+    console.warn('[plugin:openext-crm-suite] closing other quotations of the lead failed:', err?.message || err);
     return [];
   }
 }
@@ -1918,7 +2034,7 @@ async function clientPortalAccept(req, token, payload = {}) {
       tenantId: quote.tenantId,
       isDeleted: false,
       _id: { $ne: quote._id },
-      status: 'Accepted',
+      status: { $in: ['Accepted', 'Converted'] },
       $or: [{ opportunityId }, { dealId: opportunityId }]
     })
       .select('_id quotationNo')
@@ -1932,6 +2048,7 @@ async function clientPortalAccept(req, token, payload = {}) {
   }
 
   await assertRecordNotAccepted(Estimate, { tenantId: quote.tenantId, isDeleted: false }, quote);
+  await assertLeadNotAccepted(req, Estimate, { tenantId: quote.tenantId, isDeleted: false }, quote);
 
   // Lead-linked quotations: mark lead Won + convert to client (same rule as admin accept).
   let clientId = quote.clientId ? String(quote.clientId).trim() : '';
@@ -2014,6 +2131,7 @@ async function clientPortalAccept(req, token, payload = {}) {
     );
   }
 
+  await closeOtherLeadQuotations(req, updated || { ...quote, ...setFields });
   await afterAccepted(req, updated || { ...quote, ...setFields });
 
   return updated;
@@ -2227,6 +2345,8 @@ async function exportQuotations(req, query = {}) {
 
 module.exports = {
   closeOtherOpportunityQuotations,
+  closeOtherLeadQuotations,
+  assertLeadNotAccepted,
   assertLeadNotConverted,
   buildLineItems,
   withEffectiveStatus,

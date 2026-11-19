@@ -29,6 +29,11 @@ const {
   hasPermission,
   resolveSelfOnlyAssignee
 } = require('../utils/sales-access.util');
+const {
+  parseLocationQuery,
+  buildLocationClauses,
+  andInto: andLocationClauses
+} = require('../utils/location-filter.util');
 
 function getLeadModel(req) {
   const Lead = req.cms?.models.get('Lead');
@@ -271,6 +276,18 @@ async function list(req) {
     const t = toLiteralSearchTerm(String(req.query.tag).trim());
     if (t) filter.tags = new RegExp(`^${t}$`, 'i');
   }
+
+  // Owner (sales person) — exact id. A sales rep's own scope still applies on top.
+  if (req.query?.assignedTo) {
+    const owner = String(req.query.assignedTo).trim();
+    if (owner) filter.assignedTo = owner;
+  }
+
+  // Location drill-down: ?state= &district= &city= (case-insensitive exact), *NotSet / locationNotSet=1 for empty.
+  andLocationClauses(
+    filter,
+    buildLocationClauses(parseLocationQuery(req.query), { state: 'state', district: 'district', city: 'city' })
+  );
 
   // Qualification match score bands: unscored | strong | partial | weak | poor
   if (req.query?.matchScore) {
@@ -696,6 +713,7 @@ async function create(req, input) {
     longitude: input.longitude != null && input.longitude !== '' ? Number(input.longitude) : null,
     address: input.address || input.formattedAddress || '',
     city: input.city || '',
+    district: input.district || '',
     state: input.state || '',
     country: input.country || '',
     postalCode: input.postalCode || '',
@@ -772,6 +790,57 @@ async function update(req, id, input) {
   const validStages = await getValidStages(req);
   const updates = { updatedBy: userId };
 
+  /*
+   * CRM 3.55.0: the lead's contact details (name, email, mobile, company, PAN…) come from its contact
+   * (Contacts module). The lead page does not edit them: it chooses another contact, whose details then
+   * replace the lead's. A lead linked to a contact refuses a direct change of those fields.
+   */
+  const previousContactId = String(existing.contactId || '').trim();
+  const nextContactId = input.contactId !== undefined ? String(input.contactId || '').trim() : previousContactId;
+  let switchedContact = null;
+  if (input.contactId !== undefined && nextContactId && nextContactId !== previousContactId) {
+    const PersonContact = req.cms?.models.get('PersonContact');
+    const contact = PersonContact && /^[a-f0-9]{24}$/i.test(nextContactId)
+      ? await PersonContact.findOne({ tenantId: resolveTenantId(req), _id: nextContactId, isDeleted: false }).lean()
+      : null;
+    if (!contact) throw appError('Contact not found', 404);
+    if (!String(contact.email || '').trim() || !String(contact.phone || '').trim()) {
+      throw appError('This contact has no email or mobile number. Add them on the Contact page first.', 400);
+    }
+    switchedContact = contact;
+    input = {
+      ...input,
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone,
+      pan: contact.pan || '',
+      salutation: contact.salutation || '',
+      jobTitle: contact.jobTitle || '',
+      gender: contact.gender || '',
+      company: String(contact.companyName || '').trim() || existing.company,
+      ...(contact.photoUrl ? { photoUrl: contact.photoUrl } : {}),
+      // Choosing an existing contact is an explicit choice (same rule as Lead create with a contact).
+      allowExactDuplicate: true,
+      allowSimilarCompany: true
+    };
+  } else if (previousContactId) {
+    const same = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+    const changed = [
+      input.email !== undefined && !same(input.email, existing.email),
+      input.phone !== undefined && !same(normalizeMobile(input.phone), normalizeMobile(existing.phone || '')),
+      input.company !== undefined && !same(input.company, existing.company),
+      input.pan !== undefined && !same(normalizePan(input.pan || ''), normalizePan(existing.pan || ''))
+    ].some(Boolean);
+    if (changed) {
+      const error = appError(
+        "Email, mobile, company and PAN come from the lead's contact. Edit them on the Contact page, or choose another contact.",
+        409
+      );
+      error.code = 'LEAD_CONTACT_LOCKED';
+      throw error;
+    }
+  }
+
   if (input.name !== undefined) {
     if (!String(input.name).trim()) throw appError('Name is required');
     updates.name = String(input.name).trim();
@@ -846,6 +915,7 @@ async function update(req, id, input) {
     updates.address = String(input.formattedAddress || '').trim();
   }
   if (input.city !== undefined) updates.city = String(input.city || '').trim();
+  if (input.district !== undefined) updates.district = String(input.district || '').trim().slice(0, 120);
   if (input.state !== undefined) updates.state = String(input.state || '').trim();
   if (input.country !== undefined) updates.country = String(input.country || '').trim();
   if (input.postalCode !== undefined) updates.postalCode = String(input.postalCode || '').trim();
@@ -905,11 +975,25 @@ async function update(req, id, input) {
     throw appError('Lead not found or could not be updated', 404);
   }
 
+  // 3.55.0: another contact chosen: link the new one, drop the lead from the old one.
+  if (switchedContact) {
+    const PersonContactService = require('./person-contact.service');
+    try {
+      await PersonContactService.linkLead(req, String(switchedContact._id), String(id));
+      const PersonContact = req.cms?.models.get('PersonContact');
+      if (PersonContact && previousContactId) {
+        await PersonContact.updateOne({ tenantId: resolveTenantId(req), _id: previousContactId }, { $pull: { leadIds: String(id) } });
+      }
+    } catch (linkErr) {
+      console.warn('[plugin:openext-crm-suite] lead contact relink failed:', linkErr?.message || linkErr);
+    }
+  }
+
   await AuditService.log(req, {
     action: 'updated',
     module: 'lead',
     recordId: id,
-    description: `Lead updated: ${lead.name}`,
+    description: switchedContact ? `Lead updated: ${lead.name} (contact changed)` : `Lead updated: ${lead.name}`,
     metadata: {
       fields: Object.keys(updates).filter((k) => k !== 'updatedBy'),
       similarCompanyOverride: input.allowSimilarCompany === true,
@@ -1440,7 +1524,7 @@ const CORE_IMPORT_HEADERS = new Set([
   'job title', 'title', 'designation', 'stage', 'pipeline stage', 'source', 'lead source', 'status',
   'lead status', 'requesttype', 'request type', 'required type', 'request_type', 'required_type',
   'requiredtype', 'requirement type', 'leadtype', 'lead type', 'assignedto', 'assigned to', 'owner',
-  'value', 'budget', 'amount', 'budget / value', 'city', 'state', 'country', 'address', 'notes',
+  'value', 'budget', 'amount', 'budget / value', 'city', 'district', 'state', 'country', 'address', 'notes',
   'description', 'tags', 'labels', 'customfields', 'custom_fields'
 ]);
 
@@ -1561,6 +1645,7 @@ async function previewImport(req, { rows = [], options = {} }) {
     const rawValue = raw.value ?? raw['Value'] ?? raw['Budget'] ?? raw['Amount'] ?? 0;
     const value = Number(rawValue) || 0;
     const city = String(raw.city || raw['City'] || '').trim();
+    const district = String(raw.district || raw['District'] || '').trim();
     const state = String(raw.state || raw['State'] || '').trim();
     const country = String(raw.country || raw['Country'] || '').trim();
     const address = String(raw.address || raw['Address'] || '').trim();
@@ -1694,6 +1779,7 @@ async function previewImport(req, { rows = [], options = {} }) {
         assignedTo: assignedTo || defaultAssignedTo,
         value,
         city,
+        district,
         state,
         country,
         address,
@@ -1915,6 +2001,7 @@ async function executeImport(req, { rows = [], options = {} }) {
         ),
         value: Number(raw.value ?? raw['Value'] ?? raw['Budget'] ?? 0) || 0,
         city: String(raw.city || raw['City'] || '').trim(),
+        district: String(raw.district || raw['District'] || '').trim(),
         state: String(raw.state || raw['State'] || '').trim(),
         country: String(raw.country || raw['Country'] || '').trim(),
         address: String(raw.address || raw['Address'] || '').trim(),

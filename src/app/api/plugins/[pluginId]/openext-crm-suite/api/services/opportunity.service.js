@@ -605,7 +605,20 @@ function assertCloseDateNotPast(raw) {
   }
 }
 
+/**
+ * The active extension hides Opportunities (manifest hiddenModules): no new opportunity is created —
+ * by the API, a lead activity conversion or an extension. Existing opportunities keep their system
+ * stage updates. 409 OPPORTUNITIES_HIDDEN.
+ */
+async function assertOpportunitiesShown(req) {
+  if (!(await require('./crm-extension.service').opportunitiesHidden(req))) return;
+  const error = appError('Opportunities are turned off by the active extension. Create the quotation from the lead.', 409);
+  error.code = 'OPPORTUNITIES_HIDDEN';
+  throw error;
+}
+
 async function create(req, input, options = {}) {
+  await assertOpportunitiesShown(req);
   const noShipping = (await require('./sales-flow.service').recordRules(req)).hideShipping;
   const Opportunity = getOpportunityModel(req);
   const tenantId = resolveTenantId(req);
@@ -1922,6 +1935,7 @@ module.exports = {
   resolvePipelineIdForLead,
   getSummary,
   getById,
+  assertOpportunitiesShown,
   create,
   assignOwner,
   changeStage,

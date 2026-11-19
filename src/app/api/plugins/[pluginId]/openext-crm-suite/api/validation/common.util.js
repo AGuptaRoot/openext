@@ -368,14 +368,15 @@ function assertOptionalDate(errors, value, label) {
  * downstream services and DB inserts don't see undefined holes.
  * 
  * @param {*} input Raw billingAddress from client create/update body
- * @returns {{street: string, city: string, state: string, country: string, zip: string}}
- *   Clean address object guaranteed to have all five keys
+ * @returns {{street: string, city: string, district: string, state: string, country: string, zip: string}}
+ *   Clean address object guaranteed to have all six keys
  */
 function normalizeBillingAddress(input) {
   const source = asObject(input);
   return {
     street: trimString(source.street) || '',
     city: trimString(source.city) || '',
+    district: (trimString(source.district) || '').slice(0, 120),
     state: trimString(source.state) || '',
     country: trimString(source.country) || '',
     zip: trimString(source.zip) || ''

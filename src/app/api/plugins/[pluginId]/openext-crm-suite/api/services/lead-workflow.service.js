@@ -182,11 +182,293 @@ async function opportunityCandidates(req, query = {}) {
   return { leads, hidden, rule: hasReadiness ? rules.opportunityLeads : 'all', hasReadiness };
 }
 
+/* ------------------------------------------------------------------ leads for a new quotation */
+
+/** Stage names that close a lead without a sale (any case). Won is resolved from the pipeline. */
+const CLOSED_STAGE_NAMES = new Set(['lost', 'disqualified', 'cancelled', 'canceled', 'closed']);
+const OPEN_QUOTATION_STATUSES = ['Draft', 'Sent'];
+const ACCEPTED_QUOTATION_STATUSES = ['Accepted', 'Converted'];
+const ID_RE = /^[a-f0-9]{24}$/i;
+
+const idOf = (ref) => String((ref && typeof ref === 'object' ? ref._id || ref.id : ref) || '').trim();
+const leanOf = async (query) => (query && typeof query.lean === 'function' ? query.lean() : query);
+
+function isClosedStage(stage) {
+  return CLOSED_STAGE_NAMES.has(lower(stage));
+}
+
+function quotationError(message, code) {
+  const error = new Error(message);
+  error.status = 409;
+  error.code = code;
+  return error;
+}
+
+/** The active uploaded extension's Request Type ({ key, id, name }), or null (built-in: no restriction). */
+async function activeRequestType(req, def) {
+  const key = String((def && def.requestTypeKey) || '').trim();
+  if (!def || def.isInternal !== false || !key) return null;
+  const out = { key, id: '', name: String(def.requestTypeName || '').trim() };
+  try {
+    const RequestType = req.cms?.models?.get?.('RequestType');
+    if (RequestType) {
+      const { resolveTenantId } = require('../utils/tenant.util');
+      const doc = await leanOf(RequestType.findOne({ tenantId: resolveTenantId(req), key, isDeleted: { $ne: true } }));
+      if (doc) {
+        out.id = idOf(doc._id);
+        out.name = String(doc.name || out.name || '').trim();
+      }
+    }
+  } catch {
+    /* the key alone still decides */
+  }
+  return out;
+}
+
+/** What the active extension asks of a lead before a new quotation. */
+async function quotationContext(req) {
+  const CrmExtensionService = require('./crm-extension.service');
+  const SettingService = require('./setting.service');
+  const def = await CrmExtensionService.getActive(req).catch(() => null);
+  const uploaded = Boolean(def && def.isInternal === false);
+  const lw = uploaded && def.leadWorkflow ? def.leadWorkflow : null;
+  const stages = await getStages(req);
+  return {
+    lw,
+    hasReadiness: Boolean(lw && lw.readinessRoute),
+    wonStage: SettingService.resolveWonStage(stages),
+    requestType: uploaded ? await activeRequestType(req, def) : null,
+    oneAccepted: Boolean(uploaded && def.salesFlow && def.salesFlow.oneAcceptedQuotationPerLead === true)
+  };
+}
+
+/** Request Types of leads that name only an id: Map<id, { key, name }>. */
+async function requestTypesById(req, leads) {
+  const ids = [...new Set(leads.filter((l) => !(l.commercialRequirement && l.commercialRequirement.requestTypeKey)).map((l) => idOf(l.requestTypeId)).filter((id) => ID_RE.test(id)))];
+  const out = new Map();
+  const RequestType = req.cms?.models?.get?.('RequestType');
+  if (!ids.length || !RequestType) return out;
+  try {
+    const { resolveTenantId } = require('../utils/tenant.util');
+    const rows = (await leanOf(RequestType.find({ tenantId: resolveTenantId(req), _id: { $in: ids } }))) || [];
+    for (const row of rows) out.set(idOf(row._id), { key: String(row.key || ''), name: String(row.name || '') });
+  } catch {
+    /* unknown types are not restricted */
+  }
+  return out;
+}
+
+/** True when the lead clearly belongs to another Request Type than the active one. Unknown → false. */
+function isOtherRequestType(lead, active, typesById) {
+  if (!active) return false;
+  const typeId = idOf(lead.requestTypeId);
+  const known = typesById && typesById.get(typeId);
+  const key = String((lead.commercialRequirement && lead.commercialRequirement.requestTypeKey) || (known && known.key) || '').trim();
+  if (key) return lower(key) !== lower(active.key);
+  if (typeId && active.id && known) return typeId !== active.id;
+  const name = String(lead.requestType || '').trim();
+  if (name && active.name) return lower(name) !== lower(active.name);
+  return false;
+}
+
+/** Why a lead is closed for a new quotation ('' when open). */
+function closedReason(lead, wonStage) {
+  if (lead.convertedClientId) return 'converted';
+  const stage = lower(lead.stage);
+  if (stage && (stage === lower(wonStage) || stage === 'won')) return 'won';
+  if (isClosedStage(lead.stage)) return 'closed';
+  return '';
+}
+
+/**
+ * The Draft / Sent / Accepted quotations of several leads (on the lead or on one of its opportunities):
+ * one Opportunity query and one Estimate query. Map<leadId, { open: [...], accepted: [...] }>.
+ */
+async function quotationsOfLeads(req, leadIds) {
+  const out = new Map(leadIds.map((id) => [id, { open: [], accepted: [] }]));
+  const Estimate = req.cms?.models?.get?.('Estimate');
+  if (!leadIds.length || !Estimate) return out;
+  const { resolveTenantId } = require('../utils/tenant.util');
+  const tenantId = resolveTenantId(req);
+  const oppLead = new Map();
+  const Opportunity = req.cms?.models?.get?.('Opportunity');
+  if (Opportunity) {
+    try {
+      const q = Opportunity.find({ tenantId, leadId: { $in: leadIds }, isDeleted: { $ne: true } });
+      const rows = (await leanOf(q && typeof q.select === 'function' ? q.select('_id leadId') : q)) || [];
+      for (const row of rows) oppLead.set(idOf(row._id), idOf(row.leadId));
+    } catch {
+      /* quotations on the lead itself still count */
+    }
+  }
+  const oppIds = [...oppLead.keys()];
+  const or = [{ leadId: { $in: leadIds } }];
+  if (oppIds.length) or.push({ opportunityId: { $in: oppIds } }, { dealId: { $in: oppIds } });
+  const q = Estimate.find({
+    tenantId,
+    isDeleted: false,
+    status: { $in: [...OPEN_QUOTATION_STATUSES, ...ACCEPTED_QUOTATION_STATUSES] },
+    $or: or
+  });
+  const rows = (await leanOf(q && typeof q.select === 'function' ? q.select('_id quotationNo status leadId opportunityId dealId isLatestVersion') : q)) || [];
+  for (const row of rows) {
+    let leadId = idOf(row.leadId);
+    if (!out.has(leadId)) leadId = oppLead.get(idOf(row.opportunityId)) || oppLead.get(idOf(row.dealId)) || '';
+    const bucket = out.get(leadId);
+    if (!bucket) continue;
+    const item = { id: idOf(row._id), quotationNo: String(row.quotationNo || ''), status: String(row.status || '') };
+    if (ACCEPTED_QUOTATION_STATUSES.includes(item.status)) bucket.accepted.push(item);
+    else if (row.isLatestVersion !== false) bucket.open.push(item);
+  }
+  return out;
+}
+
+function leadSummary(lead) {
+  return {
+    _id: idOf(lead._id || lead.id),
+    name: String(lead.name || lead.contactName || ''),
+    company: String(lead.company || ''),
+    email: String(lead.email || ''),
+    phone: String(lead.phone || ''),
+    stage: String(lead.stage || '')
+  };
+}
+
+const BLOCK_MESSAGES = {
+  converted: 'This lead is already converted into a client.',
+  won: 'This lead is Won.',
+  closed: 'This lead is closed. Reopen it before making a quotation.',
+  otherType: 'This lead is for another request type.',
+  accepted: 'This lead already has an accepted quotation.',
+  notReady: 'This lead is not ready for a quotation.'
+};
+
+/**
+ * Leads offered on the Create Quotation page: open leads of the active extension's Request Type, without
+ * an accepted quotation (salesFlow.oneAcceptedQuotationPerLead) and, when the extension answers
+ * leadWorkflow.readinessRoute, ready. Visibility follows LeadService.list (sales reps: their leads).
+ */
+async function quotationCandidates(req, query = {}) {
+  const { isClientUser } = require('../utils/tenant.util');
+  if (isClientUser(req)) {
+    const error = new Error('Not available on the client portal.');
+    error.status = 403;
+    throw error;
+  }
+  const LeadService = require('./lead.service');
+  const ctx = await quotationContext(req);
+  const listReq = Object.assign(Object.create(Object.getPrototypeOf(req) || Object.prototype), req, {
+    query: { ...(query.q ? { search: String(query.q).slice(0, 100) } : {}), limit: '100' }
+  });
+  const page = await LeadService.list(listReq);
+  const items = Array.isArray(page && page.items) ? [...page.items] : [];
+  const include = String(query.include || '').trim();
+  let includeFound = !include || items.some((l) => idOf(l._id || l.id) === include);
+  if (ID_RE.test(include) && !includeFound) {
+    const extra = await LeadService.getById(req, include, { includeQuality: false }).catch(() => null);
+    if (extra) {
+      items.unshift(extra);
+      includeFound = true;
+    }
+  }
+
+  const hidden = { closed: 0, accepted: 0, otherType: 0 };
+  const blocked = new Map();
+  const typesById = await requestTypesById(req, items);
+  const open = [];
+  for (const lead of items) {
+    const id = idOf(lead._id || lead.id);
+    const closed = closedReason(lead, ctx.wonStage);
+    if (closed) {
+      hidden.closed += 1;
+      blocked.set(id, closed);
+    } else if (isOtherRequestType(lead, ctx.requestType, typesById)) {
+      hidden.otherType += 1;
+      blocked.set(id, 'otherType');
+    } else open.push(lead);
+  }
+
+  const quotes = await quotationsOfLeads(req, open.map((l) => idOf(l._id || l.id)));
+  const remaining = [];
+  for (const lead of open) {
+    const id = idOf(lead._id || lead.id);
+    if (ctx.oneAccepted && quotes.get(id) && quotes.get(id).accepted.length) {
+      hidden.accepted += 1;
+      blocked.set(id, 'accepted');
+    } else remaining.push(lead);
+  }
+
+  const ready = ctx.hasReadiness ? await readiness(req, remaining.map((l) => idOf(l._id || l.id)), ctx.lw) : new Map();
+  const leads = [];
+  const notReady = [];
+  for (const lead of remaining) {
+    const id = idOf(lead._id || lead.id);
+    const info = ready.get(id);
+    if (ctx.hasReadiness && !(info && info.ready)) {
+      notReady.push({ ...leadSummary(lead), reasons: info ? info.reasons : [], summary: info ? info.summary : '' });
+      blocked.set(id, 'notReady');
+      continue;
+    }
+    const row = { ...leadSummary(lead), openQuotations: (quotes.get(id) && quotes.get(id).open) || [] };
+    if (!row.email) row.noEmail = true;
+    leads.push(row);
+  }
+
+  const result = { leads, notReady, hidden, hasReadiness: ctx.hasReadiness };
+  if (include) {
+    const reason = !includeFound ? 'notFound' : blocked.get(include) || '';
+    const lead = items.find((l) => idOf(l._id || l.id) === include);
+    const nr = notReady.find((l) => l._id === include);
+    result.included = {
+      _id: include,
+      allowed: !reason,
+      reason,
+      message: reason === 'notFound' ? 'This lead was not found or is not visible to you.' : BLOCK_MESSAGES[reason] || '',
+      reasons: nr ? nr.reasons : [],
+      name: lead ? String(lead.name || lead.contactName || '') : ''
+    };
+  }
+  return result;
+}
+
+/**
+ * Server-side rules for a NEW quotation made straight from a lead (no opportunity, not a client enquiry):
+ * closed lead → 409 LEAD_CLOSED; another Request Type → 409 LEAD_OTHER_REQUEST_TYPE; not ready (the
+ * extension answers leadWorkflow.readinessRoute) → 409 LEAD_NOT_READY. The accepted-quotation rule is
+ * checked by the caller (quotation.service assertLeadNotAccepted). Revisions and conversions never call it.
+ */
+async function assertQuotationLeadAllowed(req, lead, { assertNotAccepted } = {}) {
+  if (!lead) return;
+  const id = idOf(lead._id || lead.id);
+  const ctx = await quotationContext(req);
+  if (!lead.convertedClientId && isClosedStage(lead.stage)) {
+    throw quotationError(`This lead is closed (${String(lead.stage).trim()}). Reopen it before making a quotation.`, 'LEAD_CLOSED');
+  }
+  if (ctx.requestType && isOtherRequestType(lead, ctx.requestType, await requestTypesById(req, [lead]))) {
+    const theirs = String((lead.commercialRequirement && lead.commercialRequirement.requestTypeKey) || lead.requestType || '').trim();
+    throw quotationError(
+      `This lead is for another request type${theirs ? ` (${theirs})` : ''}. Quotations here are for ${ctx.requestType.name || ctx.requestType.key}.`,
+      'LEAD_OTHER_REQUEST_TYPE'
+    );
+  }
+  if (typeof assertNotAccepted === 'function') await assertNotAccepted();
+  if (ctx.hasReadiness) {
+    const info = (await readiness(req, [id], ctx.lw)).get(id);
+    if (!(info && info.ready)) {
+      const reasons = info && info.reasons.length ? `: ${info.reasons.map((r) => r.replace(/[.\s]+$/, '')).join('; ')}.` : '.';
+      throw quotationError(`This lead is not ready for a quotation${reasons}`, 'LEAD_NOT_READY');
+    }
+  }
+}
+
 /**
  * Does a new quotation need an opportunity? Settings → Lead workflow decides; "Follow the workspace
  * extension" uses the active extension's salesFlow.requireOpportunityForQuotation (off without one).
  */
 async function quotationNeedsOpportunity(req) {
+  // The active extension hides Opportunities: quotations are made from leads, whatever the setting says.
+  const CrmExtension = require('./crm-extension.service');
+  if (await CrmExtension.opportunitiesHidden(req)) return false;
   const rules = await getRules(req);
   if (rules.quotationNeedsOpportunity === 'always') return true;
   if (rules.quotationNeedsOpportunity === 'never') return false;
@@ -244,6 +526,9 @@ module.exports = {
   readiness,
   forLead,
   opportunityCandidates,
+  quotationCandidates,
+  assertQuotationLeadAllowed,
+  isClosedStage,
   assertOpportunityAllowed,
   leadReady
 };

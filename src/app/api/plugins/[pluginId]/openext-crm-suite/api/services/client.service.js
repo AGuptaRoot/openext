@@ -26,6 +26,11 @@ const {
   applyEmployeeProjectListScope,
   applyEmployeeTaskListScope
 } = require('../utils/project-access.util');
+const {
+  parseLocationQuery,
+  buildLocationClauses,
+  andInto: andLocationClauses
+} = require('../utils/location-filter.util');
 
 function getCompanyModel(req) {
   const Company = req.cms?.models.get('Company');
@@ -102,6 +107,7 @@ function normalizeBillingAddress(input) {
   return {
     street: String(source.street || '').trim(),
     city: String(source.city || '').trim(),
+    district: String(source.district || '').trim().slice(0, 120),
     state: String(source.state || '').trim(),
     country: String(source.country || '').trim(),
     zip: String(source.zip || '').trim()
@@ -386,6 +392,29 @@ async function list(req) {
     }
   }
 
+  // Location drill-down on the billing address: ?state= &district= &city= (case-insensitive exact),
+  // *NotSet / locationNotSet=1 for empty.
+  andLocationClauses(
+    filter,
+    buildLocationClauses(parseLocationQuery(req.query), {
+      state: 'billingAddress.state',
+      district: 'billingAddress.district',
+      city: 'billingAddress.city'
+    })
+  );
+
+  // ?source= / ?assignedTo= follow the lead the client came from (assignedTo also takes clients created
+  // by that user); with a source chosen, clients without a source lead are left out.
+  if (req.query?.source || req.query?.assignedTo) {
+    andLocationClauses(
+      filter,
+      await require('./location-report.service').buildClientOriginClauses(req, {
+        source: req.query.source,
+        assignedTo: req.query.assignedTo
+      })
+    );
+  }
+
   const { isClientUser, resolveClientIdAsync, resolveClientId } = require('../utils/tenant.util');
   let isUnlinkedClient = false;
   if (isClientUser(req)) {
@@ -460,6 +489,7 @@ async function create(req, input) {
     taxId,
     website: input.website || '',
     avatarUrl: input.avatarUrl || '',
+    avatarColor: /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(input.avatarColor || '').trim()) ? String(input.avatarColor).trim() : '',
     status: input.status !== undefined ? (input.status === 'Inactive' ? 'Inactive' : 'Active') : 'Active',
     category: input.category ? String(input.category).trim() : '',
     tags: Array.isArray(input.tags) ? input.tags : [],
@@ -515,6 +545,12 @@ async function update(req, id, input) {
   if (input.avatarUrl !== undefined) {
     updates.avatarUrl = String(input.avatarUrl || '').trim();
   }
+  // CRM 3.54.0: saved now (it was dropped before, so the colour went back to the default on reload).
+  if (input.avatarColor !== undefined) {
+    const color = String(input.avatarColor || '').trim();
+    if (color && !/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color)) throw appError('Avatar colour must be a hex colour like #2563eb');
+    updates.avatarColor = color;
+  }
   if (input.status !== undefined) {
     updates.status = input.status === 'Inactive' ? 'Inactive' : 'Active';
   }
@@ -535,7 +571,8 @@ async function update(req, id, input) {
     existing,
     excludeId: id
   });
-  if (gstPrep && gstPrep.gst) updates.gst = gstPrep.gst;
+  // 3.54.0: field by field, so the hidden encrypted PAN is only changed when this save changes it.
+  if (gstPrep && gstPrep.gst) for (const [key, value] of Object.entries(gstPrep.gst)) updates[`gst.${key}`] = value;
   if (gstPrep && gstPrep.billingAddress) updates.billingAddress = gstPrep.billingAddress;
 
   if (['name', 'email', 'phone'].some((field) => input[field] !== undefined)) {
@@ -1416,6 +1453,41 @@ async function getSummary(req, companyId) {
   };
 }
 
+/* ------------------------------------------------------------------------------------------------
+ * CRM 3.54.0: "Tax ID" is the client's CODE (auto TAX-0001…), not a tax number. In a client CSV a GSTIN
+ * goes to the client's GST card (Company.gst: gstin + its PAN), so GSTR-1 treats the client as B2B;
+ * the code column is "Client code" (old "Tax ID" / "Tax Number" / "VAT" columns are still read).
+ * ---------------------------------------------------------------------------------------------- */
+
+/** The import row's GSTIN (a GSTIN column, or an old Tax ID column holding one) and client code. */
+function importTaxFields(raw) {
+  const gstinCol = String(raw.gstin || raw['GSTIN'] || raw['GST Number'] || raw['GST No'] || '').trim().toUpperCase().replace(/\s+/g, '');
+  const legacy = String(raw.taxId || raw['Tax ID'] || raw['VAT'] || raw['Tax Number'] || '').trim();
+  const code = String(raw.clientCode || raw['Client code'] || raw['Client Code'] || '').trim();
+  const looksGstin = (v) => /^[0-9]{2}[A-Z0-9]{13}$/.test(String(v || '').toUpperCase().replace(/\s+/g, ''));
+  const gstin = gstinCol || (looksGstin(legacy) ? legacy.toUpperCase().replace(/\s+/g, '') : '');
+  // A legacy column that held the GSTIN is not a code; any other value there (VAT no., old code) stays the code.
+  const clientCode = code || (legacy && !looksGstin(legacy) ? legacy : '');
+  return { gstin, clientCode };
+}
+
+/** A checked GSTIN → the client's GST card (+ the billing state when empty). null when none / not valid. */
+async function importGstCard(gstin, billingAddress) {
+  if (!gstin) return null;
+  const { checkGstin } = require('../lib/gstin');
+  const check = await checkGstin(gstin);
+  if (!check.ok) return { invalid: check.message || 'not valid' };
+  const address = { ...(billingAddress || {}) };
+  if (!String(address.state || '').trim()) {
+    address.state = check.state;
+    if (!address.country) address.country = 'India';
+  }
+  return {
+    gst: { gstin: check.gstin, pan: check.pan, panLast4: String(check.pan || '').slice(-4), panSource: 'gstin', isSEZ: false, isDeemedExport: false },
+    billingAddress: address
+  };
+}
+
 async function previewImport(req, { rows = [], options = {} }) {
   const { parseTags, parseCustomFields } = require('../validation/client.schema');
   const Company = getCompanyModel(req);
@@ -1446,7 +1518,7 @@ async function previewImport(req, { rows = [], options = {} }) {
     const rawPhone = String(raw.phone || raw['Company Phone'] || raw['Phone'] || raw['Mobile'] || raw['Phone Number'] || raw['Contact'] || '').trim();
     const phone = rawPhone ? normalizeMobile(rawPhone) : '';
     const website = String(raw.website || raw['Website'] || raw['URL'] || '').trim();
-    const taxId = String(raw.taxId || raw['Tax ID'] || raw['GSTIN'] || raw['VAT'] || raw['Tax Number'] || '').trim();
+    const { gstin: importGstin, clientCode: taxId } = importTaxFields(raw);
     const category = String(raw.category || raw['Category'] || raw['Client Category'] || defaultCategory).trim();
     const rawStatus = String(raw.status || raw['Status'] || raw['Client Status'] || defaultStatus).trim();
     const status = rawStatus.toLowerCase() === 'inactive' ? 'Inactive' : 'Active';
@@ -1457,6 +1529,7 @@ async function previewImport(req, { rows = [], options = {} }) {
     const billingAddress = {
       street: String(raw.street || raw['Street'] || raw.address || raw['Address'] || raw['Billing Street'] || '').trim(),
       city: String(raw.city || raw['City'] || raw['Billing City'] || '').trim(),
+      district: String(raw.district || raw['District'] || raw['Billing District'] || '').trim(),
       state: String(raw.state || raw['State'] || raw['Billing State'] || '').trim(),
       country: String(raw.country || raw['Country'] || raw['Billing Country'] || '').trim(),
       zip: String(raw.zip || raw['ZIP'] || raw['Zip'] || raw['Postal Code'] || raw['Billing Zip'] || '').trim()
@@ -1470,6 +1543,10 @@ async function previewImport(req, { rows = [], options = {} }) {
 
     // Field-level Validation
     if (!name) errors.push('Company name is required');
+    if (importGstin) {
+      const card = await importGstCard(importGstin, {});
+      if (card && card.invalid) warnings.push(`GSTIN "${importGstin}" is not valid (${card.invalid}); the client is imported without GST (B2C). Fix it on the client's GST card.`);
+    }
     if (name && name.length > 120) errors.push('Company name must be 120 characters or fewer');
     if (email && !isValidEmail(email)) errors.push(`Invalid company email format: "${email}"`);
     if (phone && !isValidMobile(phone)) errors.push(`Invalid company mobile format: "${rawPhone}"`);
@@ -1609,7 +1686,8 @@ async function executeImport(req, { rows = [], options = {} }) {
       const rawPhone = String(raw.phone || raw['Company Phone'] || raw['Phone'] || raw['Mobile'] || raw['Phone Number'] || raw['Contact'] || '').trim();
       const phone = rawPhone ? normalizeMobile(rawPhone) : '';
       const website = String(raw.website || raw['Website'] || raw['URL'] || '').trim();
-      let taxId = String(raw.taxId || raw['Tax ID'] || raw['GSTIN'] || raw['VAT'] || raw['Tax Number'] || '').trim();
+      const taxFields = importTaxFields(raw);
+      let taxId = taxFields.clientCode;
       const category = String(raw.category || raw['Category'] || raw['Client Category'] || defaultCategory).trim();
       const rawStatus = String(raw.status || raw['Status'] || raw['Client Status'] || defaultStatus).trim();
       const status = rawStatus.toLowerCase() === 'inactive' ? 'Inactive' : 'Active';
@@ -1680,14 +1758,18 @@ async function executeImport(req, { rows = [], options = {} }) {
 
       const billingAddress = raw.billingAddress && typeof raw.billingAddress === 'object' ? raw.billingAddress : {
         street: String(raw.street || raw['Street'] || raw.address || raw['Address'] || '').trim(),
-        city: String(raw.city || raw['City'] || '').trim(),
-        state: String(raw.state || raw['State'] || '').trim(),
+        city: String(raw.city || raw['City'] || raw['Billing City'] || '').trim(),
+        district: String(raw.district || raw['District'] || raw['Billing District'] || '').trim(),
+        state: String(raw.state || raw['State'] || raw['Billing State'] || '').trim(),
         country: String(raw.country || raw['Country'] || '').trim(),
         zip: String(raw.zip || raw['ZIP'] || raw['Zip'] || raw['Postal Code'] || '').trim()
       };
 
       const tags = parseTags(raw.tags || raw['Tags'] || raw['Labels']);
       const customFields = parseCustomFields(raw.customFields || raw['custom_fields']);
+      // A valid GSTIN fills the GST card (an invalid one is left out; the preview warned about it).
+      const gstCard = await importGstCard(taxFields.gstin, billingAddress);
+      const gstOk = gstCard && !gstCard.invalid ? gstCard : null;
 
       const companyDoc = await Company.create({
         tenantId,
@@ -1696,7 +1778,8 @@ async function executeImport(req, { rows = [], options = {} }) {
         companyTokens,
         email: email || '',
         phone: phone || '',
-        billingAddress,
+        billingAddress: gstOk ? gstOk.billingAddress : billingAddress,
+        ...(gstOk ? { gst: gstOk.gst } : {}),
         taxId,
         website: website || '',
         status,
@@ -1748,7 +1831,7 @@ async function executeImport(req, { rows = [], options = {} }) {
         action: 'created',
         module: 'client',
         recordId: String(companyObj._id),
-        description: `Client imported via bulk import: "${companyObj.name}" (Tax ID: ${companyObj.taxId})`,
+        description: `Client imported via bulk import: "${companyObj.name}" (Client code: ${companyObj.taxId})`,
         metadata: {
           clientId: String(companyObj._id),
           name: companyObj.name,
@@ -1880,7 +1963,8 @@ async function exportClients(req, query = {}) {
   const baseHeaders = [
     'ID',
     'Company Name',
-    'Tax ID',
+    'Client code',
+    'GSTIN',
     'Status',
     'Category',
     'Company Email',
@@ -1917,6 +2001,7 @@ async function exportClients(req, query = {}) {
       client._id,
       client.name,
       client.taxId || '',
+      (client.gst && client.gst.gstin) || '',
       client.status || 'Active',
       client.category || '',
       client.email || '',
@@ -2451,6 +2536,9 @@ module.exports = {
   update,
   remove,
   listContacts,
+  // 3.54.0: for tests (client CSV: client code vs GSTIN).
+  _importTaxFields: importTaxFields,
+  _importGstCard: importGstCard,
   syncContactRowsFromMaster,
   addContact,
   updateContact,

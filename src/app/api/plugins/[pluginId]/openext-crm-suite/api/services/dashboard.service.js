@@ -402,8 +402,11 @@ async function getWidgetConfig(req) {
 
     const activeList = customWidgets || defaultList;
 
+    // The active extension may hide Opportunities: no deals forecast widget then.
+    const oppsHidden = await require('./crm-extension.service').opportunitiesHidden(req);
     // Filter by actual permissions granted to user
     const permittedWidgets = AVAILABLE_WIDGETS.filter((w) => {
+      if (oppsHidden && w.id === 'opportunities_forecast') return false;
       if (!w.requiredPermission) return true;
       return hasPermission(req, w.requiredPermission);
     });
@@ -470,7 +473,9 @@ async function getSummary(req) {
   const canTime = !isClientRole && hasPermission(req, 'crm.time.read');
   const canExpenses = !isClientRole && hasPermission(req, 'crm.expenses.read');
   const canExpensesApprove = !isClientRole && hasPermission(req, 'crm.expenses.approve');
-  const canOpps = !isClientRole && hasPermission(req, 'crm.opportunities.read');
+  // No opportunities summary while the active extension hides Opportunities.
+  const canOpps = !isClientRole && hasPermission(req, 'crm.opportunities.read') &&
+    !(await require('./crm-extension.service').opportunitiesHidden(req));
   const canTickets = hasPermission(req, 'crm.tickets.read');
   const canSuccess = hasPermission(req, 'crm.customerSuccess.read');
   const canMarketing = !isClientRole && hasPermission(req, 'crm.marketing.read');

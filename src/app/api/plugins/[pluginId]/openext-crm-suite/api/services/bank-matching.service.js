@@ -52,22 +52,35 @@ async function rows(query) {
 /* ------------------------------------------------------------------ import */
 
 /**
+ * CRM 3.54.0: one bank account = one name, whatever the spelling: "HDFC Current", "hdfc  current " and
+ * "HDFC CURRENT" are the same account (case and spaces ignored).
+ */
+const accountKey = (name) => String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+/**
  * Save the new lines of a statement read in the browser. rows: [{ date, description, reference, credit,
  * debit, balance }] (credit and debit as separate positive numbers).
  * → { statementId, added, skippedAsDuplicate, ignoredRows }
  */
 async function importStatement(req, input = {}) {
   const src = input && typeof input === 'object' ? input : {};
-  const account = String(src.account || '').trim().slice(0, 120);
+  const typed = String(src.account || '').trim().replace(/\s+/g, ' ').slice(0, 120);
   const fileName = String(src.fileName || '').trim().slice(0, 200);
   const raw = Array.isArray(src.rows) ? src.rows : [];
+  // 3.54.0: the bank account is required (lines of two accounts must never be mixed or doubled).
+  if (!typed) throw Object.assign(appError('Enter the bank account this statement is from (e.g. HDFC current).'), { code: 'BANK_ACCOUNT_REQUIRED' });
   if (!raw.length) throw appError('The statement has no rows');
   if (raw.length > MAX_ROWS) throw appError(`A statement can have at most ${MAX_ROWS} rows`);
   const bank = await loadGstModule('bankMatch');
   const Statement = model(req, 'BankStatement');
   const statementId = `bs${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const parsed = bank.toBankLines(raw.map((r) => (r && typeof r === 'object' ? r : {})), statementId);
-  const saved = (await rows(Statement.find({ tenantId: tenantOf(req), account }))).flatMap((s) => s.lines || []);
+  // The same account in another spelling is the same account: its first name is kept. Lines saved before
+  // the account was required (no account) count too, so nothing is imported twice.
+  const existing = await rows(Statement.find({ tenantId: tenantOf(req) }));
+  const same = existing.filter((s) => accountKey(s.account) === accountKey(typed));
+  const account = same.length ? String(same[same.length - 1].account || typed) : typed;
+  const saved = existing.filter((s) => accountKey(s.account) === accountKey(typed) || !accountKey(s.account)).flatMap((s) => s.lines || []);
   const fresh = bank.freshLines(saved, parsed);
   if (fresh.length) {
     await Statement.create({ tenantId: tenantOf(req), account, fileName, importedBy: resolveUserId(req), lines: fresh });
@@ -163,11 +176,11 @@ const labelOf = (bank, e) => (e.kind === 'settlement' ? `Razorpay settlement ${e
 /* ------------------------------------------------------------------ lines */
 
 async function allStatements(req, account) {
-  const filter = { tenantId: tenantOf(req) };
-  if (account !== undefined && account !== null && account !== '') filter.account = String(account);
-  let q = model(req, 'BankStatement').find(filter);
+  let q = model(req, 'BankStatement').find({ tenantId: tenantOf(req) });
   if (q && typeof q.sort === 'function') q = q.sort({ createdAt: -1 });
-  return rows(q);
+  const list = await rows(q);
+  if (account === undefined || account === null || account === '') return list;
+  return list.filter((s) => accountKey(s.account) === accountKey(account));
 }
 
 /** Lines of a status ('open' | 'matched' | 'ignored' | 'all'), open ones with their top 3 suggestions. */
@@ -179,7 +192,7 @@ async function lines(req, { status = 'open', account = '' } = {}) {
   const entries = status === 'open' || status === 'all' ? await bookEntries(req) : [];
   const wanted = all.filter((l) => status === 'all' || l.status === status).sort((a, b) => a.date.localeCompare(b.date));
   return {
-    accounts: [...new Set(statements.map((s) => s.account || ''))],
+    accounts: [...new Map(statements.filter((s) => accountKey(s.account)).map((s) => [accountKey(s.account), s.account])).values()],
     lines: wanted.slice(0, 500).map((l) => ({
       ...l,
       suggestions: l.status === 'open'

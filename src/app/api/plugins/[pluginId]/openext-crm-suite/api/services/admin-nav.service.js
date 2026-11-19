@@ -120,6 +120,7 @@ async function buildAdminNav(req) {
     if (client || !hasPermission(req, 'crm.finance.read')) {
       hide.add('cashbook');
       hide.add('reconciliation');
+      hide.add('gst-reports');
     }
 
     // Product and Project are built-in modes without pages of their own.

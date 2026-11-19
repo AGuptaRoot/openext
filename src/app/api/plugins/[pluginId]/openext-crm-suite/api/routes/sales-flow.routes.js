@@ -14,6 +14,10 @@
  *                                                                   { today, issueDateMin?, validTillMax?, validTillMaxLabel? }
  *                                                                   | { ok: true, skipped: true } (no contract)
  *
+ * GET  /sales-flow/quotation-leads?q=&include=<leadId>             leads offered on the Create Quotation page
+ *                                                                   (services/lead-workflow.service.js quotationCandidates):
+ *                                                                   { leads, notReady, hidden, hasReadiness, included? }
+ *
  * All answer { available: false } when no active extension offers it.
  */
 
@@ -60,6 +64,17 @@ module.exports = function registerSalesFlowRoutes(app) {
       res.json({ success: true, data: await SalesFlowService.invoicePrefill(req, req.body || {}) });
     } catch (error) {
       fail(res, error, 'Failed to prepare the invoice');
+    }
+  });
+
+  // Leads offered on the Create Quotation page (open, right Request Type, ready when the extension says so).
+  app.get('/sales-flow/quotation-leads', requireAnyPermission(['crm.finance.write', 'crm.quotes.write']), async (req, res) => {
+    try {
+      const query = req.query || {};
+      const data = await require('../services/lead-workflow.service').quotationCandidates(req, { q: query.q, include: query.include });
+      res.json({ success: true, data });
+    } catch (error) {
+      fail(res, error, 'Failed to load leads for a new quotation');
     }
   });
 

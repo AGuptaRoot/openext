@@ -85,7 +85,7 @@ function scoreClient(client, options = {}, customWeights = null, thresholds = {}
       { key: 'phone', label: 'Company mobile number', weight: getWeight(weights.phone, 15), complete: present(client?.phone) },
       { key: 'website', label: 'Website', weight: getWeight(weights.website, 10), complete: present(client?.website) },
       { key: 'address', label: 'Complete billing address', weight: getWeight(weights.address, 15), complete: addressComplete },
-      { key: 'taxId', label: 'Tax ID', weight: getWeight(weights.taxId, 10), complete: present(client?.taxId) },
+      { key: 'taxId', label: 'Client code', weight: getWeight(weights.taxId, 10), complete: present(client?.taxId) },
       { key: 'contact', label: 'At least one contact', weight: getWeight(weights.contact, 10), complete: Number(options.contactCount) > 0 },
       {
         key: 'duplicates',

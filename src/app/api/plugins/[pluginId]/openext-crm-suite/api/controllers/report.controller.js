@@ -1,6 +1,7 @@
 'use strict';
 
 const ReportService = require('../services/report.service');
+const LocationReportService = require('../services/location-report.service');
 
 function sendError(res, error) {
   const status = error.status || 500;
@@ -16,6 +17,16 @@ async function activityLocation(req, res) {
   try {
     const data = await ReportService.getActivityLocationReport(req, req.query || {});
     res.json({ success: true, data, message: 'Activity location report loaded' });
+  } catch (error) {
+    sendError(res, error);
+  }
+}
+
+/** Location Wise Leads & Clients (State → District → City). */
+async function locationWise(req, res) {
+  try {
+    const data = await LocationReportService.locationReport(req, req.query || {});
+    res.json({ success: true, data, message: 'Location wise report loaded' });
   } catch (error) {
     sendError(res, error);
   }
@@ -119,6 +130,7 @@ async function exportCsv(req, res) {
 
 module.exports = {
   activityLocation,
+  locationWise,
   sales,
   projects,
   leadConversion,

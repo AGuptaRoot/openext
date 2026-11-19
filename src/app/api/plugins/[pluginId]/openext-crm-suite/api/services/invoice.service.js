@@ -408,6 +408,8 @@ async function create(req, input) {
   await validateClient(req, input.clientId);
 
   const totals = buildLineItems(input.lineItems, Number(settings.tax_rate || 0));
+  // GST suite (Step 5): no new tax invoice dated on or before Settings → GST "Books locked up to" (409).
+  await require('./period-lock.service').assertIssueNotLocked(req, { issueDate: input.issueDate ? new Date(input.issueDate) : new Date() });
   const invoiceNo = await allocateInvoiceNumber(req, input);
   const issueDate = input.issueDate ? new Date(input.issueDate) : new Date();
   const paymentTerms = Number(settings.payment_terms_days || 30);
@@ -673,6 +675,8 @@ async function update(req, id, input) {
       issueDate: effectiveIssueDate,
       discountAmount: dType === 'amount' ? Math.min(gross, Number(dAmount) || 0) : Math.round(gross * (Number(dPercent) || 0)) / 100,
       taxCalculation: updates.taxCalculation || existing.taxCalculation || 'after_discount',
+      tcsRuleKey: updates.tcsRuleKey !== undefined ? updates.tcsRuleKey : (existing.tcsRuleKey || ''),
+      _id: existing._id,
       status: 'Draft',
       amountPaid: existing.amountPaid || 0,
       creditAmount: existing.creditAmount || 0
@@ -690,6 +694,9 @@ async function update(req, id, input) {
       updates.balanceDue = Math.max(0, Math.round((gstData.grandTotal - paidAndCredited) * 100) / 100);
     }
   }
+
+  // GST suite (Step 5): an edit that changes the date, number, items or amounts on a locked date is refused.
+  await require('./period-lock.service').assertDocumentNotLocked(req, existing, { ...existing, ...updates });
 
   const doc = await Invoice.findOneAndUpdate(
     { ...baseFilter(req), _id: id },
@@ -743,6 +750,7 @@ async function remove(req, id) {
   if (existing.status !== 'Draft') {
     throw appError('Only draft invoices can be deleted', 409);
   }
+  await require('./period-lock.service').assertDocumentNotLocked(req, existing, null);
 
   await Invoice.findOneAndUpdate(
     { ...baseFilter(req), _id: id },
@@ -909,17 +917,26 @@ async function send(req, id) {
     );
   }
 
+  const nextStatus = existing.status === 'Draft' ? 'Sent' : existing.status;
+  // GST suite (CRM 3.53.0): an invoice that leaves Draft is issued; its GST snapshot is frozen.
+  const issuing = existing.status === 'Draft' && existing.gst && existing.gst.engine && !existing.gst.issuedAt;
+  // Step 5: issuing a tax invoice dated on or before the lock date is refused; a TCS invoice gets its
+  // TCS worked out at issue (the client's cumulative base under the rule now). Both before the email.
+  if (existing.status === 'Draft') await require('./period-lock.service').assertIssueNotLocked(req, existing);
+  const issuedFields = issuing ? await require('./gst.service').refreshForIssue(req, existing) : null;
+  const issueSet = issuedFields
+    ? { gst: { ...issuedFields.gst, issuedAt: new Date() }, taxTotal: issuedFields.taxTotal, grandTotal: issuedFields.grandTotal, balanceDue: issuedFields.balanceDue }
+    : (issuing ? { 'gst.issuedAt': new Date() } : {});
+  if (issuedFields) existing = { ...existing, ...issueSet };
+
   const payLink = await ensurePayToken(req, id);
   const emailDelivery = await MailService.sendFinanceDocumentEmail(req, 'invoice', existing, {
     payUrl: Number(existing.balanceDue) > 0 ? payLink.payUrl : ''
   });
 
-  const nextStatus = existing.status === 'Draft' ? 'Sent' : existing.status;
-  // GST suite (CRM 3.53.0): an invoice that leaves Draft is issued; its GST snapshot is frozen.
-  const issuing = existing.status === 'Draft' && existing.gst && existing.gst.engine && !existing.gst.issuedAt;
   const doc = await Invoice.findOneAndUpdate(
     { ...baseFilter(req), _id: id },
-    { $set: { status: nextStatus, clientId, sentAt: new Date(), updatedBy: userId, ...(issuing ? { 'gst.issuedAt': new Date() } : {}) } },
+    { $set: { status: nextStatus, clientId, sentAt: new Date(), updatedBy: userId, ...issueSet } },
     { new: true }
   ).lean();
 
@@ -1066,6 +1083,7 @@ async function cancel(req, id) {
   if (existing.status === 'Paid' || (existing.amountPaid || 0) > 0 || (existing.creditAmount || 0) > 0) {
     throw appError('Cannot cancel an invoice with payments or credit notes recorded', 409);
   }
+  await require('./period-lock.service').assertDocumentNotLocked(req, existing, { ...existing, status: 'Cancelled' });
 
   const doc = await Invoice.findOneAndUpdate(
     { ...baseFilter(req), _id: id },

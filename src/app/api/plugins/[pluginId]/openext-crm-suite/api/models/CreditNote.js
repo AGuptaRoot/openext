@@ -1,6 +1,7 @@
 'use strict';
 
 const { Schema } = require('mongoose');
+const { GstSnapshotSchema } = require('./Invoice');
 
 const CreditNoteItemSchema = new Schema(
   {
@@ -52,6 +53,14 @@ const CreditNoteSchema = new Schema(
     },
     reason: { type: String, trim: true, default: 'Customer Return / Adjustment', maxlength: 500 },
     items: { type: [CreditNoteItemSchema], default: [] },
+    /** GST suite (Step 5): place of supply of the note (the original invoice's); '' = the client's state. */
+    placeOfSupply: { type: String, trim: true, maxlength: 60, default: '' },
+    /**
+     * GST snapshot (documentation/gst-planning/01 §7, 03 §2): the GST app's engine figures, frozen when the
+     * note is issued (gst.issuedAt). Read by GSTR-1 CDNR / CDNUR. Empty (engine '') on notes made before GST
+     * was set up, in another currency, or whose GST total did not match the note.
+     */
+    gst: { type: GstSnapshotSchema, default: () => ({}) },
     appliedInvoices: { type: [CreditNoteAppliedInvoiceSchema], default: [] },
     notes: { type: String, trim: true, default: '', maxlength: 2000 },
     isArchived: { type: Boolean, default: false, index: true },

@@ -1047,7 +1047,8 @@ async function recordRules(req) {
     lockOpportunityOnAccept: Boolean(flow && flow.lockOpportunityOnAccept),
     lockConvertedLead: Boolean(flow && flow.lockConvertedLead),
     completeOpportunitiesOnConversion: Boolean(flow && flow.completeOpportunitiesOnConversion),
-    lockWonLead: Boolean(flow && flow.lockWonLead)
+    lockWonLead: Boolean(flow && flow.lockWonLead),
+    oneAcceptedQuotationPerLead: Boolean(flow && flow.oneAcceptedQuotationPerLead)
   };
 }
 

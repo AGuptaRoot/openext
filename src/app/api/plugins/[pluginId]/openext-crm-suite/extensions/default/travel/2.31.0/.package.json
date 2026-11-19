@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.30.0",
-  "checksum": "50d5e036a159e7668c0b817237f4c53c59a57e5146aa69274bcb6bb1eb3e94ef",
-  "writtenAt": "2026-11-19T07:31:57.167Z",
+  "version": "2.31.0",
+  "checksum": "67dfa29663ccd0e3ddc37524a92ce077b7dc061fd2843ed53485ebe3a180e840",
+  "writtenAt": "2026-11-19T14:16:03.889Z",
   "files": [
     {
       "path": "README.md",
@@ -11,13 +11,13 @@
     },
     {
       "path": "WORKFLOW.md",
-      "sha256": "4b85824a9d7d312635de26afd987fb6376c37dacf8a73aabe14208a97e5eaeff",
-      "size": 14793
+      "sha256": "cafea8d3eab26ad4b78f2d16b788a551f7b20f42eebd317bf889621a60c8c710",
+      "size": 14480
     },
     {
       "path": "crm-extension.json",
-      "sha256": "a19fd94ee6bfd8cd3453a30ba4cf07d397cf9f897c5ff846fb7d9fc880c5af53",
-      "size": 14093
+      "sha256": "6703ec6db85f92f7c8ef698528815dcd7b583f02425e98b0a036c97eee3944b4",
+      "size": 13684
     },
     {
       "path": "request-type.json",
@@ -126,8 +126,8 @@
     },
     {
       "path": "api/routes/dashboard.js",
-      "sha256": "f3882a5226f5accd90109a2848f818c4b589a279da1a382b40de909da2123d2d",
-      "size": 14467
+      "sha256": "501511881cd85e572733d04af277805a7b508b8b63e0118ee8036a5282dc8d1a",
+      "size": 14557
     },
     {
       "path": "api/routes/dates.js",
@@ -161,8 +161,8 @@
     },
     {
       "path": "api/routes/reports.js",
-      "sha256": "9c4ea9fdc9332932ac72d6e58c7162a243e00501a9688819e9e033fa6d9ebee4",
-      "size": 30557
+      "sha256": "fe3cf7616a7cc832a2889b16d85f1c67a781851d6761a760b8e99163c22fd82f",
+      "size": 30057
     },
     {
       "path": "api/routes/requirements.js",
@@ -256,8 +256,8 @@
     },
     {
       "path": "api/services/report-data.js",
-      "sha256": "a7bb046de95b26a81b68091dc981f95abd137220c69347be97a23d0d874cd23c",
-      "size": 10827
+      "sha256": "081f7d3344729401b567e9642c6d8a1ee7c28cfd85584172c4733d8d57cddc30",
+      "size": 10229
     },
     {
       "path": "api/services/requirement-form.js",
@@ -351,8 +351,8 @@
     },
     {
       "path": "json/reports.json",
-      "sha256": "aabe55594b1917dafd2437a67c60511ee79a184861366f52d79c31fbd30734ba",
-      "size": 4400
+      "sha256": "cfc70b20b4af514e6e8d18d6452618c9660551c5d70b79b5f4325dfd3b217439",
+      "size": 4272
     },
     {
       "path": "json/settings.json",

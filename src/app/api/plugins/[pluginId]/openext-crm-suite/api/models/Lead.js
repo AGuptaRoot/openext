@@ -175,6 +175,8 @@ const LeadSchema = new Schema(
     longitude: { type: Number, default: null },
     address: { type: String, trim: true, maxlength: 500, default: '' },
     city: { type: String, trim: true, maxlength: 120, default: '' },
+    /** District (optional) — sits between state and city in the location report. */
+    district: { type: String, trim: true, maxlength: 120, default: '' },
     state: { type: String, trim: true, maxlength: 120, default: '' },
     country: { type: String, trim: true, maxlength: 120, default: '' },
     postalCode: { type: String, trim: true, maxlength: 32, default: '' },

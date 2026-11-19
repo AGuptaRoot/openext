@@ -33,6 +33,8 @@ const ALL_CORE_MODULES = [
   'cashbook',
   // GST suite (CRM 3.53.0): bank statement matching and Razorpay fees.
   'reconciliation',
+  // GST suite (Step 5): GSTR-1, advances (11A / 11B), credit notes and the TCS register.
+  'gst-reports',
   'projects',
   'tasks',
   'time-logs',

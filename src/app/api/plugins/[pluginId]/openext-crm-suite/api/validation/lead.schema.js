@@ -166,6 +166,7 @@ function parseExtendedLeadFields(source, includeAll = false) {
     value.formattedAddress = trimString(source.formattedAddress);
   }
   if (includeAll || source.city !== undefined) value.city = trimString(source.city);
+  if (includeAll || source.district !== undefined) value.district = (trimString(source.district) || '').slice(0, 120);
   if (includeAll || source.state !== undefined) value.state = trimString(source.state);
   if (includeAll || source.country !== undefined) value.country = trimString(source.country);
   if (includeAll || source.postalCode !== undefined) value.postalCode = trimString(source.postalCode);

@@ -7,6 +7,7 @@ const BillingAddressSchema = new Schema(
   {
     street: { type: String, trim: true, maxlength: 200, default: '' },
     city: { type: String, trim: true, maxlength: 80, default: '' },
+    district: { type: String, trim: true, maxlength: 120, default: '' },
     state: { type: String, trim: true, maxlength: 80, default: '' },
     country: { type: String, trim: true, maxlength: 80, default: '' },
     zip: { type: String, trim: true, maxlength: 20, default: '' }
@@ -59,12 +60,25 @@ const CompanySchema = new Schema(
      */
     gst: {
       gstin: { type: String, trim: true, uppercase: true, maxlength: 15, default: '' },
+      /** PAN taken from the GSTIN (public: it is part of the GSTIN). '' for a typed PAN. */
       pan: { type: String, trim: true, uppercase: true, maxlength: 10, default: '' },
+      /**
+       * CRM 3.54.0: a PAN typed for a client WITHOUT a GSTIN (individuals, unregistered businesses; needed for
+       * GSTR / TCS). Stored encrypted only; never returned by normal reads (select: false), shown masked
+       * from panLast4. Reports read it explicitly (client-gst.service clientPan).
+       */
+      panEnc: { type: String, default: '', select: false },
+      panHash: { type: String, default: '', select: false, index: true },
+      panLast4: { type: String, trim: true, uppercase: true, maxlength: 4, default: '' },
+      /** '' | 'gstin' | 'typed' */
+      panSource: { type: String, trim: true, maxlength: 10, default: '' },
       isSEZ: { type: Boolean, default: false },
       isDeemedExport: { type: Boolean, default: false }
     },
     website: { type: String, trim: true, maxlength: 200, match: /^$|^https?:\/\//i, default: '' },
     avatarUrl: { type: String, trim: true, default: '' },
+    /** CRM 3.54.0: the colour of the client's initials avatar (#RGB or #RRGGBB; '' = the default). */
+    avatarColor: { type: String, trim: true, maxlength: 7, match: /^$|^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, default: '' },
     category: { type: String, trim: true, maxlength: 100, default: '' },
     tags: { type: [String], default: [] },
     customFields: { type: Schema.Types.Mixed, default: () => ({}) },

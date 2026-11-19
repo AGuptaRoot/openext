@@ -111,6 +111,12 @@ async function recordForPayment(req, { payment, proforma } = {}) {
     const amount = r2(payment.amount);
     const split = splitAdvance(amount, snapshot);
     const receiptDate = Adapter.localIsoDate(payment.paymentDate || new Date());
+    // Step 5 (03 §6): no voucher (a GST document) dated on or before Settings → GST "Books locked up to".
+    // The payment itself is never refused; the missing voucher is logged (no personal data).
+    if (await require('./period-lock.service').isLocked(req, receiptDate)) {
+      console.error('[plugin:openext-crm-suite] advance receipt voucher not made: the payment date is in a locked GST period');
+      return null;
+    }
     const receiptNo = await GstService.nextNumber(req, 'RV', receiptDate);
     try {
       const created = await Receipt.create({

@@ -277,9 +277,26 @@ function mapRazorpayMethod(method) {
   return 'Other';
 }
 
+/**
+ * A Closed quotation (another quotation was accepted instead) takes no new payment: no order is created
+ * for its payment request. A payment already made on an older order is still recorded (confirm path).
+ */
+async function assertQuotationOfInvoiceNotClosed(req, invoice) {
+  if (!invoice || invoice.documentType !== 'proforma') return;
+  const quotationId = String(invoice.quotationId || invoice.convertedQuotationId || '').trim();
+  const Estimate = req.cms?.models?.get?.('Estimate');
+  if (!quotationId || !Estimate) return;
+  const query = Estimate.findOne({ tenantId: invoice.tenantId, _id: quotationId, isDeleted: false });
+  const quotation = query && typeof query.lean === 'function' ? await query.lean() : await query;
+  if (quotation && String(quotation.status) === 'Closed') {
+    throw appError('Cannot pay a closed quotation', 409);
+  }
+}
+
 async function createOrderForInvoice(req, invoiceId, options = {}) {
   const invoice = await InvoiceService.getById(req, invoiceId);
   assertInvoicePayable(invoice, req);
+  await assertQuotationOfInvoiceNotClosed(req, invoice);
 
   const creds = await getCredentials(req);
   // The invoice's own currency: a request may not switch it (an order in another currency would
@@ -559,7 +576,7 @@ async function createOrderForPublicQuotationToken(req, token, options = {}) {
   const quotation = await Estimate.findOne({ portalToken: cleanToken, isDeleted: false }).lean();
   if (!quotation) throw appError('Quotation not found', 404);
 
-  if (['Rejected', 'Cancelled'].includes(String(quotation.status))) {
+  if (['Rejected', 'Cancelled', 'Closed'].includes(String(quotation.status))) {
     throw appError(`Cannot pay a ${String(quotation.status).toLowerCase()} quotation`, 409);
   }
 
@@ -600,6 +617,8 @@ async function confirmPaymentForPublicQuotationToken(req, token, payload = {}) {
   const quotation = await Estimate.findOne({ portalToken: cleanToken, isDeleted: false }).lean();
   if (!quotation) throw appError('Quotation not found', 404);
 
+  // A Closed quotation is NOT refused here: its payment was made on an order created before it closed,
+  // and verified money is always recorded (the follow-up audits it for a refund or a transfer).
   if (['Rejected', 'Cancelled'].includes(String(quotation.status))) {
     throw appError(`Cannot pay a ${String(quotation.status).toLowerCase()} quotation`, 409);
   }

@@ -256,9 +256,8 @@ function generateFinanceDocumentPdf(payload) {
   if (client?.phone) {
     pdf.drawText(client.phone, 48, yPos + 60, { font: 'regular', size: 9, color: [0.3, 0.35, 0.45] });
   }
-  if (client?.taxId) {
-    pdf.drawText(`Tax ID: ${client.taxId}`, 48, yPos + 72, { font: 'regular', size: 8, color: [0.4, 0.45, 0.55] });
-  }
+  // 3.54.0: the client code ("Tax ID", TAX-0001) is not printed: it is not a tax number. The client's
+  // GSTIN comes from the GST snapshot below.
   if (g && g.totals) {
     const clientGst = [`GSTIN: ${g.clientGstin || 'Unregistered'}`, g.placeOfSupply ? `Place of supply: ${g.placeOfSupply}` : ''].filter(Boolean).join(' | ');
     pdf.drawText(clientGst.slice(0, 70), 48, yPos + 84, { font: 'bold', size: 7, color: [0.2, 0.25, 0.35] });

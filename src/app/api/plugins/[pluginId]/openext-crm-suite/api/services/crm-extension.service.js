@@ -269,6 +269,25 @@ async function getActive(req) {
   return pending;
 }
 
+/** True when the active extension hides this core module (manifest `hiddenModules`). Never throws. */
+async function hidesModule(req, moduleId) {
+  try {
+    // Through the export, so a test (or a wrapper) that replaces getActive is honoured.
+    const def = await module.exports.getActive(req);
+    return Boolean(def && Array.isArray(def.hiddenModules) && def.hiddenModules.includes(String(moduleId)));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The active extension hides Opportunities: no new opportunity is created and quotations are made from
+ * leads (existing opportunities stay in the database and keep their system stage updates).
+ */
+async function opportunitiesHidden(req) {
+  return hidesModule(req, 'opportunities');
+}
+
 /** `/me` payload — safe fallback to the default extension on any failure. */
 async function getActiveFeaturePayload(req) {
   const { forViewer } = require('../crm-extensions');
@@ -1043,6 +1062,8 @@ module.exports = {
   getRequestTypeKeys,
   resolveActiveDefinition,
   getActive,
+  hidesModule,
+  opportunitiesHidden,
   getActiveExtensionId,
   getActiveFeaturePayload,
   enable,

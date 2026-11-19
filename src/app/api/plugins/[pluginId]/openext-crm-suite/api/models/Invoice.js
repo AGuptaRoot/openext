@@ -26,7 +26,10 @@ const GstTcsSchema = new Schema(
     rate: { type: Number, default: 0 },
     base: { type: Number, default: 0 },
     amount: { type: Number, default: 0 },
+    /** Masked PAN (XXXXXX1234); the full PAN is never stored on the invoice (Step 5). */
     pan: { type: String, default: '' },
+    /** Keyed fingerprint of the PAN (groups this PAN's invoices for the slab threshold); '' = no PAN. */
+    panHash: { type: String, default: '' },
     cumulativeBefore: { type: Number, default: 0 }
   },
   { _id: false }
@@ -211,5 +214,7 @@ InvoiceSchema.index(
 
 module.exports = {
   name: 'Invoice',
-  schema: InvoiceSchema
+  schema: InvoiceSchema,
+  /** Reused by CreditNote (Step 5): the same frozen GST snapshot shape. */
+  GstSnapshotSchema
 };

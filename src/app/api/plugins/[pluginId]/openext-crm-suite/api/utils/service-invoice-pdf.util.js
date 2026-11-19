@@ -156,7 +156,6 @@ function serviceInvoiceDocument(payload) {
           { label: 'Quotation reference', value: t(print.quotationNo, 60) },
           { label: 'Payment status', value: status.label },
           { label: 'Billing address', value: addressText(client.billingAddress) || t(doc.billingAddress, 200) },
-          { label: 'Tax ID', value: t(client.taxId, 60) },
           ...(g && g.totals ? [{ label: 'Client GSTIN', value: t(g.clientGstin, 15) || 'Unregistered' }, { label: 'Place of supply', value: t(g.placeOfSupply, 60) }] : [])
         ]
       },
