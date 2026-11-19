@@ -323,6 +323,8 @@ async function update(req, id, input) {
     { $set: updates },
     { new: true, runValidators: true }
   ).lean();
+  // CRM 3.54.0: one Contact record. Every client contact row linked to it shows the new data at once.
+  await require('./client.service').syncContactRowsFromMaster(req, doc);
 
   // Company Name is business data (no personal identifiers), so the change itself is recorded.
   const companyBefore = String(existing.companyName || '').trim();

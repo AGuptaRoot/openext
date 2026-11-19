@@ -1431,6 +1431,71 @@ async function getCustomFields(req) {
   return SettingService.getLeadCustomFields(req);
 }
 
+/* ---------------------------------------------------- import: extension fields (CRM 3.54.0) */
+
+// CSV headers the core import reads itself; an extension field with the same label never takes them.
+const CORE_IMPORT_HEADERS = new Set([
+  'name', 'full name', 'lead name', 'company', 'company name', 'organization', 'email', 'email address',
+  'phone', 'mobile', 'phone number', 'contact', 'pan', 'pan number', 'tax id', 'salutation', 'jobtitle',
+  'job title', 'title', 'designation', 'stage', 'pipeline stage', 'source', 'lead source', 'status',
+  'lead status', 'requesttype', 'request type', 'required type', 'request_type', 'required_type',
+  'requiredtype', 'requirement type', 'leadtype', 'lead type', 'assignedto', 'assigned to', 'owner',
+  'value', 'budget', 'amount', 'budget / value', 'city', 'state', 'country', 'address', 'notes',
+  'description', 'tags', 'labels', 'customfields', 'custom_fields'
+]);
+
+/** The row's Request Type text → { id, key } of the registry entry (same match as before: name or key). */
+async function resolveImportRequestType(req, text, cache) {
+  const value = String(text || '').trim();
+  if (!value) return { id: null, key: '' };
+  if (cache.has(value)) return cache.get(value);
+  let found = { id: null, key: '' };
+  const RequestType = req.cms?.models.get('RequestType');
+  if (RequestType && typeof RequestType.findOne === 'function') {
+    try {
+      const rt = await RequestType.findOne({
+        tenantId: resolveTenantId(req),
+        $or: [
+          { name: new RegExp(`^${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+          { key: value.toLowerCase().replace(/[^a-z0-9]+/g, '_') },
+          { key: value }
+        ]
+      }).lean();
+      if (rt) found = { id: String(rt._id), key: String(rt.key || '') };
+    } catch {
+      /* not found */
+    }
+  }
+  cache.set(value, found);
+  return found;
+}
+
+/**
+ * The active extension's importable lead fields (null when it has none), and the row limit: a file that
+ * fills extension fields takes at most IMPORT_MAX_ROWS_WITH_FIELDS rows (each row is checked like a form save).
+ */
+async function importExtensionContext(req, rows) {
+  const ExtensionValues = require('./crm-extension-values.service');
+  let ctx = null;
+  try {
+    ctx = await ExtensionValues.leadImportContext(req);
+  } catch {
+    ctx = null;
+  }
+  if (!ctx) return null;
+  const keys = new Set(ctx.fields.map((f) => f.key));
+  const labels = new Set(ctx.fields.map((f) => String(f.label).trim().toLowerCase()).filter((l) => !CORE_IMPORT_HEADERS.has(l)));
+  const fills = rows.some((row) => Object.entries(row || {}).some(([h, v]) =>
+    String(v === null || v === undefined ? '' : v).trim() && (keys.has(h.trim()) || labels.has(h.trim().toLowerCase()))));
+  if (fills && rows.length > ctx.maxRows) {
+    const error = new Error(`A file with ${ctx.def.name || 'extension'} columns can import at most ${ctx.maxRows} rows at a time. Split the file and import each part.`);
+    error.status = 400;
+    error.code = 'IMPORT_TOO_MANY_ROWS';
+    throw error;
+  }
+  return ctx;
+}
+
 async function previewImport(req, { rows = [], options = {} }) {
   const { parseTags, parseCustomFields } = require('../validation/lead.schema');
   const validStages = await getValidStages(req);
@@ -1446,6 +1511,9 @@ async function previewImport(req, { rows = [], options = {} }) {
   const inBatchEmails = new Map();
   const inBatchPhones = new Map();
   const inBatchPans = new Map();
+  const extensionCtx = await importExtensionContext(req, rows);
+  const requestTypeCache = new Map();
+  const ExtensionValues = require('./crm-extension-values.service');
 
   let validCount = 0;
   let warningCount = 0;
@@ -1518,6 +1586,15 @@ async function previewImport(req, { rows = [], options = {} }) {
     }
     if (!requestType) {
       errors.push('Required Type is required');
+    }
+
+    // Extension columns (e.g. travel information): checked like a save from the lead form.
+    let extensionValues = {};
+    if (extensionCtx) {
+      const rt = await resolveImportRequestType(req, requestType, requestTypeCache);
+      const ext = await ExtensionValues.checkLeadImportRow(req, extensionCtx, raw, rt.key, CORE_IMPORT_HEADERS);
+      errors.push(...ext.errors);
+      extensionValues = ext.values;
     }
 
     const compNorm = normalizeCompanyName(company);
@@ -1622,7 +1699,8 @@ async function previewImport(req, { rows = [], options = {} }) {
         address,
         notes,
         tags,
-        customFields
+        customFields,
+        ...(Object.keys(extensionValues).length ? { extensionValues } : {})
       }
     });
   }
@@ -1657,6 +1735,9 @@ async function executeImport(req, { rows = [], options = {} }) {
   let createdCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
+  const extensionCtx = await importExtensionContext(req, rows);
+  const requestTypeCache = new Map();
+  const ExtensionValues = require('./crm-extension-values.service');
 
   for (let index = 0; index < rows.length; index++) {
     const raw = rows[index] || {};
@@ -1702,6 +1783,19 @@ async function executeImport(req, { rows = [], options = {} }) {
           reason: 'Skipped: Invalid email or phone format'
         });
         continue;
+      }
+
+      // Extension columns: the whole row fails when they are not valid (nothing is created).
+      const resolvedType = await resolveImportRequestType(req, requestType, requestTypeCache);
+      let extensionValues = {};
+      if (extensionCtx) {
+        const ext = await ExtensionValues.checkLeadImportRow(req, extensionCtx, raw, resolvedType.key, CORE_IMPORT_HEADERS);
+        if (ext.errors.length) {
+          failedCount++;
+          results.push({ rowIndex, success: false, reason: `Not imported: ${ext.errors.join('; ')}` });
+          continue;
+        }
+        extensionValues = ext.values;
       }
 
       const compNorm = normalizeCompanyName(company);
@@ -1793,23 +1887,7 @@ async function executeImport(req, { rows = [], options = {} }) {
         }
       }
 
-      // Resolve requestTypeId if RequestType model exists
-      const RequestType = req.cms?.models.get('RequestType');
-      let requestTypeId = null;
-      if (RequestType && requestType && typeof RequestType.findOne === 'function') {
-        try {
-          const rt = await RequestType.findOne({
-            tenantId,
-            $or: [
-              { name: new RegExp(`^${requestType.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`, 'i') },
-              { key: requestType.toLowerCase().replace(/[^a-z0-9]+/g, '_') }
-            ]
-          }).lean();
-          if (rt) requestTypeId = String(rt._id);
-        } catch (rtErr) {
-          // ignore
-        }
-      }
+      const requestTypeId = resolvedType.id;
 
       const stage = String(raw.stage || raw['Stage'] || raw['Pipeline Stage'] || defaultStage).trim();
       const leadData = {
@@ -1847,6 +1925,30 @@ async function executeImport(req, { rows = [], options = {} }) {
       };
 
       const lead = await Lead.create(leadData);
+      const newLeadId = String(lead._id || lead.id);
+
+      // Extension values go to the extension's own storage, through the same save as the lead form.
+      // When that save fails the new lead is taken back (soft delete, audited): no half-imported rows.
+      if (Object.keys(extensionValues).length) {
+        try {
+          await ExtensionValues.setValues(req, 'lead', newLeadId, extensionValues);
+        } catch (valuesErr) {
+          await Lead.updateOne(
+            { _id: lead._id, tenantId },
+            { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: userId } }
+          ).catch(() => null);
+          AuditService.log(req, {
+            action: 'deleted',
+            module: 'lead',
+            recordId: newLeadId,
+            description: 'Bulk import: lead taken back because its extension fields could not be saved'
+          });
+          const details = Array.isArray(valuesErr && valuesErr.details) ? valuesErr.details.join('; ') : (valuesErr && valuesErr.message) || 'not saved';
+          failedCount++;
+          results.push({ rowIndex, success: false, reason: `Not imported: ${details}` });
+          continue;
+        }
+      }
       createdCount++;
 
       if (contactId && typeof PersonContactService.linkLead === 'function') {
@@ -1876,7 +1978,8 @@ async function executeImport(req, { rows = [], options = {} }) {
           name: lead.name,
           email: lead.email,
           company: lead.company,
-          source: 'Bulk Import'
+          source: 'Bulk Import',
+          ...(Object.keys(extensionValues).length ? { extensionFields: Object.keys(extensionValues) } : {})
         }
       });
     } catch (err) {

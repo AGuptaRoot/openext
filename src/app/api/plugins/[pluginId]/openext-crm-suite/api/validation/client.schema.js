@@ -87,6 +87,25 @@ function validateClientAddress(body, isUpdate = false) {
   return ok(item);
 }
 
+/**
+ * GST details of a client (GST suite, CRM 3.53.0). Only the shape is checked here; the GSTIN checksum,
+ * the state from the GSTIN and the PAN are handled by the client service (lib/gstin.js).
+ * PAN is never typed: it is taken from the GSTIN.
+ */
+function parseClientGst(raw, errors) {
+  if (raw === undefined) return undefined;
+  if (raw === null) return { gstin: '', isSEZ: false, isDeemedExport: false };
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    errors.push('gst must be an object');
+    return undefined;
+  }
+  const gstin = trimString(raw.gstin).toUpperCase().replace(/\s+/g, '');
+  if (gstin.length > 15) errors.push('GSTIN has 15 characters');
+  assertOptionalBoolean(errors, raw.isSEZ, 'gst.isSEZ');
+  assertOptionalBoolean(errors, raw.isDeemedExport, 'gst.isDeemedExport');
+  return { gstin, isSEZ: raw.isSEZ === true, isDeemedExport: raw.isDeemedExport === true };
+}
+
 function parseCompanyFields(source) {
   const fields = {
     name: trimString(source.name),
@@ -119,6 +138,8 @@ function validateClientCreate(body) {
   const source = asObject(body);
   const errors = [];
   const fields = parseCompanyFields(source);
+  const gst = parseClientGst(source.gst, errors);
+  if (gst !== undefined) fields.gst = gst;
 
   assertRequired(errors, fields.name, 'Company name');
   assertEmail(errors, fields.email);
@@ -168,6 +189,8 @@ function validateClientUpdate(body) {
   }
   if (source.allowSimilarCompany !== undefined) value.allowSimilarCompany = source.allowSimilarCompany;
   if (source.allowExactDuplicate !== undefined) value.allowExactDuplicate = source.allowExactDuplicate;
+  const gst = parseClientGst(source.gst, errors);
+  if (gst !== undefined) value.gst = gst;
 
   assertEmail(errors, value.email);
   assertMobile(errors, value.phone, 'Company mobile number');
@@ -176,7 +199,7 @@ function validateClientUpdate(body) {
   validateCompanyLengths(errors, value);
   assertOptionalBoolean(errors, source.allowSimilarCompany, 'allowSimilarCompany');
   assertOptionalBoolean(errors, source.allowExactDuplicate, 'allowExactDuplicate');
-  if (!['name', 'email', 'phone', 'website', 'avatarUrl', 'billingAddress', 'status', 'category', 'tags', 'customFields'].some((field) => source[field] !== undefined) && !errors.length) {
+  if (!['name', 'email', 'phone', 'website', 'avatarUrl', 'billingAddress', 'status', 'category', 'tags', 'customFields', 'gst'].some((field) => source[field] !== undefined) && !errors.length) {
     errors.push('No supported fields were provided');
   }
 
@@ -516,6 +539,7 @@ function validateClientEventUpdate(body) {
 }
 
 module.exports = {
+  parseClientGst,
   parseTags,
   parseCustomFields,
   validateClientCreate,

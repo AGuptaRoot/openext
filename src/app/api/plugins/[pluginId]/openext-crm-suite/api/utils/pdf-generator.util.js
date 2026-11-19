@@ -208,8 +208,10 @@ function generateFinanceDocumentPdf(payload) {
     return require('./service-invoice-pdf.util').renderServiceInvoicePdf(payload);
   }
   const { type, company, client, document: docData } = payload;
+  // GST suite (CRM 3.53.0): GSTIN, place of supply and the CGST/SGST or IGST split (null without GST).
+  const g = payload.gstPrint || null;
   const isInvoice = type === 'invoice';
-  const title = isInvoice ? 'INVOICE' : 'QUOTATION';
+  const title = g ? String(g.title).toUpperCase() : isInvoice ? 'INVOICE' : 'QUOTATION';
   const docNo = isInvoice ? (docData?.invoiceNo || '—') : (docData?.quotationNo || '—');
   const currency = docData?.currency || company?.currency || 'INR';
 
@@ -226,6 +228,10 @@ function generateFinanceDocumentPdf(payload) {
   }
   if (company?.phone) {
     pdf.drawText(company.phone, 52, 88, { font: 'regular', size: 9, color: [0.4, 0.45, 0.55] });
+  }
+  if (g && g.seller && g.seller.gstin) {
+    const sellerId = [`GSTIN ${g.seller.gstin}`, g.seller.pan ? `PAN ${g.seller.pan}` : '', g.seller.state].filter(Boolean).join(' | ');
+    pdf.drawText(sellerId.slice(0, 90), 52, 102, { font: 'bold', size: 8, color: [0.2, 0.25, 0.35] });
   }
 
   // Document Badge & Number
@@ -252,6 +258,10 @@ function generateFinanceDocumentPdf(payload) {
   }
   if (client?.taxId) {
     pdf.drawText(`Tax ID: ${client.taxId}`, 48, yPos + 72, { font: 'regular', size: 8, color: [0.4, 0.45, 0.55] });
+  }
+  if (g && g.totals) {
+    const clientGst = [`GSTIN: ${g.clientGstin || 'Unregistered'}`, g.placeOfSupply ? `Place of supply: ${g.placeOfSupply}` : ''].filter(Boolean).join(' | ');
+    pdf.drawText(clientGst.slice(0, 70), 48, yPos + 84, { font: 'bold', size: 7, color: [0.2, 0.25, 0.35] });
   }
 
   // Meta Box
@@ -288,7 +298,7 @@ function generateFinanceDocumentPdf(payload) {
     pdf.setStrokeColor(0.92, 0.94, 0.96);
     pdf.line(36, yPos + 22, 559, yPos + 22);
 
-    const name = item.name || item.description || 'Item';
+    const name = `${item.name || item.description || 'Item'}${g && item.sac ? ` (SAC ${item.sac})` : ''}`;
     const qty = String(item.qty ?? 1);
     const rate = Number(item.rate || 0).toFixed(2);
     const amount = Number(item.amount || (Number(qty) * Number(rate))).toFixed(2);
@@ -331,7 +341,24 @@ function generateFinanceDocumentPdf(payload) {
     yPos += 16;
   }
 
-  if (Number(taxTotal) > 0) {
+  if (g && g.totals) {
+    const t = g.totals;
+    const gstRows = [
+      ['Taxable value:', t.taxable],
+      t.cgst ? ['CGST:', t.cgst] : null,
+      t.sgst ? ['SGST:', t.sgst] : null,
+      t.utgst ? ['UTGST:', t.utgst] : null,
+      t.igst ? ['IGST:', t.igst] : null,
+      t.cess ? ['Cess:', t.cess] : null,
+      !t.totalTax ? ['GST:', 0] : null,
+      t.otherCharges ? ['Other charges:', t.otherCharges] : null
+    ].filter(Boolean);
+    for (const [label, value] of gstRows) {
+      pdf.drawText(label, totalsX, yPos, { font: 'regular', size: 9, color: [0.4, 0.45, 0.55] });
+      pdf.drawTextRight(`${currency} ${Number(value || 0).toFixed(2)}`, 544, yPos, { font: 'bold', size: 9, color: [0.1, 0.15, 0.2] });
+      yPos += 16;
+    }
+  } else if (Number(taxTotal) > 0) {
     pdf.drawText('Tax Total:', totalsX, yPos, { font: 'regular', size: 9, color: [0.4, 0.45, 0.55] });
     pdf.drawTextRight(`${currency} ${taxTotal}`, 544, yPos, { font: 'bold', size: 9, color: [0.1, 0.15, 0.2] });
     yPos += 16;
@@ -362,6 +389,27 @@ function generateFinanceDocumentPdf(payload) {
     pdf.drawText('Balance Due:', totalsX, yPos + 12, { font: 'bold', size: 11, color: [0.06, 0.09, 0.16] });
     pdf.drawTextRight(`${currency} ${balanceDue}`, 544, yPos + 12, { font: 'bold', size: 11, color: [0.15, 0.39, 0.92] });
     yPos += 28;
+  }
+
+  // GST suite: amount in words, declarations, UPI, "not a tax invoice"; how to pay (preferred method).
+  if (g || payload.paymentInstructions) {
+    const gstLines = g ? [
+      g.amountInWords ? `Amount in words: ${g.amountInWords}` : '',
+      g.reverseChargeText,
+      g.declaration,
+      g.compositionText,
+      g.upi ? `Pay by UPI: ${g.upi.id}` : '',
+      g.notTaxInvoiceText
+    ].filter(Boolean) : [];
+    if (payload.paymentInstructions) gstLines.push(...payload.paymentInstructions.lines);
+    yPos += 6;
+    for (const text of gstLines) {
+      for (const line of pdf.wrapText(String(text), 523, { size: 8 })) {
+        if (yPos > 740) break;
+        if (line) pdf.drawText(line, 36, yPos, { font: 'regular', size: 8, color: [0.2, 0.25, 0.35] });
+        yPos += 11;
+      }
+    }
   }
 
   // Notes / Terms Callout

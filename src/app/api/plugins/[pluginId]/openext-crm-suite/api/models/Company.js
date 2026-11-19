@@ -53,6 +53,16 @@ const CompanySchema = new Schema(
     shippingAddress: { type: BillingAddressSchema, default: () => ({}) },
     addresses: { type: [ClientAddressSchema], default: [] },
     taxId: { type: String, trim: true, maxlength: 50, default: '' },
+    /**
+     * Indian GST details (GST suite, CRM 3.53.0). gstin '' = unregistered (B2C). pan is taken from the
+     * GSTIN. The state stays billingAddress.state (the state code is computed, never stored).
+     */
+    gst: {
+      gstin: { type: String, trim: true, uppercase: true, maxlength: 15, default: '' },
+      pan: { type: String, trim: true, uppercase: true, maxlength: 10, default: '' },
+      isSEZ: { type: Boolean, default: false },
+      isDeemedExport: { type: Boolean, default: false }
+    },
     website: { type: String, trim: true, maxlength: 200, match: /^$|^https?:\/\//i, default: '' },
     avatarUrl: { type: String, trim: true, default: '' },
     category: { type: String, trim: true, maxlength: 100, default: '' },
@@ -88,6 +98,7 @@ CompanySchema.index({ tenantId: 1, phone: 1 }, { name: 'companies_tenant_phone' 
 CompanySchema.index({ tenantId: 1, tags: 1 }, { name: 'companies_tenant_tags' });
 CompanySchema.index({ tenantId: 1, companyTokens: 1 }, { name: 'companies_tenant_company_tokens' });
 CompanySchema.index({ tenantId: 1, mergedIntoId: 1 }, { name: 'companies_tenant_merged_into' });
+CompanySchema.index({ tenantId: 1, 'gst.gstin': 1 }, { name: 'companies_tenant_gstin' });
 
 module.exports = {
   name: 'Company',

@@ -161,7 +161,9 @@ async function buildQuotationPayload(req, quotation) {
     company,
     client: billed.client,
     recipientEmail: billed.recipientEmail,
-    document
+    document,
+    // GST suite (CRM 3.53.0): GSTIN, place of supply, tax by rate (null without Settings → GST).
+    gstPrint: await require('./gst-print.util').gstPrintFor(req, 'quotation', quotation)
   };
 }
 
@@ -186,6 +188,38 @@ async function withPrintNotes(req, doc) {
   } catch {
     return doc;
   }
+}
+
+/**
+ * GST suite (CRM 3.53.0, documentation/gst-planning/02 §5.2): how the client is asked to pay, from the
+ * invoice's preferred payment method. null when none is set (the invoice prints as before).
+ * 'bank' prints the default bank account (Settings → Finance) and the UPI id (Settings → GST).
+ */
+async function paymentInstructions(req, invoice) {
+  const method = String((invoice && invoice.preferredPaymentMethod) || '');
+  if (!method || !(Number(invoice.balanceDue) > 0)) return null;
+  if (method === 'cash') return { method, lines: ['Please pay in cash at our office.'] };
+  if (method === 'razorpay') return { method, lines: ['Please pay online with the Pay now link sent with this invoice.'] };
+  if (method !== 'bank') return null;
+  const lines = ['Please pay by bank transfer or UPI:'];
+  try {
+    const settings = await SettingService.getAll(req);
+    const accounts = Array.isArray(settings.bank_accounts) ? settings.bank_accounts : [];
+    const bank = accounts.find((a) => a && a.isDefault) || accounts[0];
+    if (bank) {
+      lines.push([bank.accountName, bank.bankName].filter(Boolean).join(' - '));
+      lines.push([bank.accountNumber ? `A/c ${bank.accountNumber}` : '', bank.ifscCode ? `IFSC ${bank.ifscCode}` : '', bank.branch].filter(Boolean).join(' | '));
+    }
+  } catch {
+    /* print without the bank lines */
+  }
+  try {
+    const { settings: gst } = await require('../services/gst.service').context(req);
+    if (gst && gst.upiId) lines.push(`UPI: ${gst.upiId}`);
+  } catch {
+    /* no UPI line */
+  }
+  return { method, lines: lines.filter(Boolean) };
 }
 
 async function buildInvoicePayload(req, invoice) {
@@ -226,7 +260,11 @@ async function buildInvoicePayload(req, invoice) {
     company,
     client: billed.client,
     recipientEmail: billed.recipientEmail,
-    document: await withPrintNotes(req, invoice)
+    document: await withPrintNotes(req, invoice),
+    // GST suite (CRM 3.53.0): from the invoice's frozen GST snapshot (null without one).
+    gstPrint: await require('./gst-print.util').gstPrintFor(req, 'invoice', invoice),
+    // GST suite (CRM 3.53.0): the preferred payment method's instructions (null without one).
+    paymentInstructions: await paymentInstructions(req, invoice)
   });
 }
 
@@ -273,6 +311,7 @@ async function withServicePrint(req, invoice, payload) {
 }
 
 module.exports = {
+  paymentInstructions,
   buildQuotationPayload,
   buildInvoicePayload
 };

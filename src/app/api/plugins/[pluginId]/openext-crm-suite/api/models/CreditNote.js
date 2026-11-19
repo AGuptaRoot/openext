@@ -8,7 +8,10 @@ const CreditNoteItemSchema = new Schema(
     quantity: { type: Number, default: 1, min: 0.01 },
     unitPrice: { type: Number, required: true, default: 0, min: 0 },
     tax: { type: Number, default: 0, min: 0, max: 100 },
-    amount: { type: Number, required: true, default: 0, min: 0 }
+    amount: { type: Number, required: true, default: 0, min: 0 },
+    /** GST suite (CRM 3.53.0): SAC / HSN code and service key of the line. */
+    sac: { type: String, trim: true, maxlength: 8, default: '' },
+    serviceType: { type: String, trim: true, maxlength: 41, default: '' }
   },
   { _id: true }
 );

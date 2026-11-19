@@ -22,6 +22,11 @@
  * re-uploads the zip.
  *
  * Reads never throw; writes return { ok, error }.
+ *
+ * CRM 3.54.0: the folder can be set with the CMS environment variable CRM_EXTENSIONS_DIR (an absolute
+ * path outside the plugin folder survives CMS plugin updates). Packages are written there; reads look
+ * there first and then in the plugin's own extensions/ folder, so packages uploaded before the variable
+ * was set keep working.
  */
 
 const fs = require('fs');
@@ -35,14 +40,21 @@ const os = require('os');
  * packages go to a per-process temp folder so tests never write into the
  * plugin. Production always uses <plugin>/extensions.
  */
+const PLUGIN_ROOT = path.resolve(__dirname, '..', '..', 'extensions');
+const ENV_ROOT = String(process.env.CRM_EXTENSIONS_DIR || '').trim();
 const DEFAULT_ROOT = process.env.NODE_TEST_CONTEXT
   ? path.join(os.tmpdir(), `crm-extensions-test-${process.pid}`)
-  : path.resolve(__dirname, '..', '..', 'extensions');
+  : ENV_ROOT
+    ? path.resolve(ENV_ROOT)
+    : PLUGIN_ROOT;
 let ROOT = DEFAULT_ROOT;
+// Where reads look, in order (the write folder first). Tests use the temp folder only.
+let READ_ROOTS = process.env.NODE_TEST_CONTEXT ? [DEFAULT_ROOT] : [...new Set([DEFAULT_ROOT, PLUGIN_ROOT])];
 
 /** Tests point the store at a temp folder; production never calls this. */
 function setRoot(dir) {
   ROOT = dir ? path.resolve(dir) : DEFAULT_ROOT;
+  READ_ROOTS = [ROOT];
   verified.clear();
 }
 
@@ -74,6 +86,17 @@ function extensionDir(tenantId, extensionId) {
 
 function versionDir(tenantId, extensionId, version) {
   return path.join(extensionDir(tenantId, extensionId), safeSegment(version));
+}
+
+/** The same folder under another root (read fallback). */
+function versionDirIn(root, tenantId, extensionId, version) {
+  return path.join(root, safeSegment(tenantId), safeSegment(extensionId), safeSegment(version));
+}
+
+/** The version folder that holds a verified copy of this upload (null when none does). */
+function packageDir(tenantId, def) {
+  const check = verifyPackage(tenantId, def);
+  return check.ok ? check.dir : null;
 }
 
 /** Resolve a package path inside `base`; null if it would escape. */
@@ -229,40 +252,51 @@ function removePackage(tenantId, extensionId, logger) {
 function verifyPackage(tenantId, def) {
   const key = `${tenantId}|${def.id}|${def.checksum || ''}`;
   const hit = verified.get(key);
-  if (hit && hit.ok && Date.now() - hit.at < VERIFY_TTL_MS) return { ok: true };
+  if (hit && hit.ok && Date.now() - hit.at < VERIFY_TTL_MS) return { ok: true, dir: hit.dir };
 
-  const dir = versionDir(tenantId, def.id, def.version);
-  const result = (() => {
-    let meta;
+  let first = null;
+  for (const root of READ_ROOTS) {
+    const dir = versionDirIn(root, tenantId, def.id, def.version);
+    const result = verifyDir(dir, def);
+    if (result.ok) {
+      verified.set(key, { ok: true, at: Date.now(), dir });
+      return { ok: true, dir };
+    }
+    if (!first) first = result;
+  }
+  verified.set(key, { ok: false, at: Date.now() });
+  return first || { ok: false, reason: 'folder missing' };
+}
+
+/** One folder checked against the recorded file hashes. */
+function verifyDir(dir, def) {
+  let meta;
+  try {
+    meta = JSON.parse(fs.readFileSync(path.join(dir, META_FILE), 'utf8'));
+  } catch {
+    return { ok: false, reason: 'folder missing' };
+  }
+  if (meta.version !== def.version || (def.checksum && meta.checksum !== def.checksum)) {
+    return { ok: false, reason: 'folder holds a different upload' };
+  }
+  for (const entry of def.fileIndex || []) {
+    const target = inside(dir, entry.path);
+    if (!target) return { ok: false, reason: `unsafe path ${entry.path}` };
+    let data;
     try {
-      meta = JSON.parse(fs.readFileSync(path.join(dir, META_FILE), 'utf8'));
+      data = fs.readFileSync(target);
     } catch {
-      return { ok: false, reason: 'folder missing' };
+      return { ok: false, reason: `${entry.path} missing` };
     }
-    if (meta.version !== def.version || (def.checksum && meta.checksum !== def.checksum)) {
-      return { ok: false, reason: 'folder holds a different upload' };
-    }
-    for (const entry of def.fileIndex || []) {
-      const target = inside(dir, entry.path);
-      if (!target) return { ok: false, reason: `unsafe path ${entry.path}` };
-      let data;
-      try {
-        data = fs.readFileSync(target);
-      } catch {
-        return { ok: false, reason: `${entry.path} missing` };
-      }
-      if (entry.sha256 && sha256(data) !== entry.sha256) return { ok: false, reason: `${entry.path} changed on disk` };
-    }
-    return { ok: true };
-  })();
-  verified.set(key, { ok: result.ok, at: Date.now() });
-  return result;
+    if (entry.sha256 && sha256(data) !== entry.sha256) return { ok: false, reason: `${entry.path} changed on disk` };
+  }
+  return { ok: true };
 }
 
 /** Read files of one area (e.g. "api") from a verified folder copy; null if unavailable. */
 function readArea(tenantId, def, area) {
-  if (!verifyPackage(tenantId, def).ok) return null;
-  const dir = versionDir(tenantId, def.id, def.version);
+  const dir = packageDir(tenantId, def);
+  if (!dir) return null;
   const files = new Map();
   for (const entry of def.fileIndex || []) {
     if (entry.area !== area) continue;
@@ -294,7 +328,8 @@ function isAvailable(tenantId, def) {
 function readFile(tenantId, def, relPath) {
   const entry = (def.fileIndex || []).find((f) => f.path === relPath);
   if (!entry) return null;
-  const target = inside(versionDir(tenantId, def.id, def.version), relPath);
+  const dir = packageDir(tenantId, def) || versionDir(tenantId, def.id, def.version);
+  const target = inside(dir, relPath);
   if (!target) return null;
   try {
     const data = fs.readFileSync(target);

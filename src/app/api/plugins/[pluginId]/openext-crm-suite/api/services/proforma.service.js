@@ -443,16 +443,18 @@ async function invoiceQuotationWithPayments(req, quotationId, { requireFullPayme
         })
       );
 
-      const grandTotal = round2(quotation.grandTotal);
+      let grandTotal = round2(quotation.grandTotal);
       const paid = Math.min(state.paid, grandTotal);
-      const invoiceNo = await getNextNumber(req, 'invoice');
       const issueDate = new Date();
+      // GST suite (CRM 3.53.0): the GST series once Settings → GST is saved, else the CRM series.
+      const GstService = require('./gst.service');
+      const { invoiceNo } = await GstService.taxInvoiceNumber(req, { issueDate, fallback: () => getNextNumber(req, 'invoice') });
       const paymentDays = Number(settings.invoice_payment_days || settings.payment_terms_days || 30);
       const dueDate = new Date(issueDate);
       dueDate.setDate(dueDate.getDate() + paymentDays);
       const first = proformas[0] || {};
 
-      const created = await Invoice.create(await withCustomerSnapshot(req, {
+      const invoiceData = {
         tenantId: resolveTenantId(req),
         documentType: 'tax',
         clientId: quotation.clientId || first.clientId || '',
@@ -472,6 +474,8 @@ async function invoiceQuotationWithPayments(req, quotationId, { requireFullPayme
         subtotal: round2(quotation.subtotal),
         discountPercent: Number(quotation.discountPercent) || 0,
         discountTotal: round2(quotation.discountTotal || quotation.discountAmount),
+        discountAmount: round2(quotation.discountAmount),
+        taxCalculation: quotation.taxCalculation === 'before_discount' ? 'before_discount' : 'after_discount',
         taxTotal: round2(quotation.taxTotal),
         shippingCharge: round2(quotation.shippingCharge),
         grandTotal,
@@ -479,9 +483,15 @@ async function invoiceQuotationWithPayments(req, quotationId, { requireFullPayme
         advancePaid: paid,
         balanceDue: round2(Math.max(0, grandTotal - paid)),
         notes: quotation.notes ? String(quotation.notes).trim() : '',
+        placeOfSupply: quotation.placeOfSupply || '',
+        tcsRuleKey: quotation.tcsRuleKey || '',
+        preferredPaymentMethod: first.preferredPaymentMethod || '',
         createdBy: userId,
         updatedBy: userId
-      }));
+      };
+      await GstService.applyToTaxInvoice(req, invoiceData, { otherCharges: GstService.otherChargesOf(quotation), agreedTotal: grandTotal });
+      grandTotal = invoiceData.grandTotal;
+      const created = await Invoice.create(await withCustomerSnapshot(req, invoiceData));
       const invoice = created.toObject ? created.toObject() : created;
 
       // Every verified payment of every payment request moves onto the tax invoice: one money trail.
@@ -648,10 +658,13 @@ async function ensureProformaForQuotation(req, quotationId, options = {}) {
 
   const proformaNo = await getNextNumber(req, 'proforma');
   const issueDate = new Date();
+  // GST suite (CRM 3.53.0): the enabled extension's default "preferred payment method" ('' = none).
+  const paymentPref = await require('./sales-flow.service').paymentPreference(req);
 
   const doc = await Invoice.create(await withCustomerSnapshot(req, {
     tenantId: resolveTenantId(req),
     documentType: 'proforma',
+    preferredPaymentMethod: paymentPref.enabled ? paymentPref.default : '',
     clientId: clientId || '',
     leadId: quotation.leadId || null,
     quotationId: String(quotationId),
@@ -896,12 +909,14 @@ async function convertStandaloneProforma(req, proforma) {
   try {
     const grandTotal = round2(proforma.grandTotal);
     const paid = Math.min(paidSum(await verifiedPayments(req, [String(proforma._id)])), grandTotal);
-    const invoiceNo = await getNextNumber(req, 'invoice');
     const issueDate = new Date();
+    // GST suite (CRM 3.53.0): the GST series once Settings → GST is saved, else the CRM series.
+    const GstService = require('./gst.service');
+    const { invoiceNo } = await GstService.taxInvoiceNumber(req, { issueDate, fallback: () => getNextNumber(req, 'invoice') });
     const paymentDays = Number(settings.invoice_payment_days || settings.payment_terms_days || 30);
     const dueDate = new Date(issueDate);
     dueDate.setDate(dueDate.getDate() + paymentDays);
-    const created = await Invoice.create(await withCustomerSnapshot(req, {
+    const invoiceData = {
       tenantId: resolveTenantId(req),
       documentType: 'tax',
       clientId: proforma.clientId || '',
@@ -922,9 +937,16 @@ async function convertStandaloneProforma(req, proforma) {
       advancePaid: paid,
       balanceDue: round2(Math.max(0, grandTotal - paid)),
       notes: proforma.notes ? String(proforma.notes).trim() : '',
+      placeOfSupply: proforma.placeOfSupply || '',
+      tcsRuleKey: proforma.tcsRuleKey || '',
+      preferredPaymentMethod: proforma.preferredPaymentMethod || '',
       createdBy: userId,
       updatedBy: userId
-    }));
+    };
+    if (invoiceData.discountAmount === undefined) invoiceData.discountAmount = round2(proforma.discountAmount);
+    if (invoiceData.taxCalculation === undefined) invoiceData.taxCalculation = proforma.taxCalculation === 'before_discount' ? 'before_discount' : 'after_discount';
+    await GstService.applyToTaxInvoice(req, invoiceData, { otherCharges: GstService.otherChargesOf(proforma), agreedTotal: grandTotal });
+    const created = await Invoice.create(await withCustomerSnapshot(req, invoiceData));
     const invoice = created.toObject ? created.toObject() : created;
     const movedPayments = await movePaymentsToInvoice(req, proforma, invoice);
     await closeConvertedProforma(req, proforma, invoice, paid);
@@ -946,6 +968,8 @@ async function movePaymentsToInvoice(req, proforma, invoice) {
     { ...baseFilter(req), invoiceId: String(proforma._id) },
     { $set: { invoiceId: String(invoice._id), proformaInvoiceId: String(proforma._id), updatedBy: resolveUserId(req) } }
   );
+  // GST suite (CRM 3.53.0): the advance receipt vouchers of this proforma are adjusted against the invoice.
+  await require('./advance-receipt.service').adjustForInvoice(req, [String(proforma._id)], invoice);
   return result?.modifiedCount || 0;
 }
 

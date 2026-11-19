@@ -96,7 +96,8 @@ async function validateClient(req, clientId) {
   return client;
 }
 
-async function findInvoiceOrThrow(req, id) {
+/** opts.read (3.54.0): viewing only — a sales rep may open invoices of their leads / clients too. */
+async function findInvoiceOrThrow(req, id, opts = {}) {
   const { isClientUser } = require('../utils/tenant.util');
 
   /*
@@ -124,8 +125,9 @@ async function findInvoiceOrThrow(req, id) {
 
   const doc = await getInvoiceModel(req).findOne({ ...baseFilter(req), _id: id }).lean();
   if (!doc) throw appError('Invoice not found', 404);
-  const { assertSalesAgentCreatorAccess } = require('../utils/sales-access.util');
-  assertSalesAgentCreatorAccess(req, doc, 'Invoice');
+  const access = require('../utils/sales-access.util');
+  if (opts.read) await access.assertSalesAgentFinanceReadAccess(req, doc, 'Invoice');
+  else await access.assertSalesAgentFinanceWriteAccess(req, doc, 'Invoice');
   return doc;
 }
 
@@ -240,8 +242,8 @@ async function list(req) {
     }
   }
 
-  const { applySalesAgentCreatorScope } = require('../utils/sales-access.util');
-  const finalFilter = applySalesAgentCreatorScope(req, filter);
+  const { applySalesAgentFinanceReadScope } = require('../utils/sales-access.util');
+  const finalFilter = await applySalesAgentFinanceReadScope(req, filter);
 
   const [items, total] = await Promise.all([
     Invoice.find(finalFilter).sort(sort).skip(skip).limit(limit).lean(),
@@ -261,8 +263,8 @@ async function list(req) {
 /**
  * Retrieves a single invoice by ID.
  */
-async function getById(req, id) {
-  const doc = await findInvoiceOrThrow(req, id);
+async function getById(req, id, opts = {}) {
+  const doc = await findInvoiceOrThrow(req, id, { read: Boolean(opts.read) });
   const repaired = await repairInvoiceClientIdIfNeeded(req, doc);
   const withStatus = withEffectiveStatus(repaired);
   const result = await enrichWithCustomerLabel(req, withStatus);
@@ -311,6 +313,9 @@ async function getById(req, id) {
  * Preview next invoice number without incrementing counter
  */
 async function getNextInvoiceNumber(req) {
+  // GST suite (CRM 3.53.0): with Settings → GST saved, tax invoices use the GST series (preview only).
+  const GstService = require('./gst.service');
+  if ((await GstService.context(req)).ready) return GstService.peekNumber(req, 'INV', new Date());
   const settings = await SettingService.getAll(req);
   const prefix = settings.invoice_prefix || 'INV-';
   const { formatNumber, parseSequenceFromDocumentNumber } = require('../utils/numbering.util');
@@ -348,9 +353,7 @@ async function invoiceNumberExists(req, invoiceNo) {
   return Boolean(doc);
 }
 
-async function allocateInvoiceNumber(req, input = {}) {
-  const preferred = input.invoiceNo ? String(input.invoiceNo).trim() : '';
-
+async function allocateCrmInvoiceNumber(req, preferred) {
   if (preferred) {
     if (await invoiceNumberExists(req, preferred)) {
       throw appError(`Invoice number "${preferred}" is already in use`, 409);
@@ -362,6 +365,17 @@ async function allocateInvoiceNumber(req, input = {}) {
   return allocateUniqueNumber(req, 'invoice', {
     exists: (candidate) => invoiceNumberExists(req, candidate)
   });
+}
+
+/** Tax invoice number: the GST series once Settings → GST is saved (CRM 3.53.0), else the CRM series. */
+async function allocateInvoiceNumber(req, input = {}) {
+  const preferred = input.invoiceNo ? String(input.invoiceNo).trim() : '';
+  const { invoiceNo } = await require('./gst.service').taxInvoiceNumber(req, {
+    issueDate: input.issueDate,
+    typedNumber: preferred,
+    fallback: (typed) => allocateCrmInvoiceNumber(req, typed)
+  });
+  return invoiceNo;
 }
 
 /**
@@ -437,7 +451,7 @@ async function create(req, input) {
     }
   }
 
-  const doc = await Invoice.create(await withCustomerSnapshot(req, {
+  const invoiceData = {
     tenantId,
     clientId: String(input.clientId),
     projectId: input.projectId ? String(input.projectId).trim() : null,
@@ -481,8 +495,16 @@ async function create(req, input) {
     terms: input.terms ? String(input.terms).trim() : '',
     isArchived: false,
     createdBy: userId,
-    updatedBy: userId
-  }));
+    updatedBy: userId,
+    // GST suite (CRM 3.53.0): place of supply / TCS rule, then the GST engine's figures (no-op without GST).
+    placeOfSupply: input.placeOfSupply ? String(input.placeOfSupply).trim() : '',
+    tcsRuleKey: input.tcsRuleKey ? String(input.tcsRuleKey).trim() : '',
+    preferredPaymentMethod: ['razorpay', 'cash', 'bank'].includes(input.preferredPaymentMethod)
+      ? input.preferredPaymentMethod
+      : await (async () => { const p = await require('./sales-flow.service').paymentPreference(req); return p.enabled ? p.default : ''; })()
+  };
+  await require('./gst.service').applyToTaxInvoice(req, invoiceData);
+  const doc = await Invoice.create(await withCustomerSnapshot(req, invoiceData));
 
   let result = doc.toObject();
 
@@ -579,6 +601,8 @@ async function update(req, id, input) {
   }
   if (input.issueDate !== undefined) updates.issueDate = new Date(input.issueDate);
   if (input.dueDate !== undefined) updates.dueDate = new Date(input.dueDate);
+  if (input.placeOfSupply !== undefined) updates.placeOfSupply = String(input.placeOfSupply || '').trim();
+  if (input.tcsRuleKey !== undefined) updates.tcsRuleKey = String(input.tcsRuleKey || '').trim();
 
   if (input.lineItems !== undefined || input.discountPercent !== undefined || input.discountAmount !== undefined || input.discountType !== undefined || input.taxCalculation !== undefined) {
     const rawLines = input.lineItems !== undefined ? input.lineItems : existing.lineItems;
@@ -631,6 +655,42 @@ async function update(req, id, input) {
     throw appError('Due date cannot be before issue date');
   }
 
+  // GST suite (CRM 3.53.0): a draft tax invoice's GST figures are worked out again on every edit
+  // (nothing happens without Settings → GST, for proformas, or once the snapshot is frozen).
+  const GstService = require('./gst.service');
+  if (existing.documentType !== 'proforma' && !GstService.isFrozen(existing)) {
+    const lines = updates.lineItems || existing.lineItems || [];
+    const gross = lines.reduce((sum, l) => sum + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0);
+    const dType = updates.discountType !== undefined ? updates.discountType : (existing.discountType || 'percent');
+    const dPercent = updates.discountPercent !== undefined ? updates.discountPercent : (existing.discountPercent || 0);
+    const dAmount = updates.discountAmount !== undefined ? updates.discountAmount : (existing.discountAmount || 0);
+    const gstData = {
+      documentType: existing.documentType,
+      currency: updates.currency || existing.currency,
+      clientId: updates.clientId || existing.clientId,
+      lineItems: lines,
+      placeOfSupply: updates.placeOfSupply !== undefined ? updates.placeOfSupply : (existing.placeOfSupply || ''),
+      issueDate: effectiveIssueDate,
+      discountAmount: dType === 'amount' ? Math.min(gross, Number(dAmount) || 0) : Math.round(gross * (Number(dPercent) || 0)) / 100,
+      taxCalculation: updates.taxCalculation || existing.taxCalculation || 'after_discount',
+      status: 'Draft',
+      amountPaid: existing.amountPaid || 0,
+      creditAmount: existing.creditAmount || 0
+    };
+    await GstService.applyToTaxInvoice(req, gstData);
+    if (gstData.gst) {
+      const paidAndCredited = (existing.amountPaid || 0) + (existing.creditAmount || 0);
+      if (gstData.grandTotal < paidAndCredited) {
+        throw appError('Invoice total cannot be lower than payments and credits already recorded', 409);
+      }
+      updates.gst = gstData.gst;
+      updates.placeOfSupply = gstData.placeOfSupply;
+      updates.taxTotal = gstData.taxTotal;
+      updates.grandTotal = gstData.grandTotal;
+      updates.balanceDue = Math.max(0, Math.round((gstData.grandTotal - paidAndCredited) * 100) / 100);
+    }
+  }
+
   const doc = await Invoice.findOneAndUpdate(
     { ...baseFilter(req), _id: id },
     { $set: updates },
@@ -644,6 +704,34 @@ async function update(req, id, input) {
     description: `Invoice updated: ${doc.invoiceNo}`
   });
 
+  return withEffectiveStatus(doc);
+}
+
+/**
+ * GST suite (CRM 3.53.0, documentation/gst-planning/02 §5.2): change the "preferred payment method" of a
+ * proforma or invoice while something is still to pay. Only a hint for the client (PDF / portal).
+ */
+async function setPaymentPreference(req, id, value) {
+  const method = String(value === undefined || value === null ? '' : value).trim();
+  if (!['', 'razorpay', 'cash', 'bank'].includes(method)) throw appError('Preferred payment method must be none, razorpay, cash or bank');
+  const existing = await findInvoiceOrThrow(req, id);
+  if (['Cancelled', 'Converted', 'Written Off'].includes(existing.status)) {
+    throw appError(`Invoice ${existing.invoiceNo || id} is ${existing.status}: its payment preference cannot change.`, 409);
+  }
+  if (!(Number(existing.balanceDue) > 0)) throw appError('Nothing is left to pay on this invoice.', 409);
+  const Invoice = getInvoiceModel(req);
+  const doc = await Invoice.findOneAndUpdate(
+    { ...baseFilter(req), _id: id },
+    { $set: { preferredPaymentMethod: method, updatedBy: resolveUserId(req) } },
+    { new: true }
+  ).lean();
+  await AuditService.log(req, {
+    action: 'updated',
+    module: 'invoice',
+    recordId: String(id),
+    description: `Preferred payment method of ${existing.invoiceNo || id}: ${method || 'none'}`,
+    metadata: { from: existing.preferredPaymentMethod || '', to: method }
+  });
   return withEffectiveStatus(doc);
 }
 
@@ -827,9 +915,11 @@ async function send(req, id) {
   });
 
   const nextStatus = existing.status === 'Draft' ? 'Sent' : existing.status;
+  // GST suite (CRM 3.53.0): an invoice that leaves Draft is issued; its GST snapshot is frozen.
+  const issuing = existing.status === 'Draft' && existing.gst && existing.gst.engine && !existing.gst.issuedAt;
   const doc = await Invoice.findOneAndUpdate(
     { ...baseFilter(req), _id: id },
-    { $set: { status: nextStatus, clientId, sentAt: new Date(), updatedBy: userId } },
+    { $set: { status: nextStatus, clientId, sentAt: new Date(), updatedBy: userId, ...(issuing ? { 'gst.issuedAt': new Date() } : {}) } },
     { new: true }
   ).lean();
 
@@ -994,7 +1084,7 @@ async function cancel(req, id) {
 }
 
 async function listPayments(req, invoiceId) {
-  await findInvoiceOrThrow(req, invoiceId);
+  await findInvoiceOrThrow(req, invoiceId, { read: true });
   const Payment = getPaymentModel(req);
   if (!Payment) return [];
 
@@ -1202,7 +1292,7 @@ async function syncInvoiceBalance(req, invoiceId) {
 }
 
 async function exportPrintHtml(req, id) {
-  const doc = withEffectiveStatus(await findInvoiceOrThrow(req, id));
+  const doc = withEffectiveStatus(await findInvoiceOrThrow(req, id, { read: true }));
   const payload = await FinanceDocumentUtil.buildInvoicePayload(req, doc);
   const html = PrintHtmlService.renderFinancePrintHtml(payload);
 
@@ -1247,7 +1337,7 @@ async function exportInvoices(req, query = {}) {
     }
   }
 
-  filter = require('../utils/sales-access.util').applySalesAgentCreatorScope(req, filter);
+  filter = await require('../utils/sales-access.util').applySalesAgentFinanceReadScope(req, filter);
 
   const raw = await Invoice.find(filter).sort({ issueDate: -1, createdAt: -1 }).lean();
   const repairedItems = await Promise.all(raw.map((item) => repairInvoiceClientIdIfNeeded(req, item)));
@@ -1361,6 +1451,7 @@ module.exports = {
   syncInvoiceBalance,
   exportPrintHtml,
   getNextInvoiceNumber,
+  setPaymentPreference,
   withEffectiveStatus,
   exportInvoices,
   ensurePayToken,

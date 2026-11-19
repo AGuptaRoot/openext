@@ -42,7 +42,9 @@ const MODULES = new Set([
   'marketing',
   'customer_feedback',
   'customer_success',
-  'analytics_ai'
+  'analytics_ai',
+  // GST suite (CRM 3.53.0): manual cash book entries.
+  'cash_book'
 ]);
 
 function getAuditLogModel(req) {

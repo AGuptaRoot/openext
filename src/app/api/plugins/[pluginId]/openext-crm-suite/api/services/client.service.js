@@ -445,6 +445,8 @@ async function create(req, input) {
   clientDuplicateConflict(req, duplicateMatches, input);
 
   const taxId = await getNextNumber(req, 'clientTaxId') || Date.now().toString();
+  // GST suite (CRM 3.53.0): GSTIN checksum, state from the GSTIN, mismatch / duplicate warnings.
+  const gstPrep = await require('./client-gst.service').prepare(req, { gst: input.gst, billingAddress: input.billingAddress || {} });
 
   const company = await Company.create({
     tenantId,
@@ -453,7 +455,8 @@ async function create(req, input) {
     companyTokens: buildCompanyTokens(input.name),
     email: input.email || '',
     phone: normalizeMobile(input.phone) || '',
-    billingAddress: input.billingAddress || {},
+    billingAddress: (gstPrep && gstPrep.billingAddress) || input.billingAddress || {},
+    ...(gstPrep && gstPrep.gst ? { gst: gstPrep.gst } : {}),
     taxId,
     website: input.website || '',
     avatarUrl: input.avatarUrl || '',
@@ -479,6 +482,7 @@ async function create(req, input) {
     }
   });
 
+  if (gstPrep && gstPrep.warnings.length) doc.gstWarnings = gstPrep.warnings;
   return doc;
 }
 
@@ -524,6 +528,15 @@ async function update(req, id, input) {
     updates.customFields = input.customFields;
   }
   if (input.billingAddress !== undefined) updates.billingAddress = input.billingAddress;
+  // GST suite (CRM 3.53.0): only when the GST details or the billing address change.
+  const gstPrep = await require('./client-gst.service').prepare(req, {
+    gst: input.gst,
+    billingAddress: input.billingAddress,
+    existing,
+    excludeId: id
+  });
+  if (gstPrep && gstPrep.gst) updates.gst = gstPrep.gst;
+  if (gstPrep && gstPrep.billingAddress) updates.billingAddress = gstPrep.billingAddress;
 
   if (['name', 'email', 'phone'].some((field) => input[field] !== undefined)) {
     const identity = {
@@ -552,10 +565,12 @@ async function update(req, id, input) {
     description: `Client updated: ${company.name}`,
     metadata: {
       similarCompanyOverride: input.allowSimilarCompany === true,
-      exactDuplicateOverride: input.allowExactDuplicate === true
+      exactDuplicateOverride: input.allowExactDuplicate === true,
+      ...(gstPrep && gstPrep.gst ? { gstChanged: true } : {})
     }
   });
 
+  if (company && gstPrep && gstPrep.warnings.length) company.gstWarnings = gstPrep.warnings;
   return company;
 }
 
@@ -587,14 +602,70 @@ async function remove(req, id) {
   return { deleted: true, id };
 }
 
-/** List contacts for a client */
+/* ------------------------------------------------------------------------------------------------
+ * CRM 3.54.0: client contacts by reference. A client's contact row (Contact) is the relation
+ * clientId + personContactId + role (isPrimary). The Contact master (PersonContact) holds the live
+ * person data; the client's Contacts tab shows it and never edits it (edit on the Contact page).
+ * The row's own name / email / phone / designation are kept only as a copy refreshed from the master
+ * (older readers: portal invite, client trip lead, Bill-To email) and as the fallback for rows without
+ * a master. Issued documents keep their own customerSnapshot and are never changed.
+ * ---------------------------------------------------------------------------------------------- */
+
+/** Master → the copy kept on the client's contact row (limits of the Contact model). */
+function contactCopyOf(person) {
+  const phone = normalizeMobile(person.phone || '') || '';
+  return {
+    name: String(person.name || '').trim().slice(0, 120),
+    email: String(person.email || '').trim().toLowerCase().slice(0, 120),
+    phone: /^\+?\d{7,15}$/.test(phone) ? phone : '',
+    designation: String(person.jobTitle || '').trim().slice(0, 80)
+  };
+}
+
+/** Masters by id (deleted ones included, to say so). */
+async function mastersById(req, ids) {
+  const PersonContact = req.cms?.models.get('PersonContact');
+  const list = [...new Set(ids.map((x) => String(x || '')).filter((x) => /^[a-f0-9]{24}$/i.test(x)))];
+  if (!PersonContact || !list.length) return new Map();
+  const rows = await PersonContact.find({ tenantId: resolveTenantId(req), _id: { $in: list } }).lean();
+  return new Map((Array.isArray(rows) ? rows : []).map((p) => [String(p._id), p]));
+}
+
+/**
+ * Called after a Contact master changes (Contact detail): every client row linked to it gets the new
+ * data at once. Never throws (the master is already saved).
+ */
+async function syncContactRowsFromMaster(req, person) {
+  try {
+    if (!person || !person._id) return 0;
+    const res = await getContactModel(req).updateMany(
+      { tenantId: resolveTenantId(req), personContactId: String(person._id), isDeleted: { $ne: true } },
+      { $set: { ...contactCopyOf(person), updatedBy: resolveUserId(req) } }
+    );
+    return Number(res && (res.modifiedCount ?? res.nModified)) || 0;
+  } catch (error) {
+    console.warn('[plugin:openext-crm-suite] client contact copy not refreshed:', error?.message || error);
+    return 0;
+  }
+}
+
+/** List contacts for a client: the live Contact master data for linked rows (CRM 3.54.0). */
 async function listContacts(req, companyId) {
   await findCompanyOrThrow(req, companyId);
   const items = await getContactModel(req)
     .find(contactFilter(req, companyId))
     .sort({ isPrimary: -1, createdAt: 1 })
     .lean();
-  return backfillPersonContactIds(req, companyId, items);
+  const rows = await backfillPersonContactIds(req, companyId, items);
+  const masters = await mastersById(req, rows.map((r) => r.personContactId));
+  return rows.map((row) => {
+    const person = row.personContactId ? masters.get(String(row.personContactId)) : null;
+    if (person && !person.isDeleted) {
+      return { ...row, ...contactCopyOf(person), salutation: String(person.salutation || ''), linked: true };
+    }
+    // No master (older row) or the master was deleted: the row's own last known data, said so.
+    return { ...row, linked: false, ...(person && person.isDeleted ? { contactDeleted: true } : {}) };
+  });
 }
 
 /**
@@ -631,13 +702,18 @@ async function backfillPersonContactIds(req, companyId, items) {
       or.push({ phone: phoneDigits });
     }
 
-    const match = await PersonContact.findOne({
+    // 3.54.0: the same email or phone is not enough (a shared office or family phone): the name must
+    // match too, so a live link never shows another person's data.
+    const nameKey = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9\u0900-\u097f]+/g, ' ').trim();
+    const candidates = await PersonContact.find({
       tenantId: resolveTenantId(req),
       isDeleted: false,
       $or: or
     })
-      .select('_id')
+      .select('_id name')
+      .limit(10)
       .lean();
+    const match = (Array.isArray(candidates) ? candidates : []).find((p) => nameKey(p.name) && nameKey(p.name) === nameKey(item.name)) || null;
 
     if (!match) {
       out.push(item);
@@ -682,14 +758,20 @@ async function addContact(req, companyId, input) {
     );
   }
 
+  // 3.54.0: a linked contact takes the Contact master's data (one record; the row only refers to it).
+  const masterId = input.personContactId ? String(input.personContactId).trim() : '';
+  const master = masterId ? (await mastersById(req, [masterId])).get(masterId) : null;
+  if (masterId && req.cms?.models.get('PersonContact') && (!master || master.isDeleted)) throw appError('Contact not found', 404);
+  const copy = master ? contactCopyOf(master) : null;
+
   const contact = await Contact.create({
     tenantId,
     companyId: String(companyId),
-    name: input.name,
-    email: input.email || '',
-    phone: normalizeMobile(input.phone) || '',
-    designation: input.designation || '',
-    personContactId: input.personContactId ? String(input.personContactId).trim() : null,
+    name: copy ? copy.name || input.name : input.name,
+    email: copy ? copy.email : input.email || '',
+    phone: copy ? copy.phone : normalizeMobile(input.phone) || '',
+    designation: copy ? copy.designation : input.designation || '',
+    personContactId: masterId || null,
     isPrimary: Boolean(input.isPrimary),
     createdBy: userId,
     updatedBy: userId
@@ -732,28 +814,34 @@ async function updateContact(req, companyId, contactId, input) {
   }).lean();
   if (!existing) throw appError('Contact not found', 404);
 
-  if (input.email !== undefined && input.email && !isValidEmail(input.email)) {
-    throw appError('Email is invalid');
-  }
-
   const updates = { updatedBy: userId };
-  if (input.name !== undefined) {
-    if (!input.name) throw appError('Contact name is required');
-    updates.name = input.name;
-  }
-  if (input.email !== undefined) updates.email = input.email;
-  if (input.phone !== undefined) {
-    const phone = normalizeMobile(input.phone);
-    if (phone && !isValidMobile(phone)) throw appError('Mobile number is invalid');
-    updates.phone = phone;
-  }
-  if (input.designation !== undefined) updates.designation = input.designation;
-
   const prevPersonId = existing.personContactId ? String(existing.personContactId) : null;
   let nextPersonId = prevPersonId;
   if (input.personContactId !== undefined) {
     nextPersonId = input.personContactId ? String(input.personContactId).trim() : null;
     updates.personContactId = nextPersonId;
+  }
+
+  // 3.54.0: the client page does not edit a person. Name / email / phone / designation are changed on the
+  // Contact page (one record); here only the link and the Primary role change. Linking a master copies
+  // its data onto the row.
+  if (nextPersonId && nextPersonId !== prevPersonId) {
+    const master = (await mastersById(req, [nextPersonId])).get(nextPersonId);
+    if (req.cms?.models.get('PersonContact') && (!master || master.isDeleted)) throw appError('Contact not found', 404);
+    if (master) Object.assign(updates, contactCopyOf(master));
+  } else {
+    const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+    const changed = [
+      input.name !== undefined && !same(input.name, existing.name),
+      input.email !== undefined && !same(input.email, existing.email),
+      input.phone !== undefined && !same(normalizeMobile(input.phone), existing.phone),
+      input.designation !== undefined && !same(input.designation, existing.designation)
+    ].some(Boolean);
+    if (changed) {
+      throw Object.assign(appError('Contact details are changed on the Contact page, not on the client. Open the contact to edit it.', 409), {
+        code: 'CONTACT_EDIT_ON_CONTACT_PAGE'
+      });
+    }
   }
 
   if (input.isPrimary === true) {
@@ -2363,6 +2451,7 @@ module.exports = {
   update,
   remove,
   listContacts,
+  syncContactRowsFromMaster,
   addContact,
   updateContact,
   removeContact,

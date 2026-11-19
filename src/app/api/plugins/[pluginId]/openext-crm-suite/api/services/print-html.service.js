@@ -62,7 +62,7 @@ function renderLineItemsRows(lineItems, currency) {
     .map(
       (line) => `
         <tr>
-          <td>${escapeHtml(line.description || '—')}${line.printNote ? `<div class="line-note">${escapeHtml(line.printNote)}</div>` : ''}</td>
+          <td>${escapeHtml(line.description || '—')}${line.printNote ? `<div class="line-note">${escapeHtml(line.printNote)}</div>` : ''}${line.sac ? `<div class="line-note">SAC ${escapeHtml(line.sac)}</div>` : ''}</td>
           <td class="num">${escapeHtml(String(line.qty ?? 0))}</td>
           <td class="num">${Number(line.rate || 0).toFixed(2)}</td>
           <td class="num">${escapeHtml(String(line.tax ?? 0))}</td>
@@ -73,13 +73,72 @@ function renderLineItemsRows(lineItems, currency) {
     .join('');
 }
 
+/** GST suite (CRM 3.53.0): the seller's GST identity under the company name. */
+function renderGstSeller(g) {
+  if (!g) return '';
+  const s = g.seller || {};
+  const id = [s.gstin ? `GSTIN: ${s.gstin}` : '', s.pan ? `PAN: ${s.pan}` : '', s.state ? `State: ${s.state}` : ''].filter(Boolean).join(' · ');
+  return `
+        ${s.legalName && s.legalName !== s.name ? `<p class="gst-line">${escapeHtml(s.legalName)}</p>` : ''}
+        ${id ? `<p class="gst-line">${escapeHtml(id)}</p>` : ''}
+        ${(s.address || []).map((a) => `<p class="gst-line">${escapeHtml(a)}</p>`).join('')}`;
+}
+
+/** GST suite: tax rows of the totals (CGST + SGST / UTGST, or IGST) instead of one "Tax" row. */
+function renderGstTotals(g, currency) {
+  const t = g && g.totals;
+  if (!t) return '';
+  const row = (label, value) => `<div class="totals-row"><span>${escapeHtml(label)}</span><strong>${formatMoney(value, currency)}</strong></div>`;
+  return [
+    row('Taxable value', t.taxable),
+    t.cgst ? row('CGST', t.cgst) : '',
+    t.sgst ? row('SGST', t.sgst) : '',
+    t.utgst ? row('UTGST', t.utgst) : '',
+    t.igst ? row('IGST', t.igst) : '',
+    t.cess ? row('Cess', t.cess) : '',
+    !t.totalTax ? row('GST', 0) : '',
+    t.otherCharges ? row('Other charges', t.otherCharges) : '',
+    t.roundOff ? row('Round off', t.roundOff) : ''
+  ].join('');
+}
+
+/** GST suite: tax summary by rate, declarations, amount in words, UPI. */
+function renderGstFooter(g, currency) {
+  if (!g) return '';
+  const money = (n) => Number(n || 0).toFixed(2);
+  const rows = (g.rows || []).map((r) => `
+        <tr>
+          <td class="num">${escapeHtml(String(r.rate))}%</td>
+          <td class="num">${money(r.taxable)}</td>
+          ${g.interstate ? `<td class="num">${money(r.igst)}</td>` : `<td class="num">${money(r.cgst)}</td><td class="num">${money(r.sgst + r.utgst)}</td>`}
+        </tr>`).join('');
+  const table = rows ? `
+    <section class="gst-summary">
+      <h2>GST summary (${escapeHtml(currency)})</h2>
+      <table>
+        <thead><tr><th class="num">Rate</th><th class="num">Taxable</th>${g.interstate ? '<th class="num">IGST</th>' : `<th class="num">CGST</th><th class="num">${(g.rows || []).some((r) => r.utgst) ? 'UTGST' : 'SGST'}</th>`}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </section>` : '';
+  const lines = [
+    g.amountInWords ? `<p><strong>Amount in words:</strong> ${escapeHtml(g.amountInWords)}</p>` : '',
+    g.reverseChargeText ? `<p>${escapeHtml(g.reverseChargeText)}</p>` : '',
+    g.declaration ? `<p class="gst-declaration">${escapeHtml(g.declaration)}</p>` : '',
+    g.compositionText ? `<p>${escapeHtml(g.compositionText)}</p>` : '',
+    g.upi ? `<p>Pay by UPI: <strong>${escapeHtml(g.upi.id)}</strong></p>` : '',
+    g.notTaxInvoiceText ? `<p class="gst-not-tax"><strong>${escapeHtml(g.notTaxInvoiceText)}</strong></p>` : ''
+  ].join('');
+  return `${table}<section class="gst-notes">${lines}</section>`;
+}
+
 /**
  * Shared quotation/invoice body (print + email).
  */
 function buildFinanceDocumentBody(payload) {
   const { type, company, client, document: docData } = payload;
+  const g = payload.gstPrint || null;
   const isQuotation = type === 'quotation';
-  const title = isQuotation ? 'Quotation' : 'Invoice';
+  const title = g ? g.title : isQuotation ? 'Quotation' : 'Invoice';
   const docNo = isQuotation ? docData.quotationNo : docData.invoiceNo;
   const currency = docData.currency || company.currency || 'INR';
   const address = formatAddress(client.billingAddress);
@@ -115,7 +174,8 @@ function buildFinanceDocumentBody(payload) {
     html: `
     <header class="header">
       <div>
-        <p class="company-name">${escapeHtml(company.name || 'Company')}</p>
+        <p class="company-name">${escapeHtml((g && g.seller && g.seller.name) || company.name || 'Company')}</p>
+        ${renderGstSeller(g)}
       </div>
       <div>
         <h1 class="doc-title">${escapeHtml(title.toUpperCase())}</h1>
@@ -132,6 +192,8 @@ function buildFinanceDocumentBody(payload) {
       <h2>Bill To</h2>
       <p><strong>${escapeHtml(client.name || '—')}</strong></p>
       ${client.taxId ? `<p>Tax ID: ${escapeHtml(client.taxId)}</p>` : ''}
+      ${g && g.totals ? `<p>GSTIN: ${escapeHtml(g.clientGstin || 'Unregistered')}</p>` : ''}
+      ${g && g.placeOfSupply ? `<p>Place of supply: ${escapeHtml(g.placeOfSupply)}</p>` : ''}
       ${client.email ? `<p>${escapeHtml(client.email)}</p>` : ''}
       ${client.phone ? `<p>${escapeHtml(client.phone)}</p>` : ''}
       ${address ? `<p>${escapeHtml(address)}</p>` : ''}
@@ -160,11 +222,13 @@ function buildFinanceDocumentBody(payload) {
           <strong>-${formatMoney(docData.discountAmount, currency)}</strong>
         </div>
       ` : ''}
-      <div class="totals-row"><span>Tax</span><strong>${formatMoney(docData.taxTotal, currency)}</strong></div>
+      ${g && g.totals ? renderGstTotals(g, currency) : `<div class="totals-row"><span>Tax</span><strong>${formatMoney(docData.taxTotal, currency)}</strong></div>`}
       <div class="totals-row grand"><span>Grand total</span><strong>${formatMoney(docData.grandTotal, currency)}</strong></div>
       ${invoiceTotals}
     </section>
 
+    ${renderGstFooter(g, currency)}
+    ${payload.paymentInstructions && payload.paymentInstructions.lines.length ? `<section class="notes"><h2>How to pay</h2>${payload.paymentInstructions.lines.map((l) => `<p>${escapeHtml(l)}</p>`).join('')}</section>` : ''}
     ${notes}
     ${sections}
 
@@ -274,6 +338,13 @@ const FINANCE_DOC_STYLES = `
     .doc-section p { white-space: pre-line; }
     .line-note { font-size: 11px; color: #64748b; margin-top: 2px; }
     .doc-section { break-inside: avoid; }
+    .gst-line { margin: 0; font-size: 0.82rem; color: var(--muted); }
+    .gst-summary { margin-top: 20px; break-inside: avoid; }
+    .gst-summary h2 { margin: 0 0 8px; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    .gst-notes { margin-top: 12px; font-size: 0.9rem; }
+    .gst-notes p { margin: 4px 0; }
+    .gst-declaration { font-size: 0.8rem; text-transform: uppercase; }
+    .gst-not-tax { color: #b45309; }
     .footer {
       margin-top: 32px;
       text-align: center;

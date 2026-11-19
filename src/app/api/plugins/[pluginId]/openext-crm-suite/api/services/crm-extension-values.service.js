@@ -430,8 +430,188 @@ async function leadValuesCheck(req, def, leadId, values, changed) {
   }
 }
 
+/* ------------------------------------------------------------------------------------------------
+ * Lead bulk import of extension fields (CRM 3.54.0). Generic: the CRM only knows the declared lead
+ * fields of the active extension (crm-extension.json → fields.lead), never what they mean. A CSV
+ * column named like a field's key or label fills that field; the value is checked exactly like a save
+ * from the lead form (types, option lists incl. optionsFrom settings with their enabled flag, required,
+ * date rules and the extension's leadWorkflow.valuesCheckRoute) before the lead is created.
+ * Calculated (formula) and internal fields cannot be imported.
+ * ---------------------------------------------------------------------------------------------- */
+
+const IMPORT_MAX_ROWS_WITH_FIELDS = 200;
+
+/** Declared lead fields of the active extension a bulk import may fill, with their current options. */
+async function leadImportFields(req) {
+  const def = await CrmExtensionService.getActive(req).catch(() => null);
+  if (!def || def.manifestVersion !== 2 || !Array.isArray(def.declarations?.fields?.lead)) {
+    return { extensionId: def?.id || '', extensionName: def?.name || '', maxRows: IMPORT_MAX_ROWS_WITH_FIELDS, fields: [] };
+  }
+  const all = [];
+  for (const group of def.declarations.fields.lead) {
+    for (const field of group.fields || []) {
+      if (!field || !field.key || field.formula || field.internal) continue;
+      all.push({ field, requestTypeKey: String(group.whenRequestTypeKey || '') });
+    }
+  }
+  const settingsValues = await settingsValuesFor(req, def, all.map((f) => f.field));
+  const fields = all.map(({ field, requestTypeKey }) => {
+    const options = ['select', 'radio', 'multiselect'].includes(field.type)
+      ? resolveOptions(field, settingsValues).map((o) => (o && typeof o === 'object' ? { value: String(o.value), label: String(o.label || o.value) } : { value: String(o), label: String(o) }))
+      : undefined;
+    return {
+      key: field.key,
+      label: field.label || field.key,
+      type: field.type || 'text',
+      required: Boolean(field.required),
+      requestTypeKey,
+      ...(options ? { options } : {})
+    };
+  });
+  return { extensionId: def.id, extensionName: def.name || def.id, maxRows: IMPORT_MAX_ROWS_WITH_FIELDS, fields };
+}
+
+const lower = (v) => String(v === null || v === undefined ? '' : v).trim().toLowerCase();
+
+/**
+ * CSV cell → the value a save expects. Lists: a JSON array (["hotel","bus_ticket"]) or values
+ * separated by , ; or |. Dates: YYYY-MM-DD (DD-MM-YYYY and DD/MM/YYYY are turned into it).
+ */
+function importCell(field, raw) {
+  const text = String(raw === null || raw === undefined ? '' : raw).trim();
+  if (!text) return undefined;
+  switch (field.type) {
+    case 'multiselect': {
+      if (text.startsWith('[')) {
+        try {
+          const list = JSON.parse(text);
+          if (Array.isArray(list)) return list.map((x) => String(x === null || x === undefined ? '' : x).trim()).filter(Boolean);
+        } catch {
+          /* not JSON: split below */
+        }
+      }
+      return text.replace(/^\[|\]$/g, '').split(/[,;|]/).map((x) => x.trim().replace(/^["']|["']$/g, '').trim()).filter(Boolean);
+    }
+    case 'checkbox':
+      return ['yes', 'y', 'true', '1'].includes(lower(text));
+    case 'number':
+    case 'currency':
+      return text.replace(/[,\s₹]/g, '');
+    case 'date': {
+      const m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/.exec(text);
+      return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : text;
+    }
+    default:
+      return text;
+  }
+}
+
+/** An option given by its display label instead of its key → a clear message (labels are never stored). */
+function labelInsteadOfKey(field, value) {
+  for (const v of Array.isArray(value) ? value : [value]) {
+    const options = Array.isArray(field.options) ? field.options : [];
+    const keys = options.map((o) => (o && typeof o === 'object' ? String(o.value) : String(o)));
+    if (keys.includes(String(v))) continue;
+    const byLabel = options.find((o) => o && typeof o === 'object' && lower(o.label) === lower(v) && String(o.value) !== String(o.label));
+    if (byLabel) return `${field.label || field.key}: use the key "${byLabel.value}" instead of the name "${v}"`;
+  }
+  return '';
+}
+
+/**
+ * The extension columns of one import row: which fields it fills and whether they are valid.
+ * @param ctx  { def, fields: leadImportFields().fields, settingsValues } (from leadImportContext)
+ * @param raw  the CSV row (header → cell)
+ * @param requestTypeKey the row's resolved Request Type key ('' when not found)
+ * @returns {{ values: object, errors: string[], used: string[] }}
+ */
+async function checkLeadImportRow(req, ctx, raw, requestTypeKey, coreHeaders) {
+  const out = { values: {}, errors: [], used: [] };
+  if (!ctx || !ctx.fields.length) return out;
+  const row = raw && typeof raw === 'object' ? raw : {};
+  const headers = Object.keys(row);
+  const cellFor = (field) => {
+    const byKey = headers.find((h) => h.trim() === field.key);
+    if (byKey !== undefined) return row[byKey];
+    const byLabel = headers.find((h) => lower(h) === lower(field.label) && !coreHeaders.has(lower(h)));
+    return byLabel !== undefined ? row[byLabel] : undefined;
+  };
+  const given = [];
+  for (const field of ctx.fields) {
+    const value = importCell(field, cellFor(field));
+    if (value === undefined || (Array.isArray(value) && !value.length)) continue;
+    given.push({ field, value });
+  }
+  if (!given.length) return out;
+  out.used = given.map((g) => g.field.key);
+
+  const key = lower(requestTypeKey);
+  const wrongType = given.filter((g) => g.field.requestTypeKey && lower(g.field.requestTypeKey) !== key);
+  if (wrongType.length) {
+    const needed = [...new Set(wrongType.map((g) => g.field.requestTypeKey))].join(' or ');
+    out.errors.push(`${wrongType.map((g) => g.field.label).join(', ')}: these columns need Required Type "${needed}"`);
+    return out;
+  }
+
+  const clean = {};
+  const declared = new Map();
+  for (const { field, value } of given) {
+    const decl = ctx.declared.get(field.key);
+    declared.set(field.key, decl);
+    const typed = { ...decl, options: field.options || decl.options };
+    const hint = field.options ? labelInsteadOfKey(typed, value) : '';
+    if (hint) {
+      out.errors.push(hint);
+      continue;
+    }
+    const coerced = coerceAndValidate(typed, value);
+    if (coerced && typeof coerced === 'object' && !Array.isArray(coerced) && coerced.error) out.errors.push(coerced.error);
+    else clean[field.key] = coerced;
+  }
+  // Required fields of the groups this row fills (same as the form: a group is saved together).
+  const filledGroups = new Set(given.map((g) => ctx.groupOf.get(g.field.key)));
+  for (const field of ctx.fields) {
+    if (!field.required || !filledGroups.has(ctx.groupOf.get(field.key))) continue;
+    const v = clean[field.key];
+    if (v === undefined || v === '' || v === null || (Array.isArray(v) && !v.length)) {
+      if (!out.errors.some((e) => e.startsWith(field.label))) out.errors.push(`${field.label} is required`);
+    }
+  }
+  if (!out.errors.length) {
+    const fieldMap = new Map([...ctx.declared.entries()].filter(([k]) => ctx.fields.some((f) => f.key === k)));
+    out.errors.push(...dateRuleErrors(fieldMap, clean, {}));
+  }
+  if (!out.errors.length) {
+    out.errors.push(...(await leadValuesCheck(req, ctx.def, '', clean, Object.keys(clean))));
+  }
+  out.values = clean;
+  return out;
+}
+
+/** Everything checkLeadImportRow needs, read once per import. */
+async function leadImportContext(req) {
+  const info = await leadImportFields(req);
+  if (!info.fields.length) return null;
+  const def = await CrmExtensionService.getActive(req);
+  const declared = new Map();
+  const groupOf = new Map();
+  (def.declarations.fields.lead || []).forEach((group, index) => {
+    for (const field of group.fields || []) {
+      if (!field || !field.key) continue;
+      declared.set(field.key, field);
+      groupOf.set(field.key, index);
+    }
+  });
+  return { def, fields: info.fields, declared, groupOf, maxRows: info.maxRows };
+}
+
 module.exports = {
   RECORD_MODEL_MAP,
   getValues,
-  setValues
+  setValues,
+  leadImportFields,
+  leadImportContext,
+  checkLeadImportRow,
+  importCell,
+  IMPORT_MAX_ROWS_WITH_FIELDS
 };

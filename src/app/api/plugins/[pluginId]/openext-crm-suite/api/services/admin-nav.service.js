@@ -115,6 +115,12 @@ async function buildAdminNav(req) {
 
     const def = await CrmExtensionService.resolveActiveDefinition(req, settings);
     for (const routeId of (def && def.hiddenModules) || []) hide.add(String(routeId));
+    // GST suite (CRM 3.53.0): the cash book is the agency's own money: staff with finance read only
+    // (the page and its API refuse everyone else in any case).
+    if (client || !hasPermission(req, 'crm.finance.read')) {
+      hide.add('cashbook');
+      hide.add('reconciliation');
+    }
 
     // Product and Project are built-in modes without pages of their own.
     const extensionId = String((def && def.id) || '');

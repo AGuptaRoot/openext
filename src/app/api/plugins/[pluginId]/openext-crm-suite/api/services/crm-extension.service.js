@@ -142,10 +142,8 @@ async function getRequestTypeKeys(req) {
 const fallbackInFlight = new Map();
 
 /**
- * The enabled uploaded extension's files are gone (plugin folder wiped by a
- * CMS plugin update or removal, or edited on disk). Switch the workspace back
- * to the default extension so request type, pipeline and modules are
- * consistent again. Runs once per tenant at a time; never throws.
+ * Switch the workspace back to the default extension. 3.54.0: no longer called on a read (see
+ * resolveActiveDefinition); kept for an explicit admin action. Runs once per tenant at a time.
  */
 async function fallBackToDefault(req, missingDef) {
   const tenantId = resolveTenantId(req);
@@ -171,10 +169,38 @@ async function fallBackToDefault(req, missingDef) {
   return undefined;
 }
 
+/** tenant|extension|version|checksum already reported missing by this process (one audit entry each). */
+const missingReported = new Set();
+
+/**
+ * CRM 3.54.0: the active extension's files cannot be found for this request. The workspace is NOT
+ * switched (a read must never change the workspace: a request that looks in the wrong folder, or runs
+ * while a plugin update is copying files, used to turn the extension off for everyone). This request
+ * uses the default; the extension stays enabled and works again as soon as its files are found (or
+ * the zip is uploaded again). Reported once per process. Never throws.
+ */
+async function reportMissingFiles(req, def) {
+  const key = `${resolveTenantId(req)}|${def.id}|${def.version}|${def.checksum || ''}`;
+  if (missingReported.has(key)) return;
+  missingReported.add(key);
+  console.warn(
+    `[plugin:openext-crm-suite] CRM extension ${def.id} v${def.version}: files not found in ${require('../extension-runtime/package-folder').getRoot()}; using the default for now (still enabled)`
+  );
+  try {
+    await audit(
+      req,
+      `CRM extension ${def.name} v${def.version} files not found in the plugin folder; it stays enabled — upload the package again if this continues`,
+      { extensionId: def.id, version: def.version, reason: 'EXTENSION_FILES_MISSING' }
+    );
+  } catch {
+    /* the warning above is enough */
+  }
+}
+
 /**
  * Active definition for an already-loaded settings map; never throws.
- * An uploaded extension whose folder is missing or damaged is "not found":
- * the default extension is returned and the workspace is switched back to it.
+ * An uploaded extension whose folder is missing or damaged is "not found" for this request: the
+ * default extension is returned, but the active_extension setting is left as it is (3.54.0).
  */
 async function resolveActiveDefinition(req, settings) {
   try {
@@ -182,12 +208,27 @@ async function resolveActiveDefinition(req, settings) {
     const id = resolveActiveExtensionIdFrom(settings, defs);
     const def = defs.find((item) => item.id === id) || getDefaultExtensionDef();
     if (def.isInternal === false && def.filesAvailable === false) {
-      if (!fallbackInFlight.has(resolveTenantId(req))) await fallBackToDefault(req, def);
+      await reportMissingFiles(req, def);
       return getDefaultExtensionDef();
     }
     return def;
   } catch {
     return getDefaultExtensionDef();
+  }
+}
+
+/**
+ * CRM 3.54.0: the extension the workspace is SET to (the active_extension setting), whether or not its
+ * files can be found right now. Enable / disable / uninstall decide on this, never on the per-request
+ * fallback, so an extension whose files are missing can still be disabled and uninstalled.
+ */
+async function configuredActiveId(req) {
+  try {
+    const SettingService = require('./setting.service');
+    const settings = await SettingService.getAll(req);
+    return resolveActiveExtensionIdFrom(settings, await listDefinitions(req));
+  } catch {
+    return getDefaultExtensionDef().id;
   }
 }
 
@@ -471,7 +512,7 @@ async function enable(req, id) {
   }
 
   const SettingService = require('./setting.service');
-  const previousId = await getActiveExtensionId(req);
+  const previousId = await configuredActiveId(req);
 
   const previousDef = previousId && previousId !== def.id ? await getDefinition(req, previousId) : null;
 
@@ -519,11 +560,12 @@ async function disable(req, id) {
       { code: 'DEFAULT_EXTENSION_LOCKED' }
     );
   }
-  const activeId = await getActiveExtensionId(req);
+  const activeId = await configuredActiveId(req);
   if (activeId !== def.id) {
-    return { ...serialize(def, activeId), previousExtensionId: activeId, pipelineId: null };
+    return { ...serialize(def, activeId), previousExtensionId: activeId, pipelineId: null, alreadyDisabled: true };
   }
-  return enable(req, getDefaultExtensionDef().id);
+  const fallback = await enable(req, getDefaultExtensionDef().id);
+  return { ...fallback, disabledExtensionId: def.id, disabledExtensionName: def.name };
 }
 
 /* ------------------------------------------------------------------- packages */
@@ -858,10 +900,10 @@ async function uninstall(req, id) {
   if (def.isInternal !== false) {
     throw appError(`${def.name} is built in and cannot be uninstalled`, 409, { code: 'BUILTIN_EXTENSION' });
   }
-  const activeId = await getActiveExtensionId(req);
+  const activeId = await configuredActiveId(req);
   if (activeId === def.id) {
     throw appError(
-      `${def.name} is the active extension. Enable another extension first, then uninstall it.`,
+      `${def.name} is the active extension. Disable it first, then uninstall it.`,
       409,
       { code: 'EXTENSION_ACTIVE' }
     );

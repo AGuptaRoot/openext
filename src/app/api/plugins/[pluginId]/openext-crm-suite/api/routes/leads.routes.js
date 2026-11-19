@@ -83,6 +83,12 @@ module.exports = function registerLeadsRoutes(app) {
   );
 
   // Import & Export Routes
+  // CRM 3.54.0: the active extension's lead fields a CSV may fill (columns, types, allowed keys).
+  app.get(
+    '/leads/import/fields',
+    requirePermission('crm.leads.write'),
+    leadController.importFields
+  );
   app.post(
     '/leads/import/preview',
     requirePermission('crm.leads.write'),

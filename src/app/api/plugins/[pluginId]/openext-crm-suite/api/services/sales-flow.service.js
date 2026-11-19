@@ -27,6 +27,23 @@ function badRequest(message) {
   return error;
 }
 
+/** salesFlow.payments.preferredMethod → { enabled, default } (disabled when not declared). */
+function paymentPreferenceOf(flow) {
+  const pm = flow && isPlainObject(flow.payments) && isPlainObject(flow.payments.preferredMethod) ? flow.payments.preferredMethod : null;
+  const methods = ['', 'razorpay', 'cash', 'bank'];
+  if (!pm || pm.enabled !== true) return { enabled: false, default: '' };
+  return { enabled: true, default: methods.includes(pm.default) ? pm.default : '' };
+}
+
+/** The enabled extension's payment preference rule (never throws). */
+async function paymentPreference(req) {
+  try {
+    return paymentPreferenceOf(await contract(req));
+  } catch {
+    return { enabled: false, default: '' };
+  }
+}
+
 /** The active extension definition when it declares a sales-flow contract, or null. */
 async function activeDef(req) {
   const CrmExtensionService = require('./crm-extension.service');
@@ -231,7 +248,10 @@ function cleanLines(raw, groupKeys = null) {
       quantity: Number.isFinite(quantity) && quantity > 0 ? Math.min(quantity, 100000) : 1,
       unitPrice: Number.isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0,
       details: cleanDetails(item.details),
-      ...groupOf(item, groupKeys)
+      ...groupOf(item, groupKeys),
+      // GST suite (CRM 3.53.0): the line's SAC code and service key (from Settings → GST).
+      ...(/^\d{4,8}$/.test(String(item.sac || '').trim()) ? { sac: String(item.sac).trim() } : {}),
+      ...(/^[a-z][a-z0-9_]{1,40}$/.test(String(item.serviceType || '')) ? { serviceType: String(item.serviceType) } : {})
     });
   }
   return out;
@@ -575,6 +595,8 @@ async function config(req) {
     clientQuotationStartsWithLead: Boolean(flow.clientQuotationStartsWithLead),
     bookingAfterAdvance: Boolean(flow.bookingAfterAdvance),
     lockWonLead: Boolean(flow.lockWonLead),
+    // GST suite (CRM 3.53.0): the optional "preferred payment method" on proformas / invoices.
+    paymentPreference: paymentPreferenceOf(flow),
     // 3.34.0: a quotation for a client goes through the extension (eligible clients, a picker, a start step).
     clientQuotation: isPlainObject(flow.clientQuotation)
       ? {
@@ -700,7 +722,10 @@ async function quotationPrefill(req, body = {}) {
     validTill: cleanDate(data.validTill),
     validTillMax: cleanDate(data.validTillMax),
     checks: cleanChecks(data.checks),
-    notices: cleanNotices(data.notices)
+    notices: cleanNotices(data.notices),
+    // GST suite (CRM 3.53.0): the document's place of supply ('' = the client's state) and TCS rule.
+    placeOfSupply: text(data.placeOfSupply, 60),
+    tcsRuleKey: /^[a-z][a-z0-9_]{1,40}$/.test(String(data.tcsRuleKey || '')) ? String(data.tcsRuleKey) : ''
   };
 }
 
@@ -838,6 +863,9 @@ async function enforceFixedQuotationLines(req, items, ref = {}) {
       extra: { ...(source.extra || {}) },
       group: source.group || '',
       sourceRef: source.sourceRef || '',
+      // GST suite (CRM 3.53.0): the SAC code and service key come from the extension, not the browser.
+      sac: source.sac || '',
+      serviceType: source.serviceType || '',
       rate: Math.max(0, Number(item.rate) || 0),
       tax: Number.isFinite(tax) && tax >= 0 && tax <= 100 ? tax : source.tax !== undefined ? source.tax : 0
     });
@@ -1308,4 +1336,4 @@ async function clientQuotationStart(req, clientId, body = {}) {
   return { leadId: ID_RE.test(leadId) ? leadId : '', opportunityId: ID_RE.test(opportunityId) ? opportunityId : '' };
 }
 
-module.exports = { clientLeadFormSyncStatus, clientLeadFormSync, clientQuotationWithoutOpportunity, assertClientQuotationEligible, clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };
+module.exports = { paymentPreference, paymentPreferenceOf, clientLeadFormSyncStatus, clientLeadFormSync, clientQuotationWithoutOpportunity, assertClientQuotationEligible, clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };

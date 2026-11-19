@@ -42,7 +42,9 @@ const AuditLogSchema = new Schema(
         'settings',
         'tenant_security',
         'opportunity_pipeline',
-        'request_type'
+        'request_type',
+        // GST suite (CRM 3.53.0): manual cash book entries.
+        'cash_book'
       ]
     },
     recordId: { type: String, required: true, trim: true },

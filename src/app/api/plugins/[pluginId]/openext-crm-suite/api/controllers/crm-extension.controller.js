@@ -50,7 +50,11 @@ async function enable(req, res) {
 async function disable(req, res) {
   try {
     const data = await CrmExtensionService.disable(req, req.params.id);
-    res.json({ success: true, data, message: `${data.name} is now active` });
+    // 3.54.0: say what happened (the disabled one and the default now active, or "was not active").
+    const message = data.alreadyDisabled
+      ? `${data.name} is not the active extension; nothing changed.`
+      : `${data.disabledExtensionName || 'The extension'} disabled. ${data.name} is now active.`;
+    res.json({ success: true, data, message });
   } catch (error) {
     sendError(res, error);
   }

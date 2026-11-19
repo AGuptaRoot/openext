@@ -38,7 +38,7 @@ async function list(req, res) {
 
 async function get(req, res) {
   try {
-    const doc = await QuotationService.getById(req, req.params.id);
+    const doc = await QuotationService.getById(req, req.params.id, { read: true });
     // Unpaid / Partially Paid / Paid, from the verified payment records.
     let paymentState = null;
     try {
@@ -135,7 +135,7 @@ async function printHtml(req, res) {
       // Fallback when a stale Node module cache is missing exportPrintHtml
       const PrintHtmlService = require('../services/print-html.service');
       const FinanceDocumentUtil = require('../utils/finance-document.util');
-      const doc = await QuotationService.getById(req, req.params.id);
+      const doc = await QuotationService.getById(req, req.params.id, { read: true });
       const payload = await FinanceDocumentUtil.buildQuotationPayload(req, doc);
       html = PrintHtmlService.renderFinancePrintHtml(payload);
     }
@@ -156,7 +156,7 @@ async function downloadPdf(req, res) {
   try {
     const FinanceDocumentUtil = require('../utils/finance-document.util');
     const { generateFinanceDocumentPdf } = require('../utils/pdf-generator.util');
-    const doc = await QuotationService.getById(req, req.params.id);
+    const doc = await QuotationService.getById(req, req.params.id, { read: true });
     const payload = await FinanceDocumentUtil.buildQuotationPayload(req, doc);
     const pdfBuffer = generateFinanceDocumentPdf(payload);
     const filename = `Quotation-${doc.quotationNo || doc._id}.pdf`;

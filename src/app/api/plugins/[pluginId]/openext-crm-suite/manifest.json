@@ -1,7 +1,7 @@
 {
   "id": "openext-crm-suite",
   "name": "Root CRM",
-  "version": "3.52.0",
+  "version": "3.54.0",
   "description": "Modernized tenant-secure CRM with React-powered modular dashboard, analytics, sales pipeline, and multi-persona access control. Workspace extensions add their own fields, tabs, pages, settings, backend routes and data tables without changes to the CRM core.",
   "author": "OpenNext",
   "type": "crm",
@@ -75,6 +75,18 @@
       "label": "Payments",
       "entry": "ui/admin/mount.js",
       "icon": "credit-card"
+    },
+    {
+      "id": "cashbook",
+      "label": "Cash Book",
+      "entry": "ui/admin/mount.js",
+      "icon": "wallet"
+    },
+    {
+      "id": "reconciliation",
+      "label": "Bank Reconciliation",
+      "entry": "ui/admin/mount.js",
+      "icon": "landmark"
     },
     {
       "id": "projects",
@@ -226,6 +238,7 @@
   "installHook": "api/hooks/install.js",
   "uninstallHook": "api/hooks/uninstall.js",
   "dependencies": [
-    "node-cron"
+    "node-cron",
+    "fflate"
   ]
 }

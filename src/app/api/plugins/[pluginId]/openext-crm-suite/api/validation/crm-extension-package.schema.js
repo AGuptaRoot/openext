@@ -344,6 +344,165 @@ function validateUi(source, files, areas, errors, warnings) {
  *                     totalPer { label ≤40, countField (number field of record "quotation"), showSetting (checkbox setting) } }
  *   quotationLineGroups [{ key, title ≤40, fields ⊆ quotationLineFields keys, icon? }] ≤ 12, needs quotationPrefillRoute
  */
+/**
+ * GST suite contract (CRM 3.53.0, documentation/gst-planning/00 §9.1). Generic: the CRM knows no industry.
+ *   salesFlow.gst {
+ *     serviceTaxes  [{ serviceType, label ≤60, sac (4–8 digits), taxPercent (a GST portal rate), note? ≤200 }] ≤ 50
+ *     tcsRules      [{ key, label ≤60, needsPan?, sectionLabel? ≤40 }] ≤ 50   (slabs/rates are set by the admin, never here)
+ *     cashCategories [text ≤60] ≤ 50
+ *     cashRefTypes  [{ refType, label ≤40 }] ≤ 50
+ *   }
+ *   salesFlow.payments { preferredMethod { enabled: boolean, default: '' | 'razorpay' | 'cash' | 'bank' } }
+ * A package without these blocks stays valid. Unknown keys are ignored.
+ */
+const GST_CONTRACT_KEY_RE = /^[a-z][a-z0-9_]{1,40}$/;
+const GST_SAC_RE = /^\d{4,8}$/;
+/** Same list as GST_PORTAL_RATES in api/lib/gst-core/utils.js (a test keeps them equal). */
+const GST_CONTRACT_RATES = [0, 0.1, 0.25, 1, 1.5, 3, 5, 6, 7.5, 12, 18, 28, 40];
+const GST_CONTRACT_MAX_ITEMS = 50;
+const PREFERRED_PAYMENT_METHODS = ['', 'razorpay', 'cash', 'bank'];
+
+function validateGstContract(raw, out, errors) {
+  const text = (value, max, where, required = false) => {
+    if (value === undefined || value === null || value === '') {
+      if (required) errors.push(`${where} is required`);
+      return '';
+    }
+    if (typeof value !== 'string') {
+      errors.push(`${where} must be text`);
+      return '';
+    }
+    const v = value.trim();
+    if (required && !v) errors.push(`${where} is required`);
+    if (v.length > max) {
+      errors.push(`${where} is too long (${max} characters at most)`);
+      return '';
+    }
+    return v;
+  };
+  const list = (value, where) => {
+    if (value === undefined) return null;
+    if (!Array.isArray(value)) {
+      errors.push(`${where} must be a list`);
+      return null;
+    }
+    if (value.length > GST_CONTRACT_MAX_ITEMS) {
+      errors.push(`${where} has more than ${GST_CONTRACT_MAX_ITEMS} entries`);
+      return null;
+    }
+    return value;
+  };
+  const key = (value, where, seen) => {
+    const v = str(value);
+    if (!GST_CONTRACT_KEY_RE.test(v)) {
+      errors.push(`${where} must be lowercase letters, digits or _ (2–41 characters, starting with a letter)`);
+      return '';
+    }
+    if (seen.has(v)) {
+      errors.push(`${where} "${v}" is listed twice`);
+      return '';
+    }
+    seen.add(v);
+    return v;
+  };
+
+  if (raw.gst !== undefined) {
+    if (!isObject(raw.gst)) errors.push('salesFlow.gst must be an object');
+    else {
+      const src = raw.gst;
+      const gst = {};
+
+      const taxes = list(src.serviceTaxes, 'salesFlow.gst.serviceTaxes');
+      if (taxes) {
+        const seen = new Set();
+        const rows = [];
+        taxes.forEach((item, i) => {
+          const where = `salesFlow.gst.serviceTaxes[${i}]`;
+          if (!isObject(item)) return errors.push(`${where} must be an object`);
+          const serviceType = key(item.serviceType, `${where}.serviceType`, seen);
+          const label = text(item.label, 60, `${where}.label`, true);
+          const sac = str(item.sac);
+          if (!GST_SAC_RE.test(sac)) errors.push(`${where}.sac must be 4 to 8 digits`);
+          const taxPercent = Number(item.taxPercent);
+          if (typeof item.taxPercent !== 'number' || !GST_CONTRACT_RATES.includes(taxPercent)) {
+            errors.push(`${where}.taxPercent must be one of ${GST_CONTRACT_RATES.join(', ')}`);
+          }
+          const note = text(item.note, 200, `${where}.note`);
+          if (serviceType && label && GST_SAC_RE.test(sac) && GST_CONTRACT_RATES.includes(taxPercent)) {
+            rows.push({ serviceType, label, sac, taxPercent, note });
+          }
+        });
+        if (rows.length) gst.serviceTaxes = rows;
+      }
+
+      const rules = list(src.tcsRules, 'salesFlow.gst.tcsRules');
+      if (rules) {
+        const seen = new Set();
+        const rows = [];
+        rules.forEach((item, i) => {
+          const where = `salesFlow.gst.tcsRules[${i}]`;
+          if (!isObject(item)) return errors.push(`${where} must be an object`);
+          const ruleKey = key(item.key, `${where}.key`, seen);
+          const label = text(item.label, 60, `${where}.label`, true);
+          if (item.needsPan !== undefined && typeof item.needsPan !== 'boolean') errors.push(`${where}.needsPan must be true or false`);
+          const sectionLabel = text(item.sectionLabel, 40, `${where}.sectionLabel`);
+          // Slabs and rates are tax law: the admin (with the CA) fills them in Settings → GST, never the package.
+          if (ruleKey && label) rows.push({ key: ruleKey, label, needsPan: item.needsPan === true, sectionLabel });
+        });
+        if (rows.length) gst.tcsRules = rows;
+      }
+
+      const cats = list(src.cashCategories, 'salesFlow.gst.cashCategories');
+      if (cats) {
+        const seen = new Set();
+        const rows = [];
+        cats.forEach((item, i) => {
+          const v = text(item, 60, `salesFlow.gst.cashCategories[${i}]`, true);
+          if (!v) return;
+          const k = v.toLowerCase();
+          if (seen.has(k)) return errors.push(`salesFlow.gst.cashCategories "${v}" is listed twice`);
+          seen.add(k);
+          rows.push(v);
+        });
+        if (rows.length) gst.cashCategories = rows;
+      }
+
+      const refs = list(src.cashRefTypes, 'salesFlow.gst.cashRefTypes');
+      if (refs) {
+        const seen = new Set();
+        const rows = [];
+        refs.forEach((item, i) => {
+          const where = `salesFlow.gst.cashRefTypes[${i}]`;
+          if (!isObject(item)) return errors.push(`${where} must be an object`);
+          const refType = key(item.refType, `${where}.refType`, seen);
+          const label = text(item.label, 40, `${where}.label`) || refType;
+          if (refType) rows.push({ refType, label });
+        });
+        if (rows.length) gst.cashRefTypes = rows;
+      }
+
+      if (Object.keys(gst).length) out.gst = gst;
+    }
+  }
+
+  if (raw.payments !== undefined) {
+    if (!isObject(raw.payments)) errors.push('salesFlow.payments must be an object');
+    else if (raw.payments.preferredMethod !== undefined) {
+      const pm = raw.payments.preferredMethod;
+      if (!isObject(pm)) errors.push('salesFlow.payments.preferredMethod must be an object');
+      else {
+        if (pm.enabled !== undefined && typeof pm.enabled !== 'boolean') errors.push('salesFlow.payments.preferredMethod.enabled must be true or false');
+        const def = pm.default === undefined || pm.default === null ? '' : pm.default;
+        if (typeof def !== 'string' || !PREFERRED_PAYMENT_METHODS.includes(def)) {
+          errors.push(`salesFlow.payments.preferredMethod.default must be one of: none, ${PREFERRED_PAYMENT_METHODS.filter(Boolean).join(', ')}`);
+        } else if (pm.enabled === true) {
+          out.payments = { preferredMethod: { enabled: true, default: def } };
+        }
+      }
+    }
+  }
+}
+
 const SALES_FORM_KEY_RE = /^[a-z][a-z0-9_]{0,39}$/;
 const LINK_TYPES = ['lead', 'client'];
 const MAX_LINE_GROUPS = 12;
@@ -1100,6 +1259,8 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
           quotationFields: (decl && decl.fields && Array.isArray(decl.fields.quotation) ? decl.fields.quotation : []).flatMap((g) => g.fields || []),
           pipelineStages
         });
+        // GST suite (CRM 3.53.0): extension defaults for GST + cash book, and the preferred payment method.
+        validateGstContract(source.salesFlow, salesFlow, errors);
         if (!Object.keys(salesFlow).length) salesFlow = null;
       }
     }
@@ -1243,5 +1404,7 @@ module.exports = {
   summarize,
   compareSemver,
   contentTypeFor,
-  currentCrmVersion
+  currentCrmVersion,
+  GST_CONTRACT_RATES,
+  PREFERRED_PAYMENT_METHODS
 };

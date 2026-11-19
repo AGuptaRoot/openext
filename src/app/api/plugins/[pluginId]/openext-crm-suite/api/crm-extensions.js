@@ -29,6 +29,10 @@ const ALL_CORE_MODULES = [
   'sales-orders',
   'invoices',
   'payments',
+  // GST suite (CRM 3.53.0): the cash book page.
+  'cashbook',
+  // GST suite (CRM 3.53.0): bank statement matching and Razorpay fees.
+  'reconciliation',
   'projects',
   'tasks',
   'time-logs',

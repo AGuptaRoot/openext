@@ -39,6 +39,11 @@ function validateLineItems(errors, rawItems, { required = false } = {}) {
     if (sourceRef && !/^[A-Za-z0-9:_-]{1,64}$/.test(sourceRef)) errors.push(`${label}: sourceRef is not valid`);
     const group = trimString(item.group) || '';
     if (group && !/^[a-z][a-z0-9_]{0,39}$/.test(group)) errors.push(`${label}: group is not valid`);
+    // GST suite (CRM 3.53.0): SAC code (4–8 digits) and service key from Settings → GST.
+    const sac = trimString(item.sac) || '';
+    if (sac && !/^\d{4,8}$/.test(sac)) errors.push(`${label}: SAC must be 4 to 8 digits`);
+    const serviceType = trimString(item.serviceType) || '';
+    if (serviceType && !/^[a-z][a-z0-9_]{1,40}$/.test(serviceType)) errors.push(`${label}: serviceType is not valid`);
     if (unit.length > 60) errors.push(`${label}: unit must be 60 characters or fewer`);
     let extra;
     if (item.extra !== undefined && item.extra !== null) {
@@ -79,6 +84,8 @@ function validateLineItems(errors, rawItems, { required = false } = {}) {
       ...(unit ? { unit } : {}),
       ...(sourceRef ? { sourceRef } : {}),
       ...(group ? { group } : {}),
+      ...(sac ? { sac } : {}),
+      ...(serviceType ? { serviceType } : {}),
       ...(extra && Object.keys(extra).length ? { extra } : {})
     });
   });
@@ -115,6 +122,24 @@ function validateSections(errors, raw) {
     out.push({ title, body });
   });
   return out;
+}
+
+/**
+ * GST suite (CRM 3.53.0): place of supply (a state name, '' = the client's state) and the generic TCS
+ * rule key of a quotation or invoice. Only fields that were sent are set.
+ */
+function applyGstDocFields(value, source, errors) {
+  if (source.placeOfSupply !== undefined) {
+    const pos = trimString(source.placeOfSupply) || '';
+    if (pos.length > 60) errors.push('Place of supply must be 60 characters or fewer');
+    else value.placeOfSupply = pos;
+  }
+  if (source.tcsRuleKey !== undefined) {
+    const key = trimString(source.tcsRuleKey) || '';
+    if (key && !/^[a-z][a-z0-9_]{1,40}$/.test(key)) errors.push('tcsRuleKey is not valid');
+    else value.tcsRuleKey = key;
+  }
+  return value;
 }
 
 function validateQuotationCreate(body) {
@@ -171,6 +196,7 @@ function validateQuotationCreate(body) {
   };
 
   applyQuotationPaymentTerms(value, source, errors);
+  applyGstDocFields(value, source, errors);
 
   if (errors.length) return fail(errors);
   return ok(value);
@@ -275,6 +301,7 @@ function validateQuotationUpdate(body) {
     value.recipientNotes = validateNotes(errors, source.recipientNotes || source.noteForRecipient);
   }
   if (source.sections !== undefined) value.sections = validateSections(errors, source.sections);
+  applyGstDocFields(value, source, errors);
 
   if (!Object.keys(value).length && !errors.length) errors.push('No supported fields were provided');
   if (errors.length) return fail(errors);
@@ -302,9 +329,16 @@ function validateInvoiceCreate(body) {
   const discountAmount = source.discountAmount !== undefined ? Math.max(0, Number(source.discountAmount) || 0) : 0;
 
   assertDateOrder(errors, issueDate, dueDate, 'Issue date', 'Due date');
+  const gstFields = applyGstDocFields({}, source, errors);
+  // GST suite (CRM 3.53.0): optional preferred payment method ('' = none / the extension's default).
+  if (source.preferredPaymentMethod !== undefined && source.preferredPaymentMethod !== '') {
+    if (!['razorpay', 'cash', 'bank'].includes(source.preferredPaymentMethod)) errors.push('Preferred payment method must be razorpay, cash or bank');
+    else gstFields.preferredPaymentMethod = source.preferredPaymentMethod;
+  }
 
   if (errors.length) return fail(errors);
   return ok({
+    ...gstFields,
     clientId,
     lineItems,
     notes: notes || '',
@@ -389,6 +423,7 @@ function validateInvoiceUpdate(body) {
     };
   }
 
+  applyGstDocFields(value, source, errors);
   assertDateOrder(errors, value.issueDate, value.dueDate, 'Issue date', 'Due date');
   if (!Object.keys(value).length && !errors.length) errors.push('No supported fields were provided');
   if (errors.length) return fail(errors);

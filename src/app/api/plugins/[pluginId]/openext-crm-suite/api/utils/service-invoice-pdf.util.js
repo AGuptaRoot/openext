@@ -68,6 +68,8 @@ function serviceInvoiceDocument(payload) {
   const status = paymentStatus(doc, { total, paid, balance });
   const shownBalance = status.label === 'Paid' ? 0 : balance;
   const proforma = doc.documentType === 'proforma';
+  // GST suite (CRM 3.53.0): GSTIN, place of supply, CGST/SGST or IGST (null without GST).
+  const g = payload.gstPrint || null;
 
   const lines = (Array.isArray(doc.lineItems) ? doc.lineItems : []).slice(0, 100).map((line) => {
     const name = t(line.name, 200) || t(line.description, 200) || 'Service';
@@ -76,9 +78,10 @@ function serviceInvoiceDocument(payload) {
     // No quantity column: a line of several units (e.g. room-nights) shows "rate x units" so Rate and Amount agree.
     const units = Number(line.qty ?? line.quantity);
     const rate = Number.isFinite(units) && units > 0 && units !== 1 ? `${money(currency, line.rate)} x ${round2(units)}` : money(currency, line.rate);
+    const sac = g && line.sac ? `SAC ${t(line.sac, 8)}` : '';
     return {
       cells: [name, rate, tax ? `${round2(tax)}%` : '-', money(currency, line.amount)],
-      note: description && description !== name ? description : ''
+      note: [description && description !== name ? description : '', sac].filter(Boolean).join(' | ')
     };
   });
 
@@ -87,7 +90,17 @@ function serviceInvoiceDocument(payload) {
   const totals = [
     { label: t(print.subtotalLabel, 40) || 'Subtotal', value: money(currency, doc.subtotal) },
     discount > 0 ? { label: discountLabel, value: `- ${money(currency, discount)}` } : null,
-    { label: 'Tax', value: money(currency, doc.taxTotal) },
+    ...(g && g.totals
+      ? [
+          { label: 'Taxable value', value: money(currency, g.totals.taxable) },
+          g.totals.cgst ? { label: 'CGST', value: money(currency, g.totals.cgst) } : null,
+          g.totals.sgst ? { label: 'SGST', value: money(currency, g.totals.sgst) } : null,
+          g.totals.utgst ? { label: 'UTGST', value: money(currency, g.totals.utgst) } : null,
+          g.totals.igst ? { label: 'IGST', value: money(currency, g.totals.igst) } : null,
+          !g.totals.totalTax ? { label: 'GST', value: money(currency, 0) } : null,
+          g.totals.otherCharges ? { label: 'Other charges', value: money(currency, g.totals.otherCharges) } : null
+        ]
+      : [{ label: 'Tax', value: money(currency, doc.taxTotal) }]),
     { label: 'Grand Total', value: money(currency, total), strong: true },
     advance > 0 ? { label: 'Advance Paid', value: `- ${money(currency, advance)}`, tone: 'success', divider: true } : null,
     { label: 'Amount Paid', value: `- ${money(currency, round2(paid - advance))}`, tone: paid - advance > 0 ? 'success' : '', divider: !(advance > 0) },
@@ -100,8 +113,27 @@ function serviceInvoiceDocument(payload) {
     .slice(0, 10)
     .map((s) => ({ type: 'text', heading: t(s.title, 80), text: t(s.body, 3000) }));
 
+  const gstRows = g && g.rows && g.rows.length
+    ? {
+        type: 'table',
+        heading: 'GST summary',
+        columns: g.interstate
+          ? [{ label: 'Rate', align: 'right', width: 1 }, { label: 'Taxable', align: 'right', width: 2 }, { label: 'IGST', align: 'right', width: 2 }]
+          : [{ label: 'Rate', align: 'right', width: 1 }, { label: 'Taxable', align: 'right', width: 2 }, { label: 'CGST', align: 'right', width: 2 }, { label: g.rows.some((r) => r.utgst) ? 'UTGST' : 'SGST', align: 'right', width: 2 }],
+        rows: g.rows.map((r) => (g.interstate
+          ? [`${r.rate}%`, money(currency, r.taxable), money(currency, r.igst)]
+          : [`${r.rate}%`, money(currency, r.taxable), money(currency, r.cgst), money(currency, r.sgst + r.utgst)]))
+      }
+    : null;
+  const gstText = g
+    ? [g.amountInWords ? `Amount in words: ${g.amountInWords}` : '', g.reverseChargeText, g.declaration, g.compositionText, g.upi ? `Pay by UPI: ${g.upi.id}` : '']
+      .filter(Boolean)
+      .join('\n')
+    : '';
+
   return {
-    title: print.title || (proforma ? 'Proforma Invoice' : 'Invoice'),
+    // A GST tax invoice must say so; the extension's own title is kept otherwise.
+    title: g ? g.title : print.title || (proforma ? 'Proforma Invoice' : 'Invoice'),
     reference: t(doc.invoiceNo, 60),
     date: doc.issueDate ? `Issued ${formatDate(doc.issueDate)}` : '',
     layout: 'branded',
@@ -124,9 +156,23 @@ function serviceInvoiceDocument(payload) {
           { label: 'Quotation reference', value: t(print.quotationNo, 60) },
           { label: 'Payment status', value: status.label },
           { label: 'Billing address', value: addressText(client.billingAddress) || t(doc.billingAddress, 200) },
-          { label: 'Tax ID', value: t(client.taxId, 60) }
+          { label: 'Tax ID', value: t(client.taxId, 60) },
+          ...(g && g.totals ? [{ label: 'Client GSTIN', value: t(g.clientGstin, 15) || 'Unregistered' }, { label: 'Place of supply', value: t(g.placeOfSupply, 60) }] : [])
         ]
       },
+      ...(g && g.seller && g.seller.gstin
+        ? [{
+            type: 'facts',
+            heading: 'Supplier',
+            columns: 4,
+            items: [
+              { label: 'Legal name', value: t(g.seller.legalName, 120) },
+              { label: 'GSTIN', value: t(g.seller.gstin, 15) },
+              { label: 'PAN', value: t(g.seller.pan, 10) },
+              { label: 'State', value: t(g.seller.state, 60) }
+            ]
+          }]
+        : []),
       { type: 'facts', heading: t(print.summaryTitle, 40) || 'Summary', columns: 4, items: (Array.isArray(print.summary) ? print.summary : []).slice(0, 12).map((s) => ({ label: t(s.label, 40), value: t(s.value, 120) })) },
       {
         type: 'table',
@@ -140,6 +186,12 @@ function serviceInvoiceDocument(payload) {
         rows: lines
       },
       { type: 'totals', rows: totals },
+      ...(gstRows ? [gstRows] : []),
+      ...(gstText ? [{ type: 'text', heading: 'GST', text: gstText }] : []),
+      ...(g && g.notTaxInvoiceText ? [{ type: 'note', text: g.notTaxInvoiceText, tone: 'warning' }] : []),
+      ...(payload.paymentInstructions && payload.paymentInstructions.lines.length
+        ? [{ type: 'note', heading: 'How to pay', text: payload.paymentInstructions.lines.join(String.fromCharCode(10)), tone: 'info' }]
+        : []),
       { type: 'note', heading: 'Notes', text: t(doc.notes, 1000), tone: 'info' },
       { type: 'text', heading: 'Payment details', text: t(doc.paymentDetails, 1000) },
       { type: 'text', heading: 'Terms & conditions', text: t(doc.terms, 3000) },

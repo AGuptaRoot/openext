@@ -36,7 +36,7 @@ async function list(req, res) {
 
 async function get(req, res) {
   try {
-    const doc = await InvoiceService.getById(req, req.params.id);
+    const doc = await InvoiceService.getById(req, req.params.id, { read: true });
     // Total, verified paid, advance carried from the proforma and balance, from the payment records.
     let paymentSummary = null;
     try {
@@ -167,10 +167,23 @@ async function printHtml(req, res) {
   }
 }
 
+/** GST suite (CRM 3.53.0): PUT /invoices/:id/payment-preference { preferredPaymentMethod }. */
+async function setPaymentPreference(req, res) {
+  try {
+    const value = req.body && typeof req.body === 'object' ? req.body.preferredPaymentMethod : '';
+    const doc = await InvoiceService.setPaymentPreference(req, req.params.id, value);
+    res.json({ success: true, data: doc, message: 'Payment preference saved' });
+  } catch (error) {
+    sendError(res, error);
+  }
+}
+
 async function getNextInvoiceNumber(req, res) {
   try {
     const nextNumber = await InvoiceService.getNextInvoiceNumber(req);
-    res.json({ success: true, data: { nextNumber }, message: 'Next invoice number generated' });
+    // GST suite (CRM 3.53.0): with the GST series the number is given by the CRM on save (form shows it read-only).
+    const gstSeries = (await require('../services/gst.service').context(req)).ready;
+    res.json({ success: true, data: { nextNumber, gstSeries }, message: 'Next invoice number generated' });
   } catch (error) {
     sendError(res, error);
   }
@@ -300,7 +313,7 @@ async function downloadPdf(req, res) {
       typeof InvoiceService.getById === 'function'
         ? InvoiceService.getById.bind(InvoiceService)
         : InvoiceService.get.bind(InvoiceService);
-    const invoice = await loadInvoice(req, req.params.id);
+    const invoice = await loadInvoice(req, req.params.id, { read: true });
     if (!invoice) {
       throw Object.assign(new Error('Invoice not found'), { status: 404 });
     }
@@ -370,6 +383,7 @@ module.exports = {
   printHtml,
   downloadPdf,
   getNextInvoiceNumber,
+  setPaymentPreference,
   getRazorpayStatus,
   convertProforma,
   createRazorpayOrder,

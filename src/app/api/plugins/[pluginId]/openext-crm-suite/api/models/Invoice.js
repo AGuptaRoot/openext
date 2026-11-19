@@ -3,6 +3,72 @@
 const { Schema } = require('mongoose');
 const { LineItemSchema } = require('./Estimate');
 
+const GstLineSchema = new Schema(
+  {
+    sac: { type: String, default: '' },
+    serviceType: { type: String, default: '' },
+    taxPercent: { type: Number, default: 0 },
+    taxable: { type: Number, default: 0 },
+    cgst: { type: Number, default: 0 },
+    sgst: { type: Number, default: 0 },
+    utgst: { type: Number, default: 0 },
+    igst: { type: Number, default: 0 },
+    cess: { type: Number, default: 0 }
+  },
+  { _id: false }
+);
+
+const GstTcsSchema = new Schema(
+  {
+    applicable: { type: Boolean, default: false },
+    ruleKey: { type: String, default: '' },
+    section: { type: String, default: '' },
+    rate: { type: Number, default: 0 },
+    base: { type: Number, default: 0 },
+    amount: { type: Number, default: 0 },
+    pan: { type: String, default: '' },
+    cumulativeBefore: { type: Number, default: 0 }
+  },
+  { _id: false }
+);
+
+const GstSnapshotSchema = new Schema(
+  {
+    /** Which engine copy worked it out, e.g. 'gst-core 1.10.85'. '' = no GST snapshot. */
+    engine: { type: String, default: '' },
+    /** Set when the invoice leaves Draft; from then on the snapshot is never worked out again. */
+    issuedAt: { type: Date, default: null },
+    sellerGstin: { type: String, default: '' },
+    sellerStateCode: { type: String, default: '' },
+    clientGstin: { type: String, default: '' },
+    posCode: { type: String, default: '' },
+    placeOfSupply: { type: String, default: '' },
+    isInterstate: { type: Boolean, default: false },
+    isIntraUT: { type: Boolean, default: false },
+    isLUT: { type: Boolean, default: false },
+    reverseCharge: { type: Boolean, default: false },
+    isSEZ: { type: Boolean, default: false },
+    isExport: { type: Boolean, default: false },
+    compositionScheme: { type: Boolean, default: false },
+    taxableAmount: { type: Number, default: 0 },
+    cgst: { type: Number, default: 0 },
+    sgst: { type: Number, default: 0 },
+    utgst: { type: Number, default: 0 },
+    igst: { type: Number, default: 0 },
+    cess: { type: Number, default: 0 },
+    totalTax: { type: Number, default: 0 },
+    roundOff: { type: Number, default: 0 },
+    /** Charges outside GST carried from the quotation (e.g. shipping), added to the total. */
+    otherCharges: { type: Number, default: 0 },
+    total: { type: Number, default: 0 },
+    amountInWords: { type: String, default: '' },
+    lines: { type: [GstLineSchema], default: [] },
+    tcs: { type: GstTcsSchema, default: () => ({}) },
+    warnings: { type: [String], default: [] }
+  },
+  { _id: false }
+);
+
 /**
  * Invoice model — complete with parity features:
  * recurring profiles, credit note adjustments, archiving, write-offs, and multi-status tracking.
@@ -53,6 +119,22 @@ const InvoiceSchema = new Schema(
     billingAddress: { type: String, trim: true, default: '' },
     shippingAddress: { type: String, trim: true, default: '' },
     lineItems: { type: [LineItemSchema], default: [] },
+    /** GST suite (CRM 3.53.0): one place of supply (state name) per document; '' = the client's state. */
+    placeOfSupply: { type: String, trim: true, maxlength: 60, default: '' },
+    /** Generic TCS rule key set by an extension (Settings → GST → TCS rules); '' = no TCS. */
+    tcsRuleKey: { type: String, trim: true, maxlength: 41, default: '' },
+    /**
+     * GST snapshot (GST suite, CRM 3.53.0; documentation/gst-planning/01 §7). Worked out by the GST app's
+     * engine (lib/gst-core) when a tax invoice is made, and on draft edits; frozen once issued. Reports
+     * read only this. Empty (engine '') on invoices made before GST was set up.
+     */
+    gst: { type: GstSnapshotSchema, default: () => ({}) },
+    /**
+     * GST suite (CRM 3.53.0, documentation/gst-planning/02 §5.2): an optional hint for how the client should
+     * pay, shown on the PDF and the portal. Never a lock: payments are recorded with their real mode.
+     * '' = no preference (as before) · 'razorpay' · 'cash' (at the office) · 'bank' (bank / UPI details).
+     */
+    preferredPaymentMethod: { type: String, enum: ['', 'razorpay', 'cash', 'bank'], default: '' },
     discountType: {
       type: String,
       enum: ['percent', 'amount'],

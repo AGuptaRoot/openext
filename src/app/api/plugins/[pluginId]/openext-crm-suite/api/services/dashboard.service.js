@@ -1000,7 +1000,8 @@ async function getSummary(req) {
       if (Estimate) {
         let estimateBase = clientUser ? { ...base, clientId: userClientId } : base;
         if (!clientUser && isSalesAgentScoped(req)) {
-          estimateBase = applySalesAgentCreatorScope(req, estimateBase);
+          // 3.54.0: the same quotations the rep sees in the list.
+          estimateBase = await require('../utils/sales-access.util').applySalesAgentFinanceReadScope(req, estimateBase);
         }
         const estimateDateQuery = startDate ? { createdAt: { $gte: startDate, $lte: endDate } } : {};
         [draftQuotations, sentQuotations, acceptedQuotations] = await Promise.all([
@@ -1014,7 +1015,7 @@ async function getSummary(req) {
       if (Invoice) {
         let invoiceBase = clientUser ? { ...base, clientId: userClientId } : base;
         if (!clientUser && isSalesAgentScoped(req)) {
-          invoiceBase = applySalesAgentCreatorScope(req, invoiceBase);
+          invoiceBase = await require('../utils/sales-access.util').applySalesAgentFinanceReadScope(req, invoiceBase);
         }
         const invoiceDateQuery = startDate ? { issueDate: { $gte: startDate, $lte: endDate } } : {};
         [unpaidInvoices, overdueInvoices, paidInvoices] = await Promise.all([

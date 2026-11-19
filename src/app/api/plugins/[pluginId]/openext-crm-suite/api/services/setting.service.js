@@ -23,6 +23,8 @@ const DEFAULT_SETTINGS = [
    */
   { key: 'active_extension', value: 'product', category: 'general' },
   { key: 'company_state', value: 'Maharashtra', category: 'general' },
+  /** Seller GSTIN printed on quotations / invoices; written only by Settings → GST (checksum-checked). */
+  { key: 'company_gstin', value: '', category: 'general' },
   { key: 'default_currency', value: 'INR', category: 'general' },
   { key: 'tax_rate', value: 18, category: 'finance' },
   {
@@ -347,7 +349,8 @@ const EXTENSION_KEY_RE = /^ext_/;
 const EXTENSION_MANAGED_KEYS = Object.freeze({ has: (key) => EXTENSION_KEY_RE.test(String(key || '')) });
 
 /** Readable on GET /settings, but written only by the CRM extension registry. */
-const REGISTRY_MANAGED_KEYS = new Set(['active_extension']);
+/** company_gstin (CRM 3.53.0): written only by PUT /gst/settings, which checks the GSTIN checksum. */
+const REGISTRY_MANAGED_KEYS = new Set(['active_extension', 'company_gstin']);
 
 /** Integration keys managed only via /settings/integrations/* endpoints. */
 const INTEGRATION_MANAGED_KEYS = new Set([

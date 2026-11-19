@@ -20,6 +20,8 @@
  *   sdk.access.leadIds()   leads this user may see (null = all) — for the extension's own lead-keyed records
  *   sdk.access.portal()    the client-portal login (kind, clientId, leadIds), or null for staff
  *   sdk.finance.quotationPayment(id)  paid / balance / Unpaid|Partially Paid|Paid from verified payments
+ *   sdk.finance.gstSettings() / gstCalculate(input)    GST suite (CRM 3.53.0; filled by GST plan Steps 1–2)
+ *   sdk.finance.cashLines({ refType, refId }) / addCashEntry(entry)   cash book (CRM 3.53.0; filled by Step 3)
  *   sdk.audit(action, description, metadata)
  *   sdk.notify({ userIds, title, message, link, linkLabel, key })  in-app alert to CRM users of this tenant,
  *                          once per user and key (CRM 3.33.0); link: /ext/<id>/… or a core record page
@@ -116,10 +118,10 @@ function recordAccess(req, key) {
     };
   }
   if (key === 'quotations' && access.isFinanceCreatorScoped(req)) {
-    const userId = resolveUserId(req);
+    // 3.54.0: an extension reads the quotations the rep may view (own + their leads / clients).
     return {
-      listScope: async () => ({ createdBy: userId }),
-      canSee: async (doc) => String(doc?.createdBy || '') === userId
+      listScope: async () => access.buildSalesAgentFinanceReadScope(req),
+      canSee: async (doc) => access.canSalesAgentViewFinanceDoc(req, doc)
     };
   }
   return null;
@@ -193,7 +195,38 @@ function coreReader(req, key, tenantId) {
  * bookingRule: 'advance'|'full', bookingEligible, bookingReason } — or null when the quotation is not in this workspace or not the portal
  * login's own. Read-only.
  */
-function makeFinance(req, tenantId) {
+/** The finance permission a GST / cash-book SDK call needs (a CRM system hook always passes). */
+function requireFinancePermission(req, permission, what) {
+  if (req.crmSystemHook !== true && !requestHasPermission(req, permission)) {
+    throw runtimeError(403, `${what} needs ${permission}`, 'FORBIDDEN');
+  }
+}
+
+const CASH_REF_TYPE_RE = /^[a-z][a-z0-9_]{1,40}$/;
+const CASH_REF_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * { refType, refId } of a cash-book call. The refType is the extension's own short name (for example
+ * "booking"); the CRM stores it as "<extensionId>.<refType>", so an extension only reaches its own lines.
+ */
+function cashRef(options, what) {
+  const src = options && typeof options === 'object' ? options : {};
+  const refType = String(src.refType || '').trim();
+  const refId = String(src.refId || '').trim();
+  if (!CASH_REF_TYPE_RE.test(refType)) throw runtimeError(400, `${what}: refType must be a short lowercase name such as "order"`, 'INVALID_REF');
+  if (!CASH_REF_ID_RE.test(refId)) throw runtimeError(400, `${what}: refId is missing or invalid`, 'INVALID_REF');
+  return { refType, refId };
+}
+
+function makeFinance(req, tenantId, def = {}) {
+  /** "<extensionId>.<refType>" when the extension declares refType in salesFlow.gst.cashRefTypes. */
+  const ownRefType = (refType, what) => {
+    const declared = (def && def.salesFlow && def.salesFlow.gst && Array.isArray(def.salesFlow.gst.cashRefTypes)) ? def.salesFlow.gst.cashRefTypes : [];
+    if (!declared.some((r) => r && r.refType === refType)) {
+      throw runtimeError(400, `${what}: refType "${refType}" is not declared in salesFlow.gst.cashRefTypes`, 'INVALID_REF');
+    }
+    return `${def.id}.${refType}`;
+  };
   return Object.freeze({
     /**
      * CRM 3.29.0 — money of a set of quotations for reports (needs crm.finance.read): verified payments
@@ -215,6 +248,61 @@ function makeFinance(req, tenantId) {
         bucket: src.bucket
       });
       return cloneJson(out, 8 * 1024 * 1024, 'finance.summary');
+    },
+    /**
+     * GST suite (CRM 3.53.0, documentation/gst-planning/00 §9.2). Step 0 placeholders: the shapes are
+     * final, the data arrives with Steps 1–3 (GST settings, tax engine, cash book).
+     *
+     * gstSettings() → { ready, sellerStateCode, serviceTaxes, tcsRules (enabled only) }. Never bank details.
+     */
+    async gstSettings() {
+      requireFinancePermission(req, 'crm.finance.read', 'finance.gstSettings');
+      // CRM 3.53.0 Step 1: from Settings → GST. Never bank, contact or PAN values.
+      const out = await require('../services/gst-settings.service').summary(req);
+      return cloneJson({
+        ready: out.ready,
+        sellerStateCode: out.sellerStateCode,
+        serviceTaxes: out.serviceTaxes,
+        tcsRules: out.tcsRules
+      }, 256 * 1024, 'finance.gstSettings');
+    },
+    /** gstCalculate({ clientId, lines, placeOfSupply, taxInclusive, tcsRuleKey }) → the engine's totals. Saves nothing. */
+    async gstCalculate(input = {}) {
+      requireFinancePermission(req, 'crm.finance.read', 'finance.gstCalculate');
+      // CRM 3.53.0 Step 2: the GST app's engine on the extension's lines. Saves nothing.
+      try {
+        const out = await require('../services/gst.service').calculateForExtension(req, input);
+        return cloneJson(out, 512 * 1024, 'finance.gstCalculate');
+      } catch (error) {
+        if (error && error.code === 'GST_SELLER_NOT_READY') {
+          throw runtimeError(409, 'GST is not set up yet: set the GSTIN and state in Settings → GST', 'GST_SELLER_NOT_READY');
+        }
+        throw error;
+      }
+    },
+    /** cashLines({ refType, refId }) → this extension's manual cash lines of one record and their totals. */
+    async cashLines(options = {}) {
+      requireFinancePermission(req, 'crm.finance.read', 'finance.cashLines');
+      const ref = cashRef(options, 'finance.cashLines');
+      // CRM 3.53.0 Step 3: this extension's own manual cash lines of one record.
+      const out = await require('../services/cashbook.service').linesForRef(req, ownRefType(ref.refType, 'finance.cashLines'), ref.refId);
+      return cloneJson(out, 512 * 1024, 'finance.cashLines');
+    },
+    /** addCashEntry({ refType, refId, type, date, amount, category, name, note }) → the saved line. */
+    async addCashEntry(options = {}) {
+      requireFinancePermission(req, 'crm.finance.write', 'finance.addCashEntry');
+      const ref = cashRef(options, 'finance.addCashEntry');
+      const refType = ownRefType(ref.refType, 'finance.addCashEntry');
+      const src = options && typeof options === 'object' ? options : {};
+      try {
+        const entry = await require('../services/cashbook.service').addEntry(req, {
+          type: src.type, date: src.date, amount: src.amount, category: src.category, name: src.name, note: src.note
+        }, { refType, refId: ref.refId });
+        return cloneJson(entry, 64 * 1024, 'finance.addCashEntry');
+      } catch (error) {
+        if (error && error.status && error.status < 500) throw runtimeError(error.status, error.message, error.code || 'INVALID_INPUT');
+        throw error;
+      }
     },
     async quotationPayment(quotationId) {
       const id = String(quotationId || '');
@@ -501,7 +589,7 @@ function createSdk(req, def) {
     settings,
     crm: Object.freeze(crm),
     access: makeAccess(req, tenantId),
-    finance: makeFinance(req, tenantId),
+    finance: makeFinance(req, tenantId, def),
     values,
     logger,
     http: makeHttp(def),

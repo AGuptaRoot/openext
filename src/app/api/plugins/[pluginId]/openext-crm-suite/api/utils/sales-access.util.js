@@ -397,6 +397,108 @@ function assertSalesAgentCreatorAccess(req, doc, recordName = 'Record') {
   }
 }
 
+/* ------------------------------------------------------------------------------------------------
+ * CRM 3.54.0: finance documents a sales rep may VIEW (quotations, invoices and their payments): the
+ * ones they created, plus those on their leads (assigned to them), on their opportunities (created /
+ * owned / on their leads) and on their clients (created by them or converted from their leads), also
+ * when an admin or another user created them. Editing, sending and deleting stay limited to the
+ * documents they created (applySalesAgentCreatorScope / assertSalesAgentCreatorAccess).
+ * ---------------------------------------------------------------------------------------------- */
+
+const FINANCE_VISIBILITY = Symbol.for('crm.salesAgentFinanceVisibility');
+const VISIBILITY_LIMIT = 5000;
+
+async function idsOf(query) {
+  if (!query) return [];
+  let q = query;
+  if (typeof q.select === 'function') q = q.select('_id convertedClientId');
+  if (typeof q.limit === 'function') q = q.limit(VISIBILITY_LIMIT);
+  const rows = (typeof q.lean === 'function' ? await q.lean() : await q) || [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+/** The rep's leads, clients and opportunities (ids), read once per request. */
+async function salesAgentFinanceVisibility(req) {
+  if (req && req[FINANCE_VISIBILITY]) return req[FINANCE_VISIBILITY];
+  const run = (async () => {
+    const userId = resolveUserId(req);
+    const tenantId = resolveTenantId(req);
+    const models = req?.cms?.models;
+    const get = (name) => (models && typeof models.get === 'function' ? models.get(name) : null);
+    const out = { userId, leadIds: [], clientIds: [], opportunityIds: [] };
+    try {
+      const Lead = get('Lead');
+      const leads = Lead ? await idsOf(Lead.find({ tenantId, isDeleted: false, ...salesAgentLeadScope(req) })) : [];
+      out.leadIds = leads.map((l) => String(l._id));
+      const converted = leads.map((l) => String(l.convertedClientId || '')).filter((id) => /^[a-f0-9]{24}$/i.test(id));
+      const Company = get('Company');
+      const clientOr = [{ createdBy: userId }];
+      if (out.leadIds.length) clientOr.push({ leadId: { $in: out.leadIds } });
+      const clients = Company ? await idsOf(Company.find({ tenantId, isDeleted: { $ne: true }, $or: clientOr })) : [];
+      out.clientIds = [...new Set([...clients.map((c) => String(c._id)), ...converted])];
+      const Opportunity = get('Opportunity');
+      const oppOr = [{ createdBy: userId }, { salesOwner: userId }];
+      if (out.leadIds.length) oppOr.push({ leadId: { $in: out.leadIds } });
+      const opps = Opportunity ? await idsOf(Opportunity.find({ tenantId, isDeleted: { $ne: true }, $or: oppOr })) : [];
+      out.opportunityIds = opps.map((o) => String(o._id));
+    } catch (error) {
+      // Only what the rep created then (never more than allowed).
+      console.warn('[plugin:openext-crm-suite] sales rep finance visibility not read:', error?.message || error);
+    }
+    return out;
+  })();
+  if (req && typeof req === 'object') req[FINANCE_VISIBILITY] = run;
+  return run;
+}
+
+/** Mongo clause: the finance documents (Estimate / Invoice) the rep may view. */
+async function buildSalesAgentFinanceReadScope(req) {
+  const v = await salesAgentFinanceVisibility(req);
+  const or = [{ createdBy: v.userId }];
+  if (v.leadIds.length) or.push({ leadId: { $in: v.leadIds } });
+  if (v.clientIds.length) or.push({ clientId: { $in: v.clientIds } });
+  if (v.opportunityIds.length) {
+    or.push({ opportunityId: { $in: v.opportunityIds } }, { dealId: { $in: v.opportunityIds } });
+  }
+  return { $or: or };
+}
+
+/** List filter for viewing finance documents (no change for anyone who is not creator-scoped). */
+async function applySalesAgentFinanceReadScope(req, filter) {
+  if (!isFinanceCreatorScoped(req)) return filter;
+  return mergeScopeIntoFilter(filter, await buildSalesAgentFinanceReadScope(req));
+}
+
+/** True when the rep may view this document (always true for unscoped staff). */
+async function canSalesAgentViewFinanceDoc(req, doc) {
+  if (!isFinanceCreatorScoped(req)) return true;
+  const v = await salesAgentFinanceVisibility(req);
+  const has = (list, value) => Boolean(value) && list.includes(String(value));
+  return (
+    String(doc?.createdBy || '') === v.userId ||
+    has(v.leadIds, doc?.leadId) ||
+    has(v.clientIds, doc?.clientId) ||
+    has(v.opportunityIds, doc?.opportunityId) ||
+    has(v.opportunityIds, doc?.dealId)
+  );
+}
+
+/**
+ * Changing a finance document: the rep's own only. One they may only view gets a clear 403 (not a 404).
+ */
+async function assertSalesAgentFinanceWriteAccess(req, doc, recordName = 'Record') {
+  if (!isFinanceCreatorScoped(req)) return;
+  if (String(doc?.createdBy || '') === resolveUserId(req)) return;
+  if (await canSalesAgentViewFinanceDoc(req, doc)) {
+    throw accessError(`You can view this ${recordName.toLowerCase()}, but only the person who created it or a manager can change it.`, 403);
+  }
+  throw accessError(`${recordName} not found`, 404);
+}
+
+async function assertSalesAgentFinanceReadAccess(req, doc, recordName = 'Record') {
+  if (!(await canSalesAgentViewFinanceDoc(req, doc))) throw accessError(`${recordName} not found`, 404);
+}
+
 function salesAgentTicketScope(req) {
   const userId = resolveUserId(req);
   return {
@@ -632,6 +734,12 @@ module.exports = {
   assertClientReadAccess,
   applySalesAgentCreatorScope,
   assertSalesAgentCreatorAccess,
+  salesAgentFinanceVisibility,
+  buildSalesAgentFinanceReadScope,
+  applySalesAgentFinanceReadScope,
+  canSalesAgentViewFinanceDoc,
+  assertSalesAgentFinanceReadAccess,
+  assertSalesAgentFinanceWriteAccess,
   applySalesAgentTicketScope,
   assertSalesAgentTicketAccess,
   applySalesAgentSalesOrderScope,

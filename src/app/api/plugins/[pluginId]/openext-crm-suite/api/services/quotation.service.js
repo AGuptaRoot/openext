@@ -127,7 +127,10 @@ function buildLineItems(rawItems, defaultTaxPercent = 0, discountPercent = 0, di
       extra: item.extra && typeof item.extra === 'object' && !Array.isArray(item.extra) ? item.extra : {},
       sourceRef: item.sourceRef && /^[A-Za-z0-9:_-]{1,64}$/.test(String(item.sourceRef)) ? String(item.sourceRef) : '',
       // Declared line group (checked against the active extension by sales-flow cleanLineExtras).
-      group: item.group && /^[a-z][a-z0-9_]{0,39}$/.test(String(item.group)) ? String(item.group) : ''
+      group: item.group && /^[a-z][a-z0-9_]{0,39}$/.test(String(item.group)) ? String(item.group) : '',
+      // GST suite (CRM 3.53.0): SAC code and service key of the line.
+      sac: item.sac && /^\d{4,8}$/.test(String(item.sac).trim()) ? String(item.sac).trim() : '',
+      serviceType: item.serviceType && /^[a-z][a-z0-9_]{1,40}$/.test(String(item.serviceType)) ? String(item.serviceType) : ''
     };
   });
 
@@ -162,7 +165,9 @@ function buildLineItems(rawItems, defaultTaxPercent = 0, discountPercent = 0, di
       unit: item.unit,
       extra: item.extra,
       sourceRef: item.sourceRef,
-      group: item.group
+      group: item.group,
+      sac: item.sac,
+      serviceType: item.serviceType
     };
   });
 
@@ -222,7 +227,8 @@ async function validateClient(req, clientId) {
   return client;
 }
 
-async function findQuotationOrThrow(req, id) {
+/** opts.read (3.54.0): viewing only — a sales rep may open documents of their leads / clients too. */
+async function findQuotationOrThrow(req, id, opts = {}) {
   const doc = await getEstimateModel(req).findOne({ ...tenantFilter(req), _id: id }).lean();
   if (!doc) throw appError('Quotation not found', 404);
   const { isClientUser } = require('../utils/tenant.util');
@@ -237,9 +243,10 @@ async function findQuotationOrThrow(req, id) {
     // for a prospect the ones on their portal-enabled lead. Drafts are never shown on the portal.
     if (doc.status !== 'Draft' && portalOwnsRecord(identity, doc)) return doc;
     throw appError('Quotation not found', 404);
+  } else if (opts.read) {
+    await require('../utils/sales-access.util').assertSalesAgentFinanceReadAccess(req, doc, 'Quotation');
   } else {
-    const { assertSalesAgentCreatorAccess } = require('../utils/sales-access.util');
-    assertSalesAgentCreatorAccess(req, doc, 'Quotation');
+    await require('../utils/sales-access.util').assertSalesAgentFinanceWriteAccess(req, doc, 'Quotation');
   }
   return doc;
 }
@@ -366,8 +373,8 @@ async function list(req) {
     }
   }
 
-  const { applySalesAgentCreatorScope, mergeScopeIntoFilter } = require('../utils/sales-access.util');
-  const finalFilter = applySalesAgentCreatorScope(req, portalClause ? mergeScopeIntoFilter(filter, portalClause) : filter);
+  const { applySalesAgentFinanceReadScope, mergeScopeIntoFilter } = require('../utils/sales-access.util');
+  const finalFilter = await applySalesAgentFinanceReadScope(req, portalClause ? mergeScopeIntoFilter(filter, portalClause) : filter);
 
   const [items, total] = await Promise.all([
     Estimate.find(finalFilter).sort(sort).skip(skip).limit(limit).lean(),
@@ -384,8 +391,8 @@ async function list(req) {
   };
 }
 
-async function getById(req, id) {
-  const doc = await findQuotationOrThrow(req, id);
+async function getById(req, id, opts = {}) {
+  const doc = await findQuotationOrThrow(req, id, { read: Boolean(opts.read) });
   const withCustomer = await enrichWithCustomerLabel(req, withEffectiveStatus(doc));
   const [enriched] = await enrichQuotationsWithDeals(req, [withCustomer]);
   return enriched;
@@ -439,6 +446,10 @@ async function create(req, input) {
     throw appError('A quotation for the extension record belongs to a client only (no lead or opportunity).', 400, { code: 'RECORD_CLIENT_ONLY' });
   }
   const clientRecord = Boolean(extensionRecordId);
+  // 3.54.0: a record whose quotation is already accepted is used; a new trip starts a new record.
+  if (extensionRecordId) {
+    await assertRecordNotAccepted(getEstimateModel(req), tenantFilter(req), { _id: null, extensionRecordId });
+  }
   const SalesFlowRules = require('./sales-flow.service');
   const enquiryWithoutOpportunity = (clientEnquiry || clientRecord) && (await SalesFlowRules.clientQuotationWithoutOpportunity(req));
 
@@ -563,6 +574,9 @@ async function create(req, input) {
     notes: input.notes ? String(input.notes).trim() : '',
     recipientNotes: input.recipientNotes ? String(input.recipientNotes).trim() : '',
     sections: Array.isArray(input.sections) ? input.sections : [],
+    // GST suite (CRM 3.53.0): the later invoice uses the same place of supply and TCS rule.
+    placeOfSupply: input.placeOfSupply ? String(input.placeOfSupply).trim() : '',
+    tcsRuleKey: input.tcsRuleKey ? String(input.tcsRuleKey).trim() : '',
     createdBy: userId,
     updatedBy: userId
   }));
@@ -646,6 +660,8 @@ async function update(req, id, input) {
   }
   if (input.notes !== undefined) updates.notes = String(input.notes).trim();
   if (input.recipientNotes !== undefined) updates.recipientNotes = String(input.recipientNotes).trim();
+  if (input.placeOfSupply !== undefined) updates.placeOfSupply = String(input.placeOfSupply || '').trim();
+  if (input.tcsRuleKey !== undefined) updates.tcsRuleKey = String(input.tcsRuleKey || '').trim();
   if (input.sections !== undefined) updates.sections = Array.isArray(input.sections) ? input.sections : [];
   if (input.issueDate !== undefined) updates.issueDate = new Date(input.issueDate);
   if (input.expiryDate !== undefined) updates.expiryDate = new Date(input.expiryDate);
@@ -1019,6 +1035,31 @@ async function afterAccepted(req, quotation) {
   await require('./proforma.service').maybeAutoInvoicePaidQuotation(req, id);
 }
 
+/**
+ * CRM 3.54.0: an extension record (a client trip, salesFlow clientQuotation { recordId }) has ONE accepted
+ * commercial flow, like an opportunity: a second quotation of the same record cannot be accepted.
+ * `filter` = the tenant part of the query (tenantFilter(req), or { tenantId, isDeleted: false } on the portal).
+ */
+async function assertRecordNotAccepted(Estimate, filter, quote) {
+  const recordId = String((quote && quote.extensionRecordId) || '').trim();
+  if (!recordId) return;
+  const other = await Estimate.findOne({
+    ...filter,
+    _id: { $ne: quote._id },
+    extensionRecordId: recordId,
+    status: { $in: ['Accepted', 'Converted'] }
+  })
+    .select('_id quotationNo')
+    .lean();
+  if (other) {
+    throw appError(
+      `This requirement already has an accepted quotation (${other.quotationNo || 'another quotation'}). Save new travel information to quote a new trip.`,
+      409,
+      { code: 'RECORD_ALREADY_ACCEPTED' }
+    );
+  }
+}
+
 async function accept(req, id, options = {}) {
   const { isClientUser } = require('../utils/tenant.util');
   if (!options?.system && !isClientUser(req)) {
@@ -1054,6 +1095,8 @@ async function accept(req, id, options = {}) {
       );
     }
   }
+
+  await assertRecordNotAccepted(Estimate, tenantFilter(req), existing);
 
   const clientId = await resolveQuotationClientId(req, existing, { convertLead: true });
 
@@ -1352,10 +1395,11 @@ async function convertToInvoice(req, id) {
     return { converted: true, invoice: fromProforma, quotation: { ...existing, status: 'Converted', convertedInvoiceId: String(fromProforma._id) } };
   }
 
-  const invoiceNo = await getNextNumber(req, 'invoice');
-
   const rawIssueDate = existing.issueDate ? new Date(existing.issueDate) : new Date();
   const issueDate = isNaN(rawIssueDate.getTime()) ? new Date() : rawIssueDate;
+  // GST suite (CRM 3.53.0): the GST series once Settings → GST is saved, else the CRM series.
+  const GstService = require('./gst.service');
+  const { invoiceNo } = await GstService.taxInvoiceNumber(req, { issueDate, fallback: () => getNextNumber(req, 'invoice') });
   const paymentDays = Number(settings.invoice_payment_days || 30);
   const dueDate = new Date(issueDate);
   dueDate.setDate(dueDate.getDate() + paymentDays);
@@ -1364,7 +1408,7 @@ async function convertToInvoice(req, id) {
   const taxTotal = Number(existing.taxTotal) || 0;
   const grandTotal = Number(existing.grandTotal) || 0;
 
-  const invoice = await Invoice.create(await withCustomerSnapshot(req, {
+  const invoiceData = {
     tenantId: existing.tenantId,
     clientId,
     leadId: existing.leadId || null,
@@ -1384,9 +1428,13 @@ async function convertToInvoice(req, id) {
     amountPaid: 0,
     balanceDue: grandTotal,
     notes: existing.notes ? String(existing.notes).trim() : '',
+    placeOfSupply: existing.placeOfSupply || '',
+    tcsRuleKey: existing.tcsRuleKey || '',
     createdBy: userId,
     updatedBy: userId
-  }));
+  };
+  await GstService.applyToTaxInvoice(req, invoiceData, { otherCharges: GstService.otherChargesOf(existing), agreedTotal: grandTotal });
+  const invoice = await Invoice.create(await withCustomerSnapshot(req, invoiceData));
 
   const invoiceDoc = invoice.toObject();
 
@@ -1640,6 +1688,8 @@ async function createRevision(req, id, options = {}) {
     notes: existing.notes || '',
     recipientNotes: options.recipientNotes !== undefined ? options.recipientNotes : existing.recipientNotes,
     terms: options.terms !== undefined ? options.terms : (existing.terms || ''),
+    placeOfSupply: existing.placeOfSupply || '',
+    tcsRuleKey: existing.tcsRuleKey || '',
     sections: Array.isArray(existing.sections) ? existing.sections : [],
     version: nextVersion,
     revisionOf: rootId,
@@ -1669,7 +1719,7 @@ async function getRevisionHistory(req, id) {
   const Estimate = getEstimateModel(req);
   const tenantId = resolveTenantId(req);
 
-  const quote = await findQuotationOrThrow(req, id);
+  const quote = await findQuotationOrThrow(req, id, { read: true });
   const rootId = quote.revisionOf || quote._id.toString();
 
   const revisions = await Estimate.find({
@@ -1881,6 +1931,8 @@ async function clientPortalAccept(req, token, payload = {}) {
     }
   }
 
+  await assertRecordNotAccepted(Estimate, { tenantId: quote.tenantId, isDeleted: false }, quote);
+
   // Lead-linked quotations: mark lead Won + convert to client (same rule as admin accept).
   let clientId = quote.clientId ? String(quote.clientId).trim() : '';
   let leadConverted = false;
@@ -2024,7 +2076,7 @@ async function clientPortalReject(req, token, payload = {}) {
 }
 
 async function buildQuotationPrintHtml(req, id) {
-  const doc = withEffectiveStatus(await findQuotationOrThrow(req, id));
+  const doc = withEffectiveStatus(await findQuotationOrThrow(req, id, { read: true }));
   const payload = await FinanceDocumentUtil.buildQuotationPayload(req, doc);
   const html = PrintHtmlService.renderFinancePrintHtml(payload);
   return { doc, html };
@@ -2050,7 +2102,7 @@ async function generatePrintHtml(req, id) {
 }
 
 async function getPrintDocument(req, id) {
-  const doc = withEffectiveStatus(await findQuotationOrThrow(req, id));
+  const doc = withEffectiveStatus(await findQuotationOrThrow(req, id, { read: true }));
   return FinanceDocumentUtil.buildQuotationPayload(req, doc);
 }
 
@@ -2086,8 +2138,7 @@ async function exportQuotations(req, query = {}) {
     const clause = identity.kind === 'none' ? { _id: '__UNLINKED_CLIENT_NO_MATCH__' } : portalScopeClause(identity);
     filter = mergeScopeIntoFilter(filter, { $and: [clause, { status: { $ne: 'Draft' } }] });
   } else {
-    const { applySalesAgentCreatorScope } = require('../utils/sales-access.util');
-    filter = applySalesAgentCreatorScope(req, filter);
+    filter = await require('../utils/sales-access.util').applySalesAgentFinanceReadScope(req, filter);
   }
 
   const raw = await Estimate.find(filter).sort({ issueDate: -1, createdAt: -1 }).lean();

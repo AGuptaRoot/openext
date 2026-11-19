@@ -25,6 +25,8 @@ module.exports = function registerInvoicesRoutes(app) {
   );
   app.get('/invoices', requirePermission('crm.finance.read'), invoiceController.list);
   app.get('/invoices/next-number', requirePermission('crm.finance.read'), invoiceController.getNextInvoiceNumber);
+  // GST suite (CRM 3.53.0): the optional "preferred payment method" of a proforma / invoice.
+  app.put('/invoices/:id/payment-preference', requirePermission('crm.finance.write'), invoiceController.setPaymentPreference);
   app.post(
     '/invoices/ocr/extract',
     requirePermission('crm.finance.write'),

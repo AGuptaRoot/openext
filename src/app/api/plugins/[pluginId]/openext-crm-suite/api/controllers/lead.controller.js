@@ -671,6 +671,16 @@ async function addCustomField(req, res) {
   }
 }
 
+async function importFields(req, res) {
+  try {
+    const ExtensionValues = require('../services/crm-extension-values.service');
+    const result = await ExtensionValues.leadImportFields(req);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    sendError(res, error);
+  }
+}
+
 async function importPreview(req, res) {
   try {
     const result = await LeadService.previewImport(req, req.validatedBody);
@@ -888,6 +898,7 @@ module.exports = {
   addActivityType,
   listCustomFields,
   addCustomField,
+  importFields,
   importPreview,
   importExecute,
   extractOcr,

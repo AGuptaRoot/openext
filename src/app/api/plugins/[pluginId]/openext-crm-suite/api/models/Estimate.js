@@ -20,7 +20,10 @@ const LineItemSchema = new Schema(
     /** The extension's own reference for this line (never printed or shown to customers). */
     sourceRef: { type: String, trim: true, maxlength: 64, default: '' },
     /** Line group key the active extension declares (salesFlow.quotationLineGroups); '' = ungrouped. */
-    group: { type: String, trim: true, maxlength: 40, default: '' }
+    group: { type: String, trim: true, maxlength: 40, default: '' },
+    /** GST suite (CRM 3.53.0): the line's SAC / HSN code and its service key from Settings → GST. */
+    sac: { type: String, trim: true, maxlength: 8, default: '' },
+    serviceType: { type: String, trim: true, maxlength: 41, default: '' }
   },
   { _id: false }
 );
@@ -84,6 +87,10 @@ const EstimateSchema = new Schema(
       default: 'after_discount'
     },
     lineItems: { type: [LineItemSchema], default: [] },
+    /** GST suite (CRM 3.53.0): one place of supply (state name) per document; '' = the client's state. */
+    placeOfSupply: { type: String, trim: true, maxlength: 60, default: '' },
+    /** Generic TCS rule key set by an extension (Settings → GST → TCS rules); '' = no TCS. */
+    tcsRuleKey: { type: String, trim: true, maxlength: 41, default: '' },
     subtotal: { type: Number, required: true, default: 0 },
     discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     discountAmount: { type: Number, default: 0, min: 0 },

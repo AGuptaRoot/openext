@@ -504,6 +504,10 @@ async function confirmVerifiedPayment(req, invoiceId, payload, creds, paymentId)
     remark: `Razorpay payment ${paymentId}`
   });
 
+  // GST suite (CRM 3.53.0): the gateway fee of this payment (only here, never on a repeated
+  // confirmation). Never fails the payment.
+  await require('./gateway-fee.service').logPayment(req, { razorpayPayment, payment, invoiceId, currency });
+
   const updatedInvoice = await InvoiceService.getById(req, invoiceId);
 
   /*
@@ -619,6 +623,9 @@ async function confirmPaymentForPublicQuotationToken(req, token, payload = {}) {
 }
 
 module.exports = {
+  // GST suite (CRM 3.53.0): reused by the gateway fee refresh; keys stay in the Razorpay config.
+  getCredentials,
+  razorpayRequest,
   getStatus,
   assertInvoicePayable,
   createOrderForInvoice,

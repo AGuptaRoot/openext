@@ -29,8 +29,8 @@ function baseFilter(req) {
 }
 
 /**
- * Payments a scoped staff member (sales rep) may see: those on the invoices they created, and those
- * they recorded themselves. null = no limit (finance managers, managers, admins; clients are scoped
+ * Payments a scoped staff member (sales rep) may see: those on the invoices they may view (3.54.0: their
+ * own, and those of their leads / clients / opportunities), and those they recorded themselves. null = no limit (finance managers, managers, admins; clients are scoped
  * by baseFilter).
  */
 async function staffPaymentScope(req) {
@@ -41,7 +41,8 @@ async function staffPaymentScope(req) {
   try {
     const Invoice = req.cms?.models.get('Invoice');
     if (Invoice) {
-      let q = Invoice.find({ tenantId: resolveTenantId(req), isDeleted: false, createdBy: userId });
+      const access = require('../utils/sales-access.util');
+      let q = Invoice.find({ tenantId: resolveTenantId(req), isDeleted: false, ...(await access.buildSalesAgentFinanceReadScope(req)) });
       if (q && typeof q.select === 'function') q = q.select('_id');
       if (q && typeof q.limit === 'function') q = q.limit(5000);
       const rows = (q && typeof q.lean === 'function' ? await q.lean() : await q) || [];
@@ -296,6 +297,8 @@ async function recordPaymentAgainstInvoice(req, input, invoiceId, amount) {
   // Money on a proforma may accept its quotation and raise the tax invoice (Settings → General).
   // Same for Razorpay and for payments entered by staff; never fails the payment.
   if (invoice.documentType === 'proforma') {
+    // GST suite (CRM 3.53.0): an advance before the tax invoice gets a receipt voucher (never fails the payment).
+    await require('./advance-receipt.service').recordForPayment(req, { payment: result, proforma: invoice });
     const followUp = await require('./proforma.service').afterProformaPayment(req, String(invoiceId));
     if (followUp) result.proformaFollowUp = followUp;
   }
