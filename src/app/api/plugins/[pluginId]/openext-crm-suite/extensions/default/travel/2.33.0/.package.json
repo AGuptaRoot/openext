@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.32.0",
-  "checksum": "d560b8ebfa1ba6aeab5c912dfcd4847501d5af6bff1b1d1efc6afd4c592704bd",
-  "writtenAt": "2026-11-20T07:29:15.796Z",
+  "version": "2.33.0",
+  "checksum": "f138b2a6d57a7d557a6710f319b85af3e3d0acbd33a1034671b1b7b30dceb71f",
+  "writtenAt": "2026-11-20T08:59:54.356Z",
   "files": [
     {
       "path": "README.md",
@@ -11,12 +11,12 @@
     },
     {
       "path": "WORKFLOW.md",
-      "sha256": "d21af559bc73f40984ca83d5291b559bbfd14a9883a0cf3feb625846d7b35801",
-      "size": 14480
+      "sha256": "a8af374c6ee40b584120d04d32ded7ebb2d005cf31412500ae84541e7a0036dc",
+      "size": 15259
     },
     {
       "path": "crm-extension.json",
-      "sha256": "eafacffa0dfb03fd060515734c069dee06b5a9b4353c12099b616cbe5f9184f1",
+      "sha256": "28d77483d96965ecd133287d19fd05b2159dd11c7e55bf5ff7d8b73c206b4ec7",
       "size": 13684
     },
     {
@@ -26,8 +26,8 @@
     },
     {
       "path": "api/routes.json",
-      "sha256": "da346cd0bf1dc394278582a315f3609a3d424db5a35dec11365fdabad7aed2da",
-      "size": 27085
+      "sha256": "dab2827395a6627b93938f038f4aa3cb9d1dffe1997250617898913feba72eb2",
+      "size": 27413
     },
     {
       "path": "api/models/AvailabilityCheck.json",
@@ -106,8 +106,8 @@
     },
     {
       "path": "api/routes/booking-services.js",
-      "sha256": "0a7e2ae5a8d3133d4c610801b99d76f275cdd884356bd84ae81d456f88f76232",
-      "size": 15552
+      "sha256": "924b1f64c7358797c2190e42fe411bd0ceb023d3bd4ebe1bb7dde4e285bc1ab9",
+      "size": 17999
     },
     {
       "path": "api/routes/bookings.js",
@@ -290,6 +290,11 @@
       "size": 9283
     },
     {
+      "path": "api/services/supplier-doc-ocr.js",
+      "sha256": "3db731ed8350c84975ce8fde5f69bd8cadaf41a05f03005aece55023c18b0a5f",
+      "size": 10651
+    },
+    {
       "path": "api/services/travel-info-options.js",
       "sha256": "9f585e9c7d6166b2a73bf9cc091d6db581954224da7f0baa0085f88f18806c01",
       "size": 1877
@@ -391,8 +396,8 @@
     },
     {
       "path": "ui/components/bookings-page/bookings-page.js",
-      "sha256": "93008a831afceb0da8d542426e7b227f4910f3cf1ff343f971cf768e643723bb",
-      "size": 48086
+      "sha256": "067fc65c37270deb19e44dba4f77782d1ac5d3baf8e4256f5ce8a29d1b06c892",
+      "size": 53564
     },
     {
       "path": "ui/components/client-travel-requirement/client-travel-requirement.css",

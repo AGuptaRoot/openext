@@ -15,6 +15,9 @@ const { runtimeError } = require('./values');
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const IMAGE_RE = /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=\s]+$/i;
 const MAX_IMAGE_CHARS = 6_000_000;
+/** CRM 3.58.0: several pages in one read (Groq vision takes at most 5 images per request). */
+const MAX_IMAGES = 5;
+const MAX_TOTAL_IMAGE_CHARS = 15_000_000;
 const MAX_INSTRUCTION_CHARS = 6000;
 const REQUEST_TIMEOUT_MS = 25000;
 
@@ -48,7 +51,7 @@ function isModelAccessError(message) {
   );
 }
 
-async function callModel(apiKey, model, image, instructions, prompt) {
+async function callModel(apiKey, model, images, instructions, prompt) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -59,15 +62,15 @@ async function callModel(apiKey, model, image, instructions, prompt) {
       body: JSON.stringify({
         model,
         temperature: 0,
-        max_tokens: 1500,
+        max_tokens: images.length > 1 ? 3000 : 1500,
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: `${instructions}\nReturn ONLY one valid JSON object, no markdown, no commentary.` },
           {
             role: 'user',
             content: [
-              { type: 'text', text: prompt || 'Read this image as instructed.' },
-              { type: 'image_url', image_url: { url: image } }
+              { type: 'text', text: prompt || (images.length > 1 ? 'Read these pages (in order) as instructed.' : 'Read this image as instructed.') },
+              ...images.map((url) => ({ type: 'image_url', image_url: { url } }))
             ]
           }
         ]
@@ -84,16 +87,24 @@ async function callModel(apiKey, model, image, instructions, prompt) {
 function createAiApi(req) {
   return Object.freeze({
     /**
-     * @param {{ image: string, instructions: string, prompt?: string }} input
+     * @param {{ image?: string, images?: string[], instructions: string, prompt?: string }} input
      *   image         data URL (JPG, PNG or WEBP)
+     *   images        CRM 3.58.0: up to 5 data URLs read together (e.g. the pages of a PDF, in order)
      *   instructions  what to read and the JSON shape to return
      * @returns {{ data: object, model: string }}
      */
     async readImage(input = {}) {
-      const image = String(input.image || '').trim();
+      const list = Array.isArray(input.images) && input.images.length ? input.images : [input.image];
+      if (list.length > MAX_IMAGES) throw runtimeError(400, `ai.readImage: at most ${MAX_IMAGES} images can be read together`, 'TOO_MANY_IMAGES');
+      const images = list.map((v) => String(v || '').trim());
       const instructions = String(input.instructions || '').trim();
-      if (!IMAGE_RE.test(image)) throw runtimeError(400, 'ai.readImage: image must be a JPG, PNG or WEBP data URL', 'INVALID_IMAGE');
-      if (image.length > MAX_IMAGE_CHARS) throw runtimeError(413, 'ai.readImage: the image is too large; use a smaller photo', 'IMAGE_TOO_LARGE');
+      for (const image of images) {
+        if (!IMAGE_RE.test(image)) throw runtimeError(400, 'ai.readImage: image must be a JPG, PNG or WEBP data URL', 'INVALID_IMAGE');
+        if (image.length > MAX_IMAGE_CHARS) throw runtimeError(413, 'ai.readImage: the image is too large; use a smaller photo', 'IMAGE_TOO_LARGE');
+      }
+      if (images.reduce((n, i) => n + i.length, 0) > MAX_TOTAL_IMAGE_CHARS) {
+        throw runtimeError(413, 'ai.readImage: the pages are too large together; use fewer pages', 'IMAGE_TOO_LARGE');
+      }
       if (!instructions) throw runtimeError(400, 'ai.readImage: instructions are required', 'INVALID_INSTRUCTIONS');
       if (instructions.length > MAX_INSTRUCTION_CHARS) throw runtimeError(400, 'ai.readImage: instructions are too long', 'INVALID_INSTRUCTIONS');
 
@@ -120,7 +131,7 @@ function createAiApi(req) {
       for (const model of tryList) {
         let result;
         try {
-          result = await callModel(apiKey, model, image, instructions, String(input.prompt || '').slice(0, 500));
+          result = await callModel(apiKey, model, images, instructions, String(input.prompt || '').slice(0, 500));
         } catch (error) {
           lastError = error && error.name === 'AbortError' ? 'the OCR service did not answer in time' : 'the OCR service could not be reached';
           continue;
@@ -140,4 +151,4 @@ function createAiApi(req) {
   });
 }
 
-module.exports = { createAiApi, parseJsonObject };
+module.exports = { createAiApi, parseJsonObject, MAX_IMAGES };

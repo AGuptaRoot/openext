@@ -550,7 +550,9 @@ function renderBookingsPage(root, ctx) {
     const details = ui.textarea({ maxlength: 2000, value: s.status === 'Confirmed' ? s.final_details : '', placeholder: 'Room type, meal plan, pick-up time…' });
     const evidence = h('input', { type: 'file', class: 'tvx-input tvx-bk-file', accept: 'application/pdf,image/jpeg,image/png,image/webp' });
     const notes = ui.textarea({ maxlength: 2000 });
+    const scanBlock = scanSupplierBlock(s, { provider, ref, details, evidence });
     const confirmedOnly = [
+      scanBlock,
       ui.field('Confirmation reference', ref),
       ui.field('Confirmed at', at),
       ui.field('Final confirmed details', details, { full: true }),
@@ -608,6 +610,112 @@ function renderBookingsPage(root, ctx) {
         }
       }]
     });
+  }
+
+  /**
+   * 2.33.0 — "Scan supplier ticket / voucher": reads an e-ticket, hotel confirmation or supplier bill and
+   * fills Provider, Confirmation reference and Final confirmed details for review. Empty fields are filled;
+   * a field you already typed is only replaced when you press "Use scanned values". Nothing is saved until
+   * Save; the scanned file becomes the evidence file when none is chosen (stored like every evidence file).
+   */
+  function scanSupplierBlock(s, inputs) {
+    const picker = h('input', { type: 'file', accept: 'application/pdf,image/jpeg,image/png,image/webp', hidden: true });
+    const status = h('p', { class: 'tvx-help', hidden: true });
+    const notice = h('div', { class: 'tvx-msg tvx-msg-warn', role: 'status', hidden: true });
+    const button = h('button', { type: 'button', class: 'tvx-btn', text: 'Scan supplier ticket / voucher', onclick: () => picker.click() });
+    const show = (el, content) => {
+      el.replaceChildren(...[].concat(content).filter(Boolean).map((c) => (typeof c === 'string' ? h('div', { text: c }) : c)));
+      el.hidden = !content || (Array.isArray(content) && !content.filter(Boolean).length);
+    };
+
+    picker.addEventListener('change', async () => {
+      const file = picker.files && picker.files[0];
+      picker.value = '';
+      if (!file) return;
+      button.disabled = true;
+      show(notice, null);
+      show(status, 'Reading the document…');
+      try {
+        const isPdf = String(file.type).toLowerCase() === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+        let images;
+        let skipped = 0;
+        if (isPdf) {
+          if (!ctx.files || typeof ctx.files.pdfToImages !== 'function') {
+            throw new Error('Scanning a PDF needs CRM 3.58.0 or newer. You can scan a photo of the document.');
+          }
+          const pages = await ctx.files.pdfToImages(file, { maxPages: 5 });
+          images = pages.images;
+          skipped = Math.max(0, (pages.pageCount || 0) - images.length);
+        } else {
+          images = [(await ui.readUpload(file)).data];
+        }
+        if (!images || !images.length) throw new Error('The document could not be read. Try another file.');
+        const res = await ctx.api.post(`/booking-services/${s.id}/scan`, { images });
+        const values = (res && res.fields) || {};
+        const pairs = [
+          ['Provider', inputs.provider, values.provider],
+          ['Confirmation reference', inputs.ref, values.confirmation_ref],
+          ['Final confirmed details', inputs.details, values.final_details]
+        ].filter(([, , v]) => v);
+        const differing = [];
+        for (const [label, el, v] of pairs) {
+          if (!el.value.trim()) el.value = v;
+          else if (el.value.trim() !== v) differing.push([label, el, v]);
+        }
+        let attached = false;
+        if (!(inputs.evidence.files && inputs.evidence.files.length) && typeof DataTransfer === 'function') {
+          try {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            inputs.evidence.files = dt.files;
+            attached = true;
+          } catch { /* older browsers: the user can choose the file themselves */ }
+        }
+        const review = Array.isArray(res && res.review) ? res.review : [];
+        const reviewText = {
+          provider: 'the provider',
+          confirmation_ref: 'the confirmation reference',
+          passengers: 'the names',
+          dates: 'the dates'
+        };
+        const lines = [
+          `${(res && res.kindLabel) || 'Document'} read — check every value before you save.`,
+          ...(Array.isArray(res && res.warnings) ? res.warnings : []),
+          review.length ? `Not clearly readable: ${review.map((k) => reviewText[k] || k).join(', ')}.` : '',
+          skipped ? `Only the first 5 pages were read (${skipped} more not read).` : '',
+          attached ? 'The scanned file is attached as the evidence file.' : ''
+        ].filter(Boolean);
+        const content = lines.map((l) => h('div', { text: l }));
+        if (differing.length) {
+          content.push(h('div', { text: `You already typed: ${differing.map(([l]) => l).join(', ')}. The scan read something else.` }));
+          content.push(h('button', {
+            type: 'button',
+            class: 'tvx-btn',
+            text: 'Use scanned values',
+            onclick: (e) => {
+              for (const [, el, v] of differing) el.value = v;
+              e.currentTarget.remove();
+            }
+          }));
+        }
+        show(notice, content);
+        notice.className = `tvx-msg ${(res && res.warnings && res.warnings.length) || review.length ? 'tvx-msg-warn' : 'tvx-msg-success'}`;
+        show(status, null);
+      } catch (error) {
+        show(status, null);
+        notice.className = 'tvx-msg tvx-msg-error';
+        show(notice, errorText(error) || 'The document could not be scanned');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    return h('div', { class: 'tvx-field tvx-col-full' }, [
+      h('div', {}, [button, picker]),
+      h('p', { class: 'tvx-help', text: 'Air ticket, hotel confirmation or supplier bill (PDF or photo). Fills the fields below for you to check. Prices are not read.' }),
+      status,
+      notice
+    ]);
   }
 
   function cancelServiceDialog(s) {

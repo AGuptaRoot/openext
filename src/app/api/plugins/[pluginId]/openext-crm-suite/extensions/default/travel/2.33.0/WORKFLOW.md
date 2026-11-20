@@ -1,6 +1,6 @@
 # crm-travel — Workflow
 
-Travel extension `travel` **2.32.0**, needs CRM `openext-crm-suite` **>= 3.56.0 < 4.0.0** (GST suite).
+Travel extension `travel` **2.33.0**, needs CRM `openext-crm-suite` **>= 3.58.0 < 4.0.0** (GST suite).
 
 This file explains, in simple English, how a travel enquiry moves through the CRM: from the first lead to
 the trip, the booking, vouchers and the client portal.
@@ -223,6 +223,13 @@ stateDiagram-v2
 
 - **Cancel booking**: a reason is required. Its services and live vouchers are cancelled too.
 - **Complete booking**: allowed when the booking is Confirmed and the trip has ended (setting `allow_early_completion` allows it earlier).
+
+### Scan supplier ticket / voucher (2.33.0)
+- In **Confirm service**, "Scan supplier ticket / voucher" reads an air ticket, hotel confirmation or supplier bill (PDF, first 5 pages, or a photo).
+- It fills **Provider**, **Confirmation reference** (PNR / confirmation no.) and **Final confirmed details** (flights, stay, ticket numbers, names). Prices are never read.
+- It warns when a name is not a traveller on the booking, a traveller is missing, or the dates differ from the service.
+- Empty fields are filled; typed values change only with "Use scanned values". Nothing is saved until **Save**; the file becomes the evidence file (stored on S3).
+- Customer invoices still come only from the accepted quotation, so the CRM's "Scan PDF" is not shown on Invoices or Quotations.
 
 ### Vouchers (hotel, transport, excursion)
 - Status: **Draft → Issued → Sent → Used**, or **Cancelled**. A reissue makes the old voucher **Superseded**.

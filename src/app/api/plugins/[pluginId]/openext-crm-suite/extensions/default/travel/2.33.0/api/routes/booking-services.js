@@ -8,6 +8,7 @@
  * POST /booking-services/:id/cancel             reason required
  * PUT  /booking-services/:id/documents          { add: { data, name } } | { remove: fileId }  (provider tickets etc.)
  * GET  /booking-services/:id/files/:file_id     an evidence file or provider document of this service
+ * POST /booking-services/:id/scan               2.33.0: read a supplier ticket / voucher for the Confirm dialog
  *
  * Every change writes a history row (ServiceConfirmation) and rolls the booking status up. Changing one
  * service never changes another. A service leaving Confirmed cancels its live vouchers ("Service no longer
@@ -18,6 +19,7 @@
 const store = require('../services/booking-store.js');
 const voucherDoc = require('../services/voucher-doc.js');
 const { canMove } = require('../services/booking-status.js');
+const supplierOcr = require('../services/supplier-doc-ocr.js');
 
 const { str } = store;
 const CONFIRM_STATUSES = ['Requested', 'Confirmed', 'Unavailable', 'Cancelled'];
@@ -195,6 +197,44 @@ exports.cancel = async (req, sdk) => {
   const cancelled = await voucherDoc.cancelLiveVouchers(sdk, service._id, 'Service no longer confirmed');
   await sdk.audit('updated', `booking_service.cancelled — booking ${booking.number}`, { bookingId: booking._id, serviceId: service._id, vouchers: cancelled });
   return respond(sdk, updated, booking._id);
+};
+
+/* ----------------------------------------------------------------- scan */
+
+/**
+ * 2.33.0 — "Scan supplier ticket / voucher" in the Confirm service dialog.
+ * body { images: ["<data URL>", …] } (the first pages of the PDF, max 5) or { image }.
+ * Returns the values to review (provider, PNR / confirmation ref, final details) and the checks against
+ * the booking (names, dates). Nothing is saved, the pages are not kept, and no read value is logged.
+ */
+exports.scan = async (req, sdk) => {
+  const service = await store.loadService(sdk, store.idParam(req));
+  const booking = await store.loadBooking(sdk, service.booking_id);
+  store.assertOpen(sdk, booking);
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const images = Array.isArray(body.images) ? body.images : body.image ? [body.image] : [];
+  if (!images.length || images.some((i) => typeof i !== 'string' || !i)) {
+    throw sdk.error(400, 'Choose the supplier document (PDF or photo) to scan', 'INVALID_IMAGE');
+  }
+  if (images.length > 5) throw sdk.error(400, 'Only the first 5 pages can be scanned', 'TOO_MANY_PAGES');
+
+  const ids = (Array.isArray(booking.traveller_ids) ? booking.traveller_ids : []).map(String).filter((id) => store.ID_RE.test(id)).slice(0, 200);
+  const travellers = ids.length ? await sdk.models.Traveller.find({ _id: { $in: ids } }, { limit: 200 }) : [];
+  const { data } = await sdk.ai.readImage({ images, instructions: supplierOcr.INSTRUCTIONS, prompt: supplierOcr.PROMPT });
+  const result = supplierOcr.supplierResult(data, {
+    service: { start_date: str(service.start_date).slice(0, 10), end_date: str(service.end_date).slice(0, 10) },
+    booking: { travel_start_date: str(booking.travel_start_date).slice(0, 10), travel_end_date: str(booking.travel_end_date).slice(0, 10) },
+    travellers: travellers.map((r) => ({ first_name: str(r.first_name), last_name: str(r.last_name) }))
+  });
+  // Counts only — never the PNR, names or ticket numbers.
+  await sdk.audit('viewed', `booking_service.scanned — booking ${booking.number}`, {
+    bookingId: booking._id,
+    serviceId: service._id,
+    kind: result.kind,
+    pages: images.length,
+    warnings: result.warnings.length
+  });
+  return result;
 };
 
 /* ------------------------------------------------------------ documents */

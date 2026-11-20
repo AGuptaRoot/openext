@@ -9,6 +9,9 @@ const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const SettingService = require('./setting.service');
 const LeadOcrService = require('./lead-ocr.service');
 
+/** Groq vision reads at most 5 images in one request (CRM 3.58.0: was 6, so a 6-page PDF failed). */
+const MAX_PAGES = 5;
+
 const GROQ_VISION_MODEL_CANDIDATES = [
   'meta-llama/llama-4-scout-17b-16e-instruct',
   'meta-llama/llama-4-maverick-17b-128e-instruct',
@@ -132,13 +135,14 @@ Return ONLY valid JSON (no markdown) with this exact shape:
   "shippingAddress": "string",
   "clientName": "string",
   "notes": "string",
+  "grandTotal": 0,
   "items": [
     {
       "name": "string",
       "description": "string",
       "quantity": 1,
       "price": 0,
-      "tax": 0,
+      "tax": null,
       "amount": 0
     }
   ]
@@ -152,7 +156,9 @@ Rules:
 - paymentDetails = bank details, UPI, payment terms text.
 - billingAddress / shippingAddress = full multi-line addresses when present.
 - items: one object per product/service line. name and price are required when the line exists.
-- quantity defaults to 1. tax is percent (e.g. 18 for 18%). amount = line total if shown.
+- quantity defaults to 1. tax is the GST / VAT percent of that line (e.g. 18 for 18%, 5 for 5%, 0 when the line shows 0% or is exempt). Use null when the document shows no tax rate for the line. Airline / airport taxes and fees are amounts, not a percent: never put them in tax.
+- amount = line total if shown.
+- grandTotal = the final total payable printed on the document (0 when not shown).
 - Do not invent products that are not on the document.
 - Use empty string "" or 0 when missing.`;
 }
@@ -173,11 +179,13 @@ function normalizeExtracted(parsed, documentType) {
       const name = asCleanString(r.name || r.productName || r.item || r.description);
       const qty = Math.max(0, asNumber(r.quantity ?? r.qty ?? r.qtyOrdered, 1)) || 1;
       const price = Math.max(0, asNumber(r.price ?? r.rate ?? r.unitPrice ?? r.unit_price, 0));
-      const tax = Math.max(0, asNumber(r.tax ?? r.taxRate ?? r.taxPercent ?? r.gst, 0));
+      // null = the document shows no rate (the form then uses the catalog rate, never a guessed 18%).
+      const rawTax = r.tax ?? r.taxRate ?? r.taxPercent ?? r.gst;
+      const tax = rawTax == null || rawTax === '' ? null : Math.min(100, Math.max(0, asNumber(rawTax, 0)));
       let amount = asNumber(r.amount ?? r.total ?? r.lineTotal, 0);
       if (!amount && price) {
         const base = qty * price;
-        amount = tax > 0 ? base + (base * tax) / 100 : base;
+        amount = tax ? base + (base * tax) / 100 : base;
       }
       return {
         name,
@@ -215,6 +223,7 @@ function normalizeExtracted(parsed, documentType) {
     shippingAddress: asCleanString(source.shippingAddress || source.shipTo || source.shipping),
     clientName: asCleanString(source.clientName || source.customerName || source.billToName || source.company),
     notes: asCleanString(source.notes || source.terms || source.remarks),
+    grandTotal: Math.max(0, asNumber(source.grandTotal ?? source.total ?? source.totalAmount, 0)),
     items
   };
 }
@@ -227,7 +236,7 @@ async function callGroqVisionMultiPage(apiKey, model, imageDataUrls, documentTyp
         `Extract all fields and line items from this ${documentType} PDF (images are sequential pages). ` +
         'Return JSON only as specified in the system prompt.'
     },
-    ...imageDataUrls.slice(0, 6).map((url) => ({
+    ...imageDataUrls.slice(0, MAX_PAGES).map((url) => ({
       type: 'image_url',
       image_url: { url }
     }))
@@ -271,6 +280,8 @@ async function extractFromPdfPages(req, input = {}) {
   const single = normalizeImageDataUrl(input.imageDataUrl || input.image || input.dataUrl);
   if (single) urls.push(single);
 
+  const sentPages = urls.length;
+  urls.splice(MAX_PAGES);
   if (!urls.length) {
     const err = new Error('PDF page images are required (imageDataUrls)');
     err.status = 400;
@@ -340,6 +351,7 @@ async function extractFromPdfPages(req, input = {}) {
       model,
       triedModels: tried,
       pageCount: urls.length,
+      skippedPages: Math.max(0, sentPages - urls.length),
       extractionMode: 'pdf-vision'
     };
   }
@@ -353,6 +365,7 @@ async function extractFromPdfPages(req, input = {}) {
 }
 
 module.exports = {
+  MAX_PAGES,
   extractFromPdfPages,
   normalizeExtracted
 };

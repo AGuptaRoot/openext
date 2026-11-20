@@ -132,9 +132,14 @@ async function findClientsByCompany(req, input) {
   const out = [];
   const seen = new Set();
 
+  // CRM 3.57.1: a person / family lead asks only about person / family clients of this person — the
+  // person being a contact of a company client (e.g. the employer) is not the same customer.
+  const personOnly = params.personOnly === true;
   const contactClientIds = await clientIdsOfContact(req, params);
   if (contactClientIds.length) {
-    const q = Company.find({ ...companyFilter(req), _id: { $in: contactClientIds.slice(0, 20) } });
+    const filter = { ...companyFilter(req), _id: { $in: contactClientIds.slice(0, 20) } };
+    if (personOnly) filter.clientKind = 'person';
+    const q = Company.find(filter);
     const sortedRows = q && typeof q.sort === 'function' ? q.sort({ createdAt: 1 }) : q;
     for (const row of (await lean(sortedRows)) || []) {
       if (out.length >= MAX_MATCHES) break;
@@ -142,7 +147,8 @@ async function findClientsByCompany(req, input) {
       out.push(await describeMatch(req, row, 'contact', canWriteClients));
     }
   }
-  if (key.length < 2 || out.length >= MAX_MATCHES) return out;
+  // A person / family name is never matched by name (family names repeat).
+  if (personOnly || key.length < 2 || out.length >= MAX_MATCHES) return out;
 
   const firstWord = key.split(' ')[0];
   const query = Company.find({

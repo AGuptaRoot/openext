@@ -522,6 +522,13 @@
     },
     {
       "method": "POST",
+      "path": "/booking-services/:id/scan",
+      "permission": "x.travel.bookings.write",
+      "handler": "routes/booking-services.js#scan",
+      "summary": "Scan a supplier ticket / voucher (PDF pages or photo) for Confirm Service: values and checks to review (nothing is saved)"
+    },
+    {
+      "method": "POST",
       "path": "/booking-services/:id/cancel",
       "permission": "x.travel.bookings.write",
       "handler": "routes/booking-services.js#cancel",

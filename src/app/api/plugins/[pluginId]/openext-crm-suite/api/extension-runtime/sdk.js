@@ -30,7 +30,8 @@
  *   sdk.error(status, message, code) build an error the runtime maps to a response
  *   sdk.crypto             encrypt(text) / decrypt(text) / hash(text) — CRM-held key, bound to tenant + extension
  *   sdk.files              save / info / read / remove private encrypted files   (capability "files.private")
- *   sdk.ai.readImage       read an image with the CRM's OCR vision model → JSON  (capability "ai.vision")
+ *   sdk.ai.readImage       read an image (or { images: [...] }, up to 5 pages) with the CRM's OCR vision
+ *                          model → JSON  (capability "ai.vision")
  *   sdk.workflow.leadLocked(leadId) whether a Won / converted lead is read-only (salesFlow.lockWonLead)
  *   sdk.workflow.leadReady(leadId)  tell the CRM a lead meets the extension's rules; the CRM applies
  *                          its lead workflow settings (e.g. move to Qualified) → { stageChanged, stage }
