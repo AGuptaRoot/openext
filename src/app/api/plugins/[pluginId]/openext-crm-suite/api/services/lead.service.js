@@ -601,6 +601,21 @@ function duplicateConflict(req, result, allowSimilarCompany, allowExactDuplicate
   }
 }
 
+/**
+ * CRM 3.57.0: the name of a person / family lead without one: "<Surname> Family" for a type with "family" in
+ * its name, otherwise the person's own name. Salutations are left out.
+ */
+function personFallbackName(name, leadType) {
+  const words = String(name || '')
+    .replace(/[^\p{L}\p{M}'\s.-]/gu, ' ')
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w && !/^(mr|mrs|ms|miss|dr|prof|shri|smt|sri)\.?$/i.test(w));
+  if (!words.length) return String(name || '').trim().slice(0, 120);
+  if (/family/i.test(String(leadType || ''))) return `${words[words.length - 1]} Family`.slice(0, 120);
+  return words.join(' ').slice(0, 120);
+}
+
 /** CRM 3.56.0: the stages a lead may be created in — the first two of the pipeline. */
 function leadCreateStages(stages) {
   return (Array.isArray(stages) ? stages : []).filter(Boolean).slice(0, 2);
@@ -612,6 +627,10 @@ async function create(req, input) {
   const userId = resolveUserId(req);
   const validStages = await getValidStages(req);
 
+  // CRM 3.57.0: a person / family lead type — no company. Its "company" is the family / person name
+  // ("Sharma Family"); missing → made from the person's name.
+  const personLead = await SettingService.isPersonLeadType(req, input.leadType).catch(() => false);
+  if (personLead && !String(input.company || '').trim() && input.name) input.company = personFallbackName(input.name, input.leadType);
   if (!input.name) throw appError('Name is required');
   if (!input.email) throw appError('Email is required');
   if (!isValidEmail(input.email)) throw appError('Email is invalid');
@@ -620,7 +639,8 @@ async function create(req, input) {
   if (!input.company) throw appError('Company name is required');
   if (input.pan && !isValidPan(normalizePan(input.pan))) throw appError('PAN number is invalid');
 
-  if (!input.confirmDifferentCompany && !input.allowExactDuplicate && !input.allowDuplicate) {
+  // A person lead has no company, so "the same person under another company" does not apply.
+  if (!personLead && !input.confirmDifferentCompany && !input.allowExactDuplicate && !input.allowDuplicate) {
     const PersonContactService = require('./person-contact.service');
     if (typeof PersonContactService.checkDiscrepancy === 'function') {
       const disc = await PersonContactService.checkDiscrepancy(req, {
@@ -648,7 +668,8 @@ async function create(req, input) {
   duplicateConflict(
     req,
     duplicateResult,
-    input.allowSimilarCompany === true || input.confirmDifferentCompany === true || allowExactDuplicate,
+    // CRM 3.57.0: family names repeat ("Sharma Family"): person leads check email / mobile / PAN only.
+    personLead || input.allowSimilarCompany === true || input.confirmDifferentCompany === true || allowExactDuplicate,
     allowExactDuplicate
   );
   const stage = input.stage || validStages[0];
@@ -712,6 +733,7 @@ async function create(req, input) {
     nextFollowUp: input.nextFollowUp ? new Date(input.nextFollowUp) : null,
     contactId: input.contactId ? String(input.contactId).trim() : '',
     forClientId,
+    isPersonLead: personLead,
     email: input.email || '',
     phone: normalizeMobile(input.phone),
     company: input.company,
@@ -773,7 +795,8 @@ async function create(req, input) {
       const PersonContactService = require('./person-contact.service');
       await PersonContactService.linkLead(req, doc.contactId, doc._id.toString());
       const leadCompany = String(doc.company || input.company || '').trim();
-      if (leadCompany) {
+      // CRM 3.57.0: a family name is not the person's company — the contact keeps its own.
+      if (leadCompany && !doc.isPersonLead) {
         const PersonContact = req.cms?.models.get('PersonContact');
         if (PersonContact) {
           await PersonContact.updateOne(
@@ -817,6 +840,21 @@ async function update(req, id, input) {
     throw appError('Cannot update a lead that has already been converted', 409);
   }
 
+  // CRM 3.57.0: a lead stays a person / family lead or a company lead (its name and client depend on it).
+  if (input && input.leadType !== undefined && String(input.leadType || '').trim() !== String(existing.leadType || '').trim()) {
+    const nextPerson = await SettingService.isPersonLeadType(req, input.leadType).catch(() => false);
+    if (nextPerson !== Boolean(existing.isPersonLead)) {
+      const error = appError(
+        existing.isPersonLead
+          ? 'This lead is for a person / family. It cannot become a company lead — create a new lead for the company.'
+          : 'This lead is for a company. It cannot become a person / family lead — create a new lead for the family.',
+        409
+      );
+      error.code = 'LEAD_TYPE_KIND_LOCKED';
+      throw error;
+    }
+  }
+
   const validStages = await getValidStages(req);
   const updates = { updatedBy: userId };
 
@@ -847,7 +885,8 @@ async function update(req, id, input) {
       salutation: contact.salutation || '',
       jobTitle: contact.jobTitle || '',
       gender: contact.gender || '',
-      company: String(contact.companyName || '').trim() || existing.company,
+      // CRM 3.57.0: a person / family lead keeps its family name (the contact's company is not its name).
+      company: existing.isPersonLead ? existing.company : String(contact.companyName || '').trim() || existing.company,
       ...(contact.photoUrl ? { photoUrl: contact.photoUrl } : {}),
       // Choosing an existing contact is an explicit choice (same rule as Lead create with a contact).
       allowExactDuplicate: true,
@@ -858,7 +897,8 @@ async function update(req, id, input) {
     const changed = [
       input.email !== undefined && !same(input.email, existing.email),
       input.phone !== undefined && !same(normalizeMobile(input.phone), normalizeMobile(existing.phone || '')),
-      input.company !== undefined && !same(input.company, existing.company),
+      // CRM 3.57.0: a person / family lead's family name is its own (not the contact's company): editable.
+      !existing.isPersonLead && input.company !== undefined && !same(input.company, existing.company),
       input.pan !== undefined && !same(normalizePan(input.pan || ''), normalizePan(existing.pan || ''))
     ].some(Boolean);
     if (changed) {

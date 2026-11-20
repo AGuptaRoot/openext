@@ -142,7 +142,7 @@ function serviceInvoiceDocument(payload) {
         type: 'hero',
         eyebrow: 'Billed to',
         title: t(client.name, 120) || 'Customer',
-        subtitle: [t(client.email, 80), t(client.phone, 40)].filter(Boolean).join('  |  '),
+        subtitle: [t(client.attentionName, 80), t(client.email, 80), t(client.phone, 40)].filter(Boolean).join('  |  '),
         badge: { text: status.label, tone: status.tone }
       },
       {

@@ -54,7 +54,11 @@ function formatLead(lead) {
     taxId: '',
     email: lead.email || '',
     phone: lead.phone || '',
-    billingAddress: lead.address ? { street: lead.address } : {}
+    billingAddress: lead.address ? { street: lead.address } : {},
+    // CRM 3.57.0: a person / family lead prints the person too.
+    ...(lead.isPersonLead && lead.name && String(lead.name).trim().toLowerCase() !== String(lead.company || '').trim().toLowerCase()
+      ? { attentionName: String(lead.name).trim().slice(0, 120) }
+      : {})
   };
 }
 
@@ -97,6 +101,16 @@ async function enrichClientForDocument(req, client) {
   const formatted = formatClient(client);
   if (!formatted.email && client?._id) {
     formatted.email = await loadPrimaryContactEmail(req, client._id);
+  }
+  // CRM 3.57.0: a person / family client also prints its primary contact ("Rahul Sharma").
+  if (client && client.clientKind === 'person' && client._id && getContactModel(req)) {
+    try {
+      const contact = await require('./client-contact-policy.util').linkedContact(req, client._id);
+      const person = String(contact?.name || '').trim();
+      if (person && person.toLowerCase() !== String(formatted.name || '').trim().toLowerCase()) formatted.attentionName = person.slice(0, 120);
+    } catch {
+      /* the client name alone */
+    }
   }
   return formatted;
 }

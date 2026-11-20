@@ -191,6 +191,7 @@ function buildFinanceDocumentBody(payload) {
     <section class="bill-to">
       <h2>Bill To</h2>
       <p><strong>${escapeHtml(client.name || '—')}</strong></p>
+      ${client.attentionName ? `<p>${escapeHtml(client.attentionName)}</p>` : ''}
       ${g && g.totals ? `<p>GSTIN: ${escapeHtml(g.clientGstin || 'Unregistered')}</p>` : ''}
       ${g && g.placeOfSupply ? `<p>Place of supply: ${escapeHtml(g.placeOfSupply)}</p>` : ''}
       ${client.email ? `<p>${escapeHtml(client.email)}</p>` : ''}
@@ -696,6 +697,7 @@ function renderFinanceEmailHtml(payload, options = {}) {
                     <div style="font-size:14px; font-weight:700; color:#0f172a; margin-bottom:2px;">
                       ${escapeHtml(client?.name || 'Customer')}
                     </div>
+                    ${client?.attentionName ? `<div style="color:#0f172a;">${escapeHtml(client.attentionName)}</div>` : ''}
                     ${client?.email ? `<div style="color:#475569;">${escapeHtml(client.email)}</div>` : ''}
                     ${client?.phone ? `<div style="color:#475569;">${escapeHtml(client.phone)}</div>` : ''}
                     ${address ? `<div style="color:#64748b; margin-top:3px;">${escapeHtml(address)}</div>` : ''}

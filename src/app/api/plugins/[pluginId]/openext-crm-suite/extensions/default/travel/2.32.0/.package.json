@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
   "version": "2.32.0",
-  "checksum": "cce85495631799f3e9e84e5906ba5643dff3d978718e6b9530d50b38c00a677e",
-  "writtenAt": "2026-11-20T06:49:02.078Z",
+  "checksum": "d560b8ebfa1ba6aeab5c912dfcd4847501d5af6bff1b1d1efc6afd4c592704bd",
+  "writtenAt": "2026-11-20T07:29:15.796Z",
   "files": [
     {
       "path": "README.md",
@@ -186,8 +186,8 @@
     },
     {
       "path": "api/routes/travellers.js",
-      "sha256": "6430420872c29838a1c5777fd4a65d28caa286f60c7433d08dbdfa336a7ec646",
-      "size": 21400
+      "sha256": "79fb077a6f6a53e677aecaf2e53a504a394111eeca5136c278cba393415e37b2",
+      "size": 21711
     },
     {
       "path": "api/routes/trip-views.js",
@@ -311,8 +311,8 @@
     },
     {
       "path": "api/services/traveller-store.js",
-      "sha256": "d6eccc2d92ae41a57f7dbb0c2f225bf5e5d6f6a22ab382489813d454cb5ceb9d",
-      "size": 26785
+      "sha256": "59ac740f7cde5f7204763ec5bad2560a0d8810669a95da0cd726e0cb24dd3b30",
+      "size": 27879
     },
     {
       "path": "api/services/trip-dates.js",
@@ -356,8 +356,8 @@
     },
     {
       "path": "json/settings.json",
-      "sha256": "7b78bcf7e7f4c4042a605771a7445c987908e799e0cdf0f1b9e8027caf3728a6",
-      "size": 68499
+      "sha256": "f3766df7922b1c056dad95c42191af00737cf7f35998105f398bd55a1e1891af",
+      "size": 69432
     },
     {
       "path": "json/tabs.json",

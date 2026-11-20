@@ -182,11 +182,31 @@ function checkIdDocuments(sdk, merged, rule, referenceDate) {
   throw error;
 }
 
-/** Choices for the Nationality and Relation fields (Settings → Travel). */
-async function fieldOptions(sdk) {
+/**
+ * Choices for the Nationality and Relation fields (Settings → Travel). 2.32.0: the Relation choices follow
+ * the lead — a Family / person lead (CRM isPersonLead) gets the family list, a company lead the company
+ * list; the older single list is used only when that list is empty.
+ */
+async function fieldOptions(sdk, lead = null) {
   const list = (v) => (Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : []);
-  const [nationalities, relations] = await Promise.all([sdk.settings.get('nationalities'), sdk.settings.get('traveller_relations')]);
-  return { nationalityOptions: list(nationalities), relationOptions: list(relations) };
+  const person = Boolean(lead && lead.isPersonLead === true);
+  const [nationalities, relations, kindRelations] = await Promise.all([
+    sdk.settings.get('nationalities'),
+    sdk.settings.get('traveller_relations'),
+    sdk.settings.get(person ? 'traveller_relations_family' : 'traveller_relations_company')
+  ]);
+  const own = list(kindRelations);
+  return { nationalityOptions: list(nationalities), relationOptions: own.length ? own : list(relations), relationKind: person ? 'family' : 'company' };
+}
+
+/** 2.32.0: a new (or changed) Relation must be one of the lead's choices (when there are any). */
+async function checkRelation(sdk, lead, relation, previous = '') {
+  const value = str(relation);
+  if (!value || (previous && value.toLowerCase() === str(previous).toLowerCase())) return;
+  const { relationOptions } = await fieldOptions(sdk, lead);
+  if (relationOptions.length && !relationOptions.some((o) => o.toLowerCase() === value.toLowerCase())) {
+    throw sdk.error(400, `Relation must be one of: ${relationOptions.join(', ')}`, 'RELATION_NOT_OFFERED');
+  }
 }
 
 async function aadhaarStorage(sdk) {
@@ -594,7 +614,7 @@ module.exports = {
   documentRules,
   idDocumentsMissing,
   checkIdDocuments,
-  fieldOptions,
+  fieldOptions, checkRelation,
   aadhaarStorage,
   passportMissing,
   present,

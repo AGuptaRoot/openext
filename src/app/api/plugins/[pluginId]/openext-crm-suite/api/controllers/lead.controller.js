@@ -577,6 +577,16 @@ async function listTypes(req, res) {
   }
 }
 
+async function listPersonTypes(req, res) {
+  try {
+    const SettingService = require('../services/setting.service');
+    const types = await SettingService.getPersonLeadTypes(req);
+    res.json({ success: true, data: types, message: 'Person lead types loaded' });
+  } catch (error) {
+    sendError(res, error);
+  }
+}
+
 async function addType(req, res) {
   try {
     const SettingService = require('../services/setting.service');
@@ -889,6 +899,7 @@ module.exports = {
   listStatuses,
   addStatus,
   listTypes,
+  listPersonTypes,
   addType,
   listPriorities,
   addPriority,

@@ -78,6 +78,8 @@ const CompanySchema = new Schema(
     website: { type: String, trim: true, maxlength: 200, match: /^$|^https?:\/\//i, default: '' },
     avatarUrl: { type: String, trim: true, default: '' },
     /** CRM 3.54.0: the colour of the client's initials avatar (#RGB or #RRGGBB; '' = the default). */
+    /** CRM 3.57.0: 'person' = a person / family client (from a person lead); '' = a company. */
+    clientKind: { type: String, enum: ['', 'person'], default: '' },
     avatarColor: { type: String, trim: true, maxlength: 7, match: /^$|^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, default: '' },
     category: { type: String, trim: true, maxlength: 100, default: '' },
     tags: { type: [String], default: [] },

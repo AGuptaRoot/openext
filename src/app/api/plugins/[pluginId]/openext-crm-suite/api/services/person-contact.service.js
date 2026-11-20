@@ -100,11 +100,25 @@ async function list(req) {
     const Company = req.cms?.models.get('Company');
     const client = Company
       ? await Company.findOne({ tenantId: resolveTenantId(req), isDeleted: false, mergedIntoId: null, _id: sameCompanyClientId })
-          .select('_id name')
+          .select('_id name clientKind')
           .lean()
       : null;
     const clientName = String(client?.name || '').trim().replace(/\s+/g, ' ');
     if (!clientName) return empty;
+    // CRM 3.57.0: a person / family client has no company name to match (many "Sharma Family"): its
+    // picker lists the people of its own leads only.
+    const personClient = client && client.clientKind === 'person';
+    const clientLeadIds = [];
+    if (personClient) {
+      const Lead = req.cms?.models.get('Lead');
+      const leads = Lead
+        ? await Lead.find({ tenantId: resolveTenantId(req), isDeleted: { $ne: true }, $or: [{ convertedClientId: sameCompanyClientId }, { forClientId: sameCompanyClientId }] })
+            .select('_id')
+            .lean()
+        : [];
+      for (const l of leads || []) clientLeadIds.push(String(l._id));
+      if (!clientLeadIds.length) return empty;
+    }
     const linked = new Set();
     const Contact = req.cms?.models.get('Contact');
     if (Contact) {
@@ -116,7 +130,7 @@ async function list(req) {
     const escaped = clientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s+');
     filter.$and = [
       ...(filter.$and || []),
-      { companyName: new RegExp(`^\\s*${escaped}\\s*$`, 'i') },
+      personClient ? { leadIds: { $in: clientLeadIds } } : { companyName: new RegExp(`^\\s*${escaped}\\s*$`, 'i') },
       { clientIds: { $ne: sameCompanyClientId } },
       ...(linked.size ? [{ _id: { $nin: [...linked] } }] : [])
     ];

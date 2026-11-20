@@ -197,6 +197,8 @@ const LeadSchema = new Schema(
     forClientId: { type: String, default: null, index: true },
     convertedAt: { type: Date, default: null },
     isPortal: { type: Boolean, default: false, index: true },
+    /** CRM 3.57.0: created with a person / family lead type (no company; "Family / person name"). */
+    isPersonLead: { type: Boolean, default: false },
     portalEnabledAt: { type: Date, default: null },
     portalEnabledBy: { type: String, default: null },
     mergedIntoId: { type: String, trim: true, default: null },

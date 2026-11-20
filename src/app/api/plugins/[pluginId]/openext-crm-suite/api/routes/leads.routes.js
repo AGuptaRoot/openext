@@ -44,6 +44,8 @@ module.exports = function registerLeadsRoutes(app) {
   app.get('/leads/statuses', requirePermission('crm.leads.read'), leadController.listStatuses);
   app.post('/leads/statuses', requirePermission('crm.leads.write'), leadController.addStatus);
   app.get('/leads/types', requirePermission('crm.leads.read'), leadController.listTypes);
+  // CRM 3.57.0: lead types for a person / family (no company).
+  app.get('/leads/person-types', requirePermission('crm.leads.read'), leadController.listPersonTypes);
   app.post('/leads/types', requirePermission('crm.leads.write'), leadController.addType);
   app.get('/leads/priorities', requirePermission('crm.leads.read'), leadController.listPriorities);
   app.post('/leads/priorities', requirePermission('crm.leads.write'), leadController.addPriority);

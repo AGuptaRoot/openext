@@ -248,6 +248,12 @@ const DEFAULT_SETTINGS = [
     value: ['Organizational', 'Individual'],
     category: 'pipeline'
   },
+  /**
+   * CRM 3.57.0: lead types for a person or a family — no company. Their leads skip the company-name match
+   * ("Existing Client Found" still opens for the same person) and their clients show a "Family / person name".
+   * Every one of them is also offered as a lead type.
+   */
+  { key: 'person_lead_types', value: ['Individual', 'Family'], category: 'pipeline' },
   {
     key: 'lead_priorities',
     value: ['Low', 'Medium', 'High', 'Urgent'],
@@ -1035,6 +1041,7 @@ async function updateMany(req, input) {
     }
 
     let saved = value;
+    if (key === 'person_lead_types') saved = cleanTypeList(value);
     if (key === 'client_portal_login_url') {
       const { cleanPortalLoginUrl } = require('../utils/portal-login-url.util');
       saved = cleanPortalLoginUrl(value);
@@ -1594,11 +1601,38 @@ async function updateLeadStatuses(req, statuses) {
   return list;
 }
 
+const DEFAULT_PERSON_LEAD_TYPES = ['Individual', 'Family'];
+
+/** CRM 3.57.0: cleans a list of lead type names (unique, case-insensitive; max 20 × 60 chars). */
+function cleanTypeList(value) {
+  const out = [];
+  for (const item of Array.isArray(value) ? value : []) {
+    const name = String(item || '').trim().slice(0, 60);
+    if (name && !out.some((x) => x.toLowerCase() === name.toLowerCase())) out.push(name);
+  }
+  return out.slice(0, 20);
+}
+
+/** CRM 3.57.0: the lead types that are a person / family (no company). Never saved → the defaults. */
+async function getPersonLeadTypes(req) {
+  const raw = await readRawSettingValue(req, 'person_lead_types');
+  return Array.isArray(raw) ? cleanTypeList(raw) : [...DEFAULT_PERSON_LEAD_TYPES];
+}
+
+async function isPersonLeadType(req, leadType) {
+  const name = String(leadType || '').trim().toLowerCase();
+  if (!name) return false;
+  return (await getPersonLeadTypes(req)).some((t) => t.toLowerCase() === name);
+}
+
 async function getLeadTypes(req) {
   const all = await getAll(req);
   const types = Array.isArray(all.lead_types) ? all.lead_types : [];
   const list = types.filter((item) => typeof item === 'string' && item.trim());
-  return list.length ? list : ['Organizational', 'Individual'];
+  const base = list.length ? list : ['Organizational', 'Individual'];
+  // CRM 3.57.0: every person / family type is offered too.
+  const person = await getPersonLeadTypes(req).catch(() => []);
+  return cleanTypeList([...base, ...person]);
 }
 
 async function addLeadType(req, typeName) {
@@ -1893,6 +1927,8 @@ module.exports = {
   addLeadStatus,
   updateLeadStatuses,
   getLeadTypes,
+  getPersonLeadTypes,
+  isPersonLeadType,
   addLeadType,
   updateLeadTypes,
   getLeadPriorities,

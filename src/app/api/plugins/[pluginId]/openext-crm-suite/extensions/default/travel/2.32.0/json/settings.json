@@ -67,7 +67,42 @@
         "Employee"
       ],
       "placeholder": "e.g. Family member",
-      "helpText": "Offered in the Relation field of a traveller (how the traveller is related to the lead)."
+      "helpText": "Used only when the lists below are empty (older setting)."
+    },
+    {
+      "key": "traveller_relations_family",
+      "label": "Traveller Relations — Family / person leads",
+      "type": "list",
+      "default": [
+        "Self",
+        "Spouse",
+        "Father",
+        "Mother",
+        "Son",
+        "Daughter",
+        "Brother",
+        "Sister",
+        "Grandparent",
+        "Grandchild",
+        "Relative",
+        "Friend"
+      ],
+      "placeholder": "e.g. Spouse",
+      "helpText": "The Relation choices for a traveller of a Family / Individual lead (how the traveller is related to the lead person)."
+    },
+    {
+      "key": "traveller_relations_company",
+      "label": "Traveller Relations — Company leads",
+      "type": "list",
+      "default": [
+        "Self",
+        "Employee",
+        "Director",
+        "Colleague",
+        "Client / Guest"
+      ],
+      "placeholder": "e.g. Employee",
+      "helpText": "The Relation choices for a traveller of a company (Organizational) lead."
     },
     {
       "key": "ready_all_services_complete",

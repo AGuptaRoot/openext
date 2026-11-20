@@ -802,7 +802,19 @@ async function addContact(req, companyId, input) {
   const copy = master ? contactCopyOf(master) : null;
   // CRM 3.56.0: from the Contacts tab picker only a contact of this company (same name) is added;
   // its company name is never changed here.
-  if (input.sameCompanyOnly === true && master) {
+  if (input.sameCompanyOnly === true && master && company.clientKind === 'person') {
+    // CRM 3.57.0: a person / family client — only a person of its own leads.
+    const Lead = getLeadModel(req);
+    const own = Lead
+      ? await Lead.find({ tenantId, isDeleted: { $ne: true }, $or: [{ convertedClientId: String(companyId) }, { forClientId: String(companyId) }] }).select('_id').lean()
+      : [];
+    const ownIds = new Set((own || []).map((l) => String(l._id)));
+    if (!(Array.isArray(master.leadIds) ? master.leadIds : []).some((id) => ownIds.has(String(id)))) {
+      const error = appError(`Only people of ${company.name}'s own leads can be added here.`, 409);
+      error.code = 'CONTACT_OTHER_COMPANY';
+      throw error;
+    }
+  } else if (input.sameCompanyOnly === true && master) {
     const norm = (v) => String(v || '').trim().replace(/\s+/g, ' ').toLowerCase();
     if (!norm(master.companyName) || norm(master.companyName) !== norm(company.name)) {
       const error = appError(`This contact belongs to another company (${String(master.companyName || 'no company').slice(0, 120)}). Only contacts of ${company.name} can be added here.`, 409);
@@ -1136,8 +1148,13 @@ async function convertFromLead(req, leadId, options = {}) {
       email: lead.email || '',
       phone: lead.phone || '',
       leadId: String(leadId),
-      ...(options.allowSimilarCompany === true ? { allowSimilarCompany: true } : {})
+      // CRM 3.57.0: family names repeat; a person client is checked by email / mobile only.
+      ...(options.allowSimilarCompany === true || lead.isPersonLead ? { allowSimilarCompany: true } : {})
     });
+    if (lead.isPersonLead && company && company._id) {
+      await Company.updateOne({ tenantId, _id: String(company._id) }, { $set: { clientKind: 'person' } });
+      company = { ...company, clientKind: 'person' };
+    }
   } catch (error) {
     if (!(options.linkExisting === true && error && error.code === 'CLIENT_DUPLICATE_EXACT')) throw error;
     const { match, count } = await findExistingCustomerForLead(req, lead);

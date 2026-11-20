@@ -61,7 +61,7 @@ exports.listForLead = async (req, sdk) => {
     store.referenceFor(sdk, leadId),
     sdk.models.Traveller.find({ lead_id: leadId }, { limit: 200, sort: { createdAt: 1 } }),
     store.aadhaarStorage(sdk),
-    store.fieldOptions(sdk)
+    store.fieldOptions(sdk, lead)
   ]);
   await store.ensureProfiles(sdk, rows);
   const rule = await store.passportRule(sdk, ref.selected);
@@ -89,16 +89,18 @@ exports.listForLead = async (req, sdk) => {
     aadhaarStorage: storage,
     nationalityOptions: options.nationalityOptions,
     relationOptions: options.relationOptions,
+    relationKind: options.relationKind,
     canEdit: sdk.permissions.has('crm.leads.write')
   };
 };
 
 exports.create = async (req, sdk) => {
   const leadId = String((req.params && req.params.lead_id) || '');
-  await store.loadLead(sdk, leadId);
+  const lead = await store.loadLead(sdk, leadId);
   await assertLeadOpen(sdk, leadId);
   const { values, errors } = rules.checkInput(req.body, { create: true, timeZone: await store.timeZone(sdk) });
   if (errors.length) throw store.inputError(sdk, errors);
+  await store.checkRelation(sdk, lead, values.relation);
   const [ref, storage] = await Promise.all([store.referenceFor(sdk, leadId), store.aadhaarStorage(sdk)]);
   const rule = await store.passportRule(sdk, ref.selected);
   const patch = store.toPatch(sdk, values, {}, storage, ref.referenceDate);
@@ -190,10 +192,12 @@ exports.getOne = async (req, sdk) => {
 };
 
 exports.update = async (req, sdk) => {
-  const { row } = await store.loadTraveller(req, sdk);
+  const { row, lead } = await store.loadTraveller(req, sdk);
   await assertLeadOpen(sdk, row.lead_id);
   const { values, errors } = rules.checkInput(req.body, { create: false, timeZone: await store.timeZone(sdk) });
   if (errors.length) throw store.inputError(sdk, errors);
+  // An unchanged older Relation is kept; a new one must be offered for this lead.
+  if (values.relation !== undefined) await store.checkRelation(sdk, lead, values.relation, row.relation);
   const [ref, storage] = await Promise.all([store.referenceFor(sdk, row.lead_id), store.aadhaarStorage(sdk)]);
   const rule = await store.passportRule(sdk, ref.selected);
   const patch = store.toPatch(sdk, values, row, storage, ref.referenceDate);
