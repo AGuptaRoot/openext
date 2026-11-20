@@ -23,6 +23,11 @@ const DEFAULT_SETTINGS = [
    */
   { key: 'active_extension', value: 'product', category: 'general' },
   { key: 'company_state', value: 'Maharashtra', category: 'general' },
+  /**
+   * CRM 3.56.0: the login page sent in client portal emails (e.g. https://your-site.com/login).
+   * Empty = the site address from the server (SITE_URL / NEXT_PUBLIC_SITE_URL) + /login.
+   */
+  { key: 'client_portal_login_url', value: '', category: 'general' },
   /** Seller GSTIN printed on quotations / invoices; written only by Settings → GST (checksum-checked). */
   { key: 'company_gstin', value: '', category: 'general' },
   { key: 'default_currency', value: 'INR', category: 'general' },
@@ -1029,8 +1034,13 @@ async function updateMany(req, input) {
       continue;
     }
 
+    let saved = value;
+    if (key === 'client_portal_login_url') {
+      const { cleanPortalLoginUrl } = require('../utils/portal-login-url.util');
+      saved = cleanPortalLoginUrl(value);
+    }
     // Use tenantId+key upsert (no isDeleted filter) — same path as upsertSettingValue.
-    await upsertSettingValue(req, key, value);
+    await upsertSettingValue(req, key, saved);
     updatedKeys.push(key);
   }
 
@@ -1833,6 +1843,7 @@ module.exports = {
   get: getAll,
   updateMany,
   upsertSettingValue,
+  readRawSettingValue,
   getGroqIntegration,
   updateGroqIntegration,
   resolveGroqApiKey,

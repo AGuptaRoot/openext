@@ -124,8 +124,10 @@ async function definition(req, which = 'reports') {
     actions,
     keepCoreTabs: reports.keepCoreTabs || [],
     filters,
-    // Only tabs that still have a section this user may see.
-    tabs: (reports.tabs || []).filter((t) => sections.some((s) => s.tab === t.id)),
+    // Only tabs that still have a section this user may see; a core report tab (CRM 3.56.0) needs Reports access.
+    tabs: (reports.tabs || [])
+      .filter((t) => (t.coreTab ? requestHasPermission(req, 'crm.reports.read', def) : sections.some((s) => s.tab === t.id)))
+      .map((t) => ({ id: t.id, label: t.label, ...(t.coreTab ? { coreTab: t.coreTab } : {}) })),
     sections: sections.map((s) => ({ id: s.id, kind: s.kind, title: s.title, subtitle: s.subtitle, width: s.width, export: s.export, ...(s.periods ? { periods: s.periods } : {}), ...(s.tab ? { tab: s.tab } : {}) }))
   };
 }

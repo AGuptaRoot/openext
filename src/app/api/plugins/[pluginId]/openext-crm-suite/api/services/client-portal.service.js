@@ -29,6 +29,30 @@ function appError(message, status = 400) {
   return error;
 }
 
+/* CRM 3.56.0: a portal request's chosen password waits for approval encrypted (AES-GCM), never in plain text. */
+const Protect = require('../extension-runtime/data-protection');
+const STAGED_PASSWORD_SCOPE = 'crm-core:portal-staged-password';
+
+function newPortalPassword() {
+  return crypto.randomBytes(6).toString('base64url');
+}
+
+function sealStagedPassword(req, password) {
+  const text = String(password || '');
+  return text ? Protect.encryptText(resolveTenantId(req), STAGED_PASSWORD_SCOPE, text) : '';
+}
+
+/** The staged password, or '' (then a new one is made). A value saved before 3.56.0 is plain text. */
+function openStagedPassword(req, stored) {
+  const value = String(stored || '');
+  if (!value) return '';
+  try {
+    return Protect.decryptText(resolveTenantId(req), STAGED_PASSWORD_SCOPE, value);
+  } catch (err) {
+    return err && err.code === 'NOT_ENCRYPTED' ? value : '';
+  }
+}
+
 function baseFilter(req) {
   return { tenantId: resolveTenantId(req), isDeleted: false };
 }
@@ -210,6 +234,7 @@ async function listPortalAccess(req, clientId) {
 }
 
 async function sendPortalInvitationEmail(req, { clientName, email, username, password, portalRole }) {
+  await require('../utils/portal-login-url.util').loadPortalLoginUrl(req);
   try {
     const MailService = require('./mail.service');
     const mailConfig = await MailService.resolveMailConfig(req);
@@ -379,8 +404,9 @@ async function inviteContact(req, clientId, input = {}) {
           contactId: contactId || existing.contactId,
           contactName: contactName || existing.contactName,
           username: username || existing.username,
-          initialPassword: needsApproval ? '' : (initialPassword || existing.initialPassword),
-          stagedPassword: needsApproval ? (initialPassword || existing.stagedPassword) : '',
+          // CRM 3.56.0: no password is kept in plain text; a request's password waits encrypted.
+          initialPassword: '',
+          stagedPassword: needsApproval ? sealStagedPassword(req, initialPassword) : '',
           phone: phone || existing.phone,
           portalRole,
           allowedPermissions,
@@ -406,8 +432,8 @@ async function inviteContact(req, clientId, input = {}) {
       contactId: contactId || `contact_${Date.now()}`,
       contactName: contactName || client.name,
       username,
-      initialPassword: needsApproval ? '' : initialPassword,
-      stagedPassword: needsApproval ? initialPassword : '',
+      initialPassword: '',
+      stagedPassword: needsApproval ? sealStagedPassword(req, initialPassword) : '',
       email,
       phone,
       status: targetStatus,
@@ -427,6 +453,7 @@ async function inviteContact(req, clientId, input = {}) {
   }
 
   const { buildClientPortalLoginUrl } = require('../utils/public-origin.util');
+  await require('../utils/portal-login-url.util').loadPortalLoginUrl(req);
   const loginUrl = buildClientPortalLoginUrl(req);
 
   const result = doc.toObject ? doc.toObject() : doc;
@@ -517,7 +544,33 @@ async function listLeadPortalAccess(req, leadId) {
  * Returns a reason string when it does not, so the caller can show the same
  * sentence the button's tooltip uses.
  */
+/** CRM 3.56.0: a quotation sent to (or accepted by) this lead. */
+async function leadHasSentQuotation(req, leadId) {
+  const Estimate = req.cms?.models.get('Estimate');
+  if (!Estimate || typeof Estimate.findOne !== 'function') return false;
+  try {
+    const q = Estimate.findOne({
+      ...baseFilter(req),
+      leadId: String(leadId),
+      status: { $in: ['Sent', 'Accepted'] }
+    });
+    const row = q && typeof q.select === 'function' ? await q.select('_id status leadId').lean() : await q;
+    return Boolean(row && String(row.leadId || '') === String(leadId) && ['Sent', 'Accepted'].includes(row.status));
+  } catch {
+    return false;
+  }
+}
+
 async function describeLeadPortalBlock(req, leadId) {
+  // CRM 3.56.0: once a quotation is sent to the lead, it may get portal access to review it.
+  if (await leadHasSentQuotation(req, leadId)) return '';
+  let opportunitiesHidden = false;
+  try {
+    opportunitiesHidden = await require('./crm-extension.service').opportunitiesHidden(req);
+  } catch {
+    opportunitiesHidden = false;
+  }
+  if (opportunitiesHidden) return 'Send a quotation to this lead before giving portal access.';
   const Opportunity = req.cms?.models.get('Opportunity');
   // Without the model registered there is nothing to check against; allow it
   // rather than blocking the flow on a deployment detail.
@@ -533,7 +586,7 @@ async function describeLeadPortalBlock(req, leadId) {
     return '';
   }
   if (!deals || !deals.length) {
-    return 'Create an opportunity for this lead before sending portal access.';
+    return 'Send a quotation to this lead (or create an opportunity) before sending portal access.';
   }
 
   const PipelineService = require('./opportunity-pipeline.service');
@@ -545,7 +598,7 @@ async function describeLeadPortalBlock(req, leadId) {
     ).catch(() => false);
     if (reached) return '';
   }
-  return 'Portal access can be sent once the deal reaches Requirement Confirmed.';
+  return 'Portal access can be sent once a quotation is sent, or the deal reaches Requirement Confirmed.';
 }
 
 /**
@@ -666,8 +719,9 @@ async function inviteLeadContact(req, leadId, input = {}) {
         $set: {
           contactName: lead.name || lead.contactName || existing.contactName,
           username,
-          initialPassword: needsApproval ? '' : (initialPassword || existing.initialPassword),
-          stagedPassword: needsApproval ? (initialPassword || existing.stagedPassword) : '',
+          // CRM 3.56.0: no password is kept in plain text; a request's password waits encrypted.
+          initialPassword: '',
+          stagedPassword: needsApproval ? sealStagedPassword(req, initialPassword) : '',
           phone: String(input.phone || lead.phone || existing.phone || '').trim(),
           portalRole,
           invitationToken,
@@ -695,8 +749,8 @@ async function inviteLeadContact(req, leadId, input = {}) {
       contactId: '',
       contactName: lead.name || lead.contactName || leadDisplayName(lead),
       username,
-      initialPassword: needsApproval ? '' : initialPassword,
-      stagedPassword: needsApproval ? initialPassword : '',
+      initialPassword: '',
+      stagedPassword: needsApproval ? sealStagedPassword(req, initialPassword) : '',
       email,
       phone: String(input.phone || lead.phone || '').trim(),
       status: targetStatus,
@@ -716,6 +770,7 @@ async function inviteLeadContact(req, leadId, input = {}) {
   }
 
   const { buildClientPortalLoginUrl } = require('../utils/public-origin.util');
+  await require('../utils/portal-login-url.util').loadPortalLoginUrl(req);
   const result = doc.toObject ? doc.toObject() : doc;
   result.loginCredentials = {
     username: result.username || username,
@@ -857,10 +912,28 @@ async function resendInvitation(req, clientId, accessId) {
 
   if (!existing) throw appError('Portal access record not found', 404);
   if (existing.status === 'Suspended') throw appError('Cannot resend invitation to a suspended user', 409);
+  // CRM 3.56.0: a request still waiting (or rejected) is approved first — resend never skips approval.
+  if (['Pending_Approval', 'Rejected', 'Deactivated'].includes(existing.status)) {
+    throw appError('This portal request is not approved yet. Approve it first; that sends the login details.', 409);
+  }
+
+  // CRM 3.56.0: passwords are not kept, so a resend makes a new one and sets it on the OpenNext user.
+  const newPassword = newPortalPassword();
+  const resendUsername = existing.username || existing.email.split('@')[0];
+  const resendCmsUserId = await ensurePortalCmsUser(req, {
+    username: resendUsername,
+    email: existing.email,
+    password: newPassword,
+    phone: existing.phone,
+    clientId: existing.clientId,
+    leadId: existing.leadId
+  });
 
   const invitationToken = crypto.randomBytes(24).toString('hex');
   const invitationExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
+  existing.cmsUserId = resendCmsUserId || existing.cmsUserId || null;
+  existing.initialPassword = '';
   existing.invitationToken = invitationToken;
   existing.invitationExpiresAt = invitationExpiresAt;
   existing.invitedAt = new Date();
@@ -872,8 +945,8 @@ async function resendInvitation(req, clientId, accessId) {
   const mailResult = await sendPortalInvitationEmail(req, {
     clientName: client.name || client.companyName || 'Client',
     email: existing.email,
-    username: existing.username || existing.email.split('@')[0],
-    password: existing.initialPassword || '******',
+    username: resendUsername,
+    password: newPassword,
     portalRole: existing.portalRole || 'Standard'
   });
 
@@ -1105,7 +1178,7 @@ async function approvePortalAccess(req, clientIdOrLeadId, accessId) {
   const contactRef = await portalContactRef(req, existing);
   await PortalContact.assertNotAssigned(req, contactRef);
 
-  const targetPassword = existing.stagedPassword || existing.initialPassword || crypto.randomBytes(6).toString('base64url');
+  const targetPassword = openStagedPassword(req, existing.stagedPassword) || newPortalPassword();
   const targetUsername = existing.username || existing.email.split('@')[0];
 
   // 1. Create or reuse the CMS user and assign the CRM portal role (verified; throws — nothing is
@@ -1251,7 +1324,7 @@ async function resubmitPortalAccess(req, clientIdOrLeadId, accessId, input = {})
 
   existing.status = 'Pending_Approval';
   existing.username = username;
-  existing.stagedPassword = password;
+  existing.stagedPassword = sealStagedPassword(req, password);
   existing.phone = phone;
   existing.rejectionReason = '';
   existing.rejectedBy = null;
@@ -1351,27 +1424,40 @@ async function listPendingApprovals(req) {
   });
 }
 
+/** CRM 3.56.0: password fields never leave this service (lists and results sent to the browser). */
+const SECRET_ACCESS_FIELDS = ['initialPassword', 'stagedPassword'];
+function withoutSecrets(value, depth = 0) {
+  if (!value || typeof value !== 'object' || depth > 2) return value;
+  if (Array.isArray(value)) return value.map((row) => withoutSecrets(row, depth + 1));
+  const plain = typeof value.toObject === 'function' ? value.toObject() : value;
+  const out = { ...plain };
+  for (const key of SECRET_ACCESS_FIELDS) delete out[key];
+  if (Array.isArray(out.access)) out.access = out.access.map((row) => withoutSecrets(row, depth + 1));
+  if (Array.isArray(out.items)) out.items = out.items.map((row) => withoutSecrets(row, depth + 1));
+  return out;
+}
+const safe = (fn) => async (...args) => withoutSecrets(await fn(...args));
 module.exports = {
   clientContactFor,
   ensurePortalCmsUser,
   leadContactPortalAssigned,
-  listPortalAccess,
-  inviteContact,
-  listLeadPortalAccess,
-  inviteLeadContact,
+  listPortalAccess: safe(listPortalAccess),
+  inviteContact: safe(inviteContact),
+  listLeadPortalAccess: safe(listLeadPortalAccess),
+  inviteLeadContact: safe(inviteLeadContact),
   revokeLeadPortalAccess,
   setLeadPortalFlag,
   describeLeadPortalBlock,
-  resendInvitation,
-  activatePortalAccess,
-  suspendPortalAccess,
-  reinstatePortalAccess,
-  updatePermissions,
-  revokePortalAccess,
-  approvePortalAccess,
-  rejectPortalAccess,
-  resubmitPortalAccess,
-  listPendingApprovals,
+  resendInvitation: safe(resendInvitation),
+  activatePortalAccess: safe(activatePortalAccess),
+  suspendPortalAccess: safe(suspendPortalAccess),
+  reinstatePortalAccess: safe(reinstatePortalAccess),
+  updatePermissions: safe(updatePermissions),
+  revokePortalAccess: safe(revokePortalAccess),
+  approvePortalAccess: safe(approvePortalAccess),
+  rejectPortalAccess: safe(rejectPortalAccess),
+  resubmitPortalAccess: safe(resubmitPortalAccess),
+  listPendingApprovals: safe(listPendingApprovals),
   isPortalApprover,
   // 3.52.0: the old name, now the verified step (user + CRM portal role).
   createOrUpdateCmsClientUser: ensurePortalCmsUser,

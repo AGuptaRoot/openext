@@ -143,6 +143,25 @@ async function findPortalOpportunityIds(req, leadIds) {
   }
 }
 
+/** CRM 3.56.0: of these leads, the ones opened to the portal (Lead.isPortal, set by a portal invite). */
+async function findPortalLeadIds(req, leadIds) {
+  if (!leadIds.length) return [];
+  try {
+    const Lead = req.cms?.models.get('Lead');
+    if (!Lead || typeof Lead.find !== 'function') return [];
+    const query = Lead.find({ tenantId: resolveTenantId(req), isDeleted: false, _id: { $in: leadIds }, isPortal: true }).select(
+      '_id isPortal isDeleted'
+    );
+    const rows = typeof query?.lean === 'function' ? await query.lean() : await query;
+    return (rows || [])
+      .filter((lead) => lead?.isPortal === true && !lead?.isDeleted)
+      .map((lead) => String(lead._id))
+      .filter((id) => leadIds.includes(id));
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Resolve the portal identity for this request.
  *
@@ -168,10 +187,12 @@ async function resolvePortalIdentity(req) {
     if (!leadIds.length) return { kind: 'none' };
 
     const deals = await findPortalOpportunityIds(req, leadIds);
-    if (!deals.length) return { kind: 'none' };
+    // CRM 3.56.0: a lead opened to the portal itself (no opportunity needed, e.g. a quotation was sent).
+    const portalLeads = await findPortalLeadIds(req, leadIds);
+    if (!deals.length && !portalLeads.length) return { kind: 'none' };
 
-    // Only the leads that actually have a portal-enabled deal.
-    const enabledLeadIds = [...new Set(deals.map((deal) => deal.leadId).filter(Boolean))];
+    // Only the leads that are actually open to the portal.
+    const enabledLeadIds = [...new Set([...deals.map((deal) => deal.leadId), ...portalLeads].filter(Boolean))];
     return {
       kind: 'lead',
       leadIds: enabledLeadIds.length ? enabledLeadIds : leadIds,

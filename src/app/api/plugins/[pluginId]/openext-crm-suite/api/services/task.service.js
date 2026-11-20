@@ -257,6 +257,7 @@ async function findTaskOrThrow(req, id) {
 }
 
 async function sendTaskCompletionNotification(req, task, project) {
+  await require('../utils/portal-login-url.util').loadPortalLoginUrl(req); // CRM 3.56.0: Settings → Login URL
   try {
     if (!project?.clientId) return null;
     const Company = req.cms?.models.get('Company');
@@ -358,6 +359,7 @@ async function sendTaskCompletionNotification(req, task, project) {
 }
 
 async function sendTaskReminderNotification(req, taskId) {
+  await require('../utils/portal-login-url.util').loadPortalLoginUrl(req); // CRM 3.56.0: Settings → Login URL
   const { task, project } = await findTaskOrThrow(req, taskId);
   await assertTaskWriteAccess(req, task, project);
 
@@ -474,6 +476,7 @@ async function sendTaskReminderNotification(req, taskId) {
  * and have exceeded the configured reminder threshold hours.
  */
 async function processAutoClientReminders(req) {
+  await require('../utils/portal-login-url.util').loadPortalLoginUrl(req); // CRM 3.56.0: Settings → Login URL
   const SettingService = require('./setting.service');
   const autoEnabled = await SettingService.getTaskClientReminderAutoEnabled(req);
   const reminderHours = await SettingService.getTaskClientReminderHours(req);

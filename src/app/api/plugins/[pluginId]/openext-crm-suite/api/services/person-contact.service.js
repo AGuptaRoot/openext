@@ -90,9 +90,38 @@ async function list(req) {
 
   const leadId = String(req.query.leadId || '').trim();
   const clientId = String(req.query.clientId || '').trim();
+  const sameCompanyClientId = String(req.query.sameCompanyAsClient || '').trim();
 
+  // CRM 3.56.0: the client Contacts tab picker — people whose company name is this client's name and who
+  // are not on this client yet. A company name is never changed by picking.
+  if (sameCompanyClientId) {
+    const empty = { data: [], meta: { page, limit, total: 0, totalPages: 1 } };
+    if (!/^[a-f0-9]{24}$/i.test(sameCompanyClientId)) return empty;
+    const Company = req.cms?.models.get('Company');
+    const client = Company
+      ? await Company.findOne({ tenantId: resolveTenantId(req), isDeleted: false, mergedIntoId: null, _id: sameCompanyClientId })
+          .select('_id name')
+          .lean()
+      : null;
+    const clientName = String(client?.name || '').trim().replace(/\s+/g, ' ');
+    if (!clientName) return empty;
+    const linked = new Set();
+    const Contact = req.cms?.models.get('Contact');
+    if (Contact) {
+      const rows = await Contact.find({ tenantId: resolveTenantId(req), isDeleted: false, companyId: sameCompanyClientId })
+        .select('personContactId')
+        .lean();
+      for (const row of rows || []) if (row.personContactId) linked.add(String(row.personContactId));
+    }
+    const escaped = clientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s+');
+    filter.$and = [
+      ...(filter.$and || []),
+      { companyName: new RegExp(`^\\s*${escaped}\\s*$`, 'i') },
+      { clientIds: { $ne: sameCompanyClientId } },
+      ...(linked.size ? [{ _id: { $nin: [...linked] } }] : [])
+    ];
+  } else if (leadId || clientId) {
   // Scope to lead / client related contacts only (used by Opportunity create).
-  if (leadId || clientId) {
     const relatedLeadIds = new Set();
     if (leadId) relatedLeadIds.add(leadId);
 

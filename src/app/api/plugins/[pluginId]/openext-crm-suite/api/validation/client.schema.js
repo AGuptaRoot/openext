@@ -229,7 +229,9 @@ function parseContactFields(source) {
     designation: trimString(source.designation),
     isPrimary: source.isPrimary !== undefined ? Boolean(source.isPrimary) : undefined,
     /** Links this client-company contact row to a PersonContact directory entry. */
-    personContactId
+    personContactId,
+    /** CRM 3.56.0: the Contacts tab picker — the linked contact must have this client's company name. */
+    sameCompanyOnly: source.sameCompanyOnly === true ? true : undefined
   };
 }
 

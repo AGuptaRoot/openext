@@ -86,6 +86,14 @@
       "helpText": "How many travellers the lead must have."
     },
     {
+      "key": "show_availability",
+      "label": "Show \"Check availability\" on travel requirements",
+      "type": "checkbox",
+      "default": false,
+      "section": "Availability",
+      "helpText": "On: each requirement card has \"Check availability\" (record what the supplier said) and an availability badge. Off: hidden, and availability never blocks a lead or shows warnings."
+    },
+    {
       "key": "ready_requires_availability",
       "label": "Lead is ready only after availability is checked",
       "type": "checkbox",
@@ -2292,10 +2300,22 @@
       "label": "Confirming a service needs",
       "type": "select",
       "options": [
-        { "label": "A confirmation reference or an evidence file", "value": "reference_or_file" },
-        { "label": "A confirmation reference", "value": "reference" },
-        { "label": "An evidence file", "value": "file" },
-        { "label": "Nothing extra", "value": "none" }
+        {
+          "label": "A confirmation reference or an evidence file",
+          "value": "reference_or_file"
+        },
+        {
+          "label": "A confirmation reference",
+          "value": "reference"
+        },
+        {
+          "label": "An evidence file",
+          "value": "file"
+        },
+        {
+          "label": "Nothing extra",
+          "value": "none"
+        }
       ],
       "default": "reference_or_file",
       "section": "Bookings & vouchers",

@@ -179,7 +179,9 @@ async function loadTrip(sdk, leadId) {
 
   // `added` (2.19.3): the Traveller records on the lead's Travellers tab by age (no known age = Adult) —
   // the quantity of per-person quotation lines and the quotation's price-per-person count.
-  return { id, lead, values, start, end, referenceDate, timeZone, today, groups, added: counted, travellers, chosen, readiness: readiness[id] || null };
+  // 2.32.0: availability warnings only while "Check availability" is shown.
+  const showAvailability = await flagSetting(sdk, 'show_availability', false);
+  return { id, lead, values, start, end, referenceDate, timeZone, today, groups, added: counted, travellers, chosen, readiness: readiness[id] || null, showAvailability };
 }
 
 /** 2.28.0: the requirement-line link of a client trip's service form ("trip-<service key>"; no lead row). */
@@ -373,6 +375,7 @@ function tripType(chosen) {
 /** Availability warnings of the Complete requirements (D4): unavailable, expired, not checked. */
 function availabilityWarnings(trip) {
   const out = [];
+  if (trip && trip.showAvailability === false) return out;
   for (const c of trip.chosen) {
     for (const inst of c.complete) {
       const name = nameOf(c, inst);

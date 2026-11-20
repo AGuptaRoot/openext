@@ -72,6 +72,7 @@ function renderClientPortalCtaHtml(portalLoginUrl) {
 }
 
 async function sendProjectLiveNotification(req, project, liveUrl) {
+  await require('../utils/portal-login-url.util').loadPortalLoginUrl(req); // CRM 3.56.0: Settings → Login URL
   try {
     if (!project?.clientId || !liveUrl) return null;
     const Company = getCompanyModel(req);

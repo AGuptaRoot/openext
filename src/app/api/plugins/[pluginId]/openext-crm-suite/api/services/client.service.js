@@ -800,6 +800,16 @@ async function addContact(req, companyId, input) {
   const master = masterId ? (await mastersById(req, [masterId])).get(masterId) : null;
   if (masterId && req.cms?.models.get('PersonContact') && (!master || master.isDeleted)) throw appError('Contact not found', 404);
   const copy = master ? contactCopyOf(master) : null;
+  // CRM 3.56.0: from the Contacts tab picker only a contact of this company (same name) is added;
+  // its company name is never changed here.
+  if (input.sameCompanyOnly === true && master) {
+    const norm = (v) => String(v || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    if (!norm(master.companyName) || norm(master.companyName) !== norm(company.name)) {
+      const error = appError(`This contact belongs to another company (${String(master.companyName || 'no company').slice(0, 120)}). Only contacts of ${company.name} can be added here.`, 409);
+      error.code = 'CONTACT_OTHER_COMPANY';
+      throw error;
+    }
+  }
 
   const contact = await Contact.create({
     tenantId,

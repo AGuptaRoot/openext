@@ -159,6 +159,8 @@ function parseExtendedLeadFields(source, includeAll = false) {
   }
   if (includeAll || source.priority !== undefined) value.priority = trimString(source.priority);
   if (includeAll || source.contactId !== undefined) value.contactId = trimString(source.contactId);
+  // CRM 3.56.0: create only — the existing client this lead is an enquiry for ("Create lead for this client").
+  if (source.forClientId !== undefined) value.forClientId = (trimString(source.forClientId) || '').slice(0, 24);
   if (includeAll || source.nextFollowUp !== undefined) value.nextFollowUp = source.nextFollowUp || null;
   if (includeAll || source.photoUrl !== undefined) value.photoUrl = trimString(source.photoUrl);
   if (includeAll || source.address !== undefined) value.address = trimString(source.address);

@@ -181,6 +181,11 @@
     {
       "id": "upcoming",
       "label": "Upcoming Trips"
+    },
+    {
+      "id": "location",
+      "label": "Location Wise Leads & Clients",
+      "coreTab": "location-wise"
     }
   ]
 }

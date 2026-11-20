@@ -59,14 +59,18 @@ async function tripFor(sdk, leadId) {
 }
 
 async function settingsFor(sdk) {
-  const [needs, days, timezone] = await Promise.all([
+  const [needs, days, timezone, shown] = await Promise.all([
     sdk.settings.get('ready_requires_availability'),
     sdk.settings.get('availability_default_validity_days'),
-    sdk.settings.get('timezone')
+    sdk.settings.get('timezone'),
+    sdk.settings.get('show_availability')
   ]);
   const n = Number(days);
+  const showAvailability = shown === true;
   return {
-    readyRequiresAvailability: needs === true,
+    // 2.32.0: "Check availability" is shown only when switched on (Travel Settings → Availability).
+    showAvailability,
+    readyRequiresAvailability: needs === true && showAvailability,
     availabilityDefaultValidityDays: Number.isInteger(n) && n >= 1 && n <= 30 ? n : 3,
     timezone: str(timezone) || 'Asia/Kolkata',
     maxInstances: store.MAX_INSTANCES,

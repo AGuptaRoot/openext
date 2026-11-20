@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.31.0",
-  "checksum": "67dfa29663ccd0e3ddc37524a92ce077b7dc061fd2843ed53485ebe3a180e840",
-  "writtenAt": "2026-11-19T14:16:03.889Z",
+  "version": "2.32.0",
+  "checksum": "cce85495631799f3e9e84e5906ba5643dff3d978718e6b9530d50b38c00a677e",
+  "writtenAt": "2026-11-20T06:49:02.078Z",
   "files": [
     {
       "path": "README.md",
@@ -11,12 +11,12 @@
     },
     {
       "path": "WORKFLOW.md",
-      "sha256": "cafea8d3eab26ad4b78f2d16b788a551f7b20f42eebd317bf889621a60c8c710",
+      "sha256": "d21af559bc73f40984ca83d5291b559bbfd14a9883a0cf3feb625846d7b35801",
       "size": 14480
     },
     {
       "path": "crm-extension.json",
-      "sha256": "6703ec6db85f92f7c8ef698528815dcd7b583f02425e98b0a036c97eee3944b4",
+      "sha256": "eafacffa0dfb03fd060515734c069dee06b5a9b4353c12099b616cbe5f9184f1",
       "size": 13684
     },
     {
@@ -166,8 +166,8 @@
     },
     {
       "path": "api/routes/requirements.js",
-      "sha256": "112adec0c52146838dec53564a6a7227a7004b3363e7e297248bee12ad83f321",
-      "size": 12189
+      "sha256": "526e8d434538cd3e039837e3de26d519cfb0029644bdac971a886b1e3dcafa80",
+      "size": 12427
     },
     {
       "path": "api/routes/sales.js",
@@ -251,8 +251,8 @@
     },
     {
       "path": "api/services/readiness.js",
-      "sha256": "a253c651f20f31c6a7ec9bc78acdd01c2064809dd180eef0054c0ec3baf0571c",
-      "size": 7196
+      "sha256": "971bc9c3f9e60729a2703ba15cfb72b07303ae87d794fc8f383a866380af464b",
+      "size": 7330
     },
     {
       "path": "api/services/report-data.js",
@@ -281,8 +281,8 @@
     },
     {
       "path": "api/services/sales-prefill.js",
-      "sha256": "b1a4803eda7ec3071c2861e27502a5ea9020cd755f0de1d643ceb4154a5e26d7",
-      "size": 48756
+      "sha256": "4b9f15ba6a80f390337d6dc3d8632ff6473f0946018b9e74a5b3d65cbd8901cd",
+      "size": 48992
     },
     {
       "path": "api/services/sales-sync.js",
@@ -351,13 +351,13 @@
     },
     {
       "path": "json/reports.json",
-      "sha256": "cfc70b20b4af514e6e8d18d6452618c9660551c5d70b79b5f4325dfd3b217439",
-      "size": 4272
+      "sha256": "9cd1caf175c3f9e459707d14d01e202460aa19157a0a937bbb6512161a1030f2",
+      "size": 4390
     },
     {
       "path": "json/settings.json",
-      "sha256": "caa244a7958056f6a93ab7ec9b467d52db3df2fcf9fc9e15d847e89f18c244b6",
-      "size": 67987
+      "sha256": "7b78bcf7e7f4c4042a605771a7445c987908e799e0cdf0f1b9e8027caf3728a6",
+      "size": 68499
     },
     {
       "path": "json/tabs.json",
@@ -451,8 +451,8 @@
     },
     {
       "path": "ui/components/lead-requirements/lead-requirements.js",
-      "sha256": "e025570206fd7a4b34110895906dcff3043aed8bd66d3c51035b929bdf643552",
-      "size": 21408
+      "sha256": "e9f087e644bb9dbdd942d415712cb240d7e1f9be9c5c834a9ef171a2d94f99ba",
+      "size": 21638
     },
     {
       "path": "ui/components/lead-travellers/lead-travellers.css",

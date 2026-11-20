@@ -129,6 +129,9 @@ function resolvePublicOrigin(req) {
  * Never returns a relative path like "/login".
  */
 function buildClientPortalLoginUrl(req) {
+  // CRM 3.56.0: Settings → Client portal → Login URL (loaded by loadPortalLoginUrl) wins.
+  const configured = require('./portal-login-url.util').configuredPortalLoginUrl(req);
+  if (configured) return configured;
   const origin =
     resolvePublicOrigin(req) ||
     normalizeOrigin(process.env.APP_URL) ||

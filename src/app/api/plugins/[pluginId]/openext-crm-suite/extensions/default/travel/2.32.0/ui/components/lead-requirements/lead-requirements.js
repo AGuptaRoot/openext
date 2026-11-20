@@ -285,7 +285,9 @@ function renderLeadRequirements(root, ctx) {
     if (form && !state.drafts[card.key]) baselines[card.key] = JSON.stringify(form.read());
     if (state.labels[card.key] === undefined) labelBases[card.key] = (row && row.label) || '';
 
-    const badge = row ? availabilityBadge(row.availability, tz()) : null;
+    // 2.32.0: hidden unless Travel Settings → Availability → "Show Check availability" is on.
+    const showAvailability = Boolean(state.settings && state.settings.showAvailability);
+    const badge = row && showAvailability ? availabilityBadge(row.availability, tz()) : null;
     const fieldless = Boolean(form) && !form.fieldCount;
     const complete = Boolean(row && row.status === 'Complete');
     const buttons = [];
@@ -299,7 +301,7 @@ function renderLeadRequirements(root, ctx) {
       }));
     }
     if (canEdit && card.pending) buttons.push(h('button', { type: 'button', class: 'tvx-btn tvx-btn-ghost', disabled: saving, onclick: () => cancelPending(card), text: 'Cancel' }));
-    if (!readOnly && !card.pending) {
+    if (showAvailability && !readOnly && !card.pending) {
       const enabled = Boolean(row && complete);
       buttons.push(h('button', {
         type: 'button',

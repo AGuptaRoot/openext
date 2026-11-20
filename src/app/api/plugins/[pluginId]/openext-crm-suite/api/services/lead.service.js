@@ -601,6 +601,11 @@ function duplicateConflict(req, result, allowSimilarCompany, allowExactDuplicate
   }
 }
 
+/** CRM 3.56.0: the stages a lead may be created in — the first two of the pipeline. */
+function leadCreateStages(stages) {
+  return (Array.isArray(stages) ? stages : []).filter(Boolean).slice(0, 2);
+}
+
 async function create(req, input) {
   const Lead = getLeadModel(req);
   const tenantId = resolveTenantId(req);
@@ -648,6 +653,27 @@ async function create(req, input) {
   );
   const stage = input.stage || validStages[0];
   assertValidStage(stage, validStages);
+  // CRM 3.56.0: a new lead starts in one of the first two pipeline stages (default "New" / "Contacted");
+  // later stages are reached by working the lead. The order comes from Settings → Pipeline stages.
+  const createStages = leadCreateStages(validStages);
+  if (!createStages.includes(stage)) {
+    const error = appError(`A new lead can start only as ${createStages.map((s) => `"${s}"`).join(' or ')}.`, 400);
+    error.code = 'LEAD_STAGE_NOT_AT_CREATE';
+    throw error;
+  }
+
+  // CRM 3.56.0: "Create lead for this client" — the lead is that existing client's enquiry, so an accepted
+  // quotation goes to the client (no second client with the same name). Any client of this tenant.
+  let forClientId = null;
+  const wantedClientId = String(input.forClientId || '').trim();
+  if (wantedClientId) {
+    if (!/^[a-f0-9]{24}$/i.test(wantedClientId)) throw appError('The selected client is not valid', 400);
+    const Company = req.cms?.models.get('Company');
+    const q = Company ? Company.findOne({ tenantId, isDeleted: false, mergedIntoId: null, _id: wantedClientId }) : null;
+    const client = q && typeof q.select === 'function' ? await q.select('_id').lean() : await q;
+    if (!client) throw appError('The selected client was not found', 404);
+    forClientId = String(client._id);
+  }
 
   /*
    * The active CRM extension (Settings → Extensions) fixes the Request Type.
@@ -685,6 +711,7 @@ async function create(req, input) {
     priority: input.priority ? String(input.priority).trim() : '',
     nextFollowUp: input.nextFollowUp ? new Date(input.nextFollowUp) : null,
     contactId: input.contactId ? String(input.contactId).trim() : '',
+    forClientId,
     email: input.email || '',
     phone: normalizeMobile(input.phone),
     company: input.company,
@@ -769,6 +796,7 @@ async function create(req, input) {
       stage: doc.stage,
       assignedTo: doc.assignedTo || null,
       contactId: doc.contactId || null,
+      forClientId: doc.forClientId || null,
       similarCompanyOverride: input.allowSimilarCompany === true,
       exactDuplicateOverride: input.allowExactDuplicate === true
     }
@@ -778,6 +806,8 @@ async function create(req, input) {
 }
 
 async function update(req, id, input) {
+  // CRM 3.56.0: the client a lead is an enquiry for is set on create only.
+  if (input && typeof input === 'object') delete input.forClientId;
   const Lead = getLeadModel(req);
   const userId = resolveUserId(req);
   const existing = await findLeadOrThrow(req, id);

@@ -1,6 +1,6 @@
 # crm-travel — Workflow
 
-Travel extension `travel` **2.31.0**, needs CRM `openext-crm-suite` **>= 3.55.0 < 4.0.0** (GST suite).
+Travel extension `travel` **2.32.0**, needs CRM `openext-crm-suite` **>= 3.56.0 < 4.0.0** (GST suite).
 
 This file explains, in simple English, how a travel enquiry moves through the CRM: from the first lead to
 the trip, the booking, vouchers and the client portal.

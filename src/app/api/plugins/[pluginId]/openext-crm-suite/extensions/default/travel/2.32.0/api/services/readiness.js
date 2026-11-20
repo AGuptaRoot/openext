@@ -27,17 +27,19 @@ const { ID_RE, str } = store;
 const GOOD_CHECK = new Set(['Available', 'Held', 'On Request']);
 
 async function rules(sdk) {
-  const [all, min, availability] = await Promise.all([
+  const [all, min, availability, shown] = await Promise.all([
     sdk.settings.get('ready_all_services_complete'),
     sdk.settings.get('ready_min_travellers'),
-    sdk.settings.get('ready_requires_availability')
+    sdk.settings.get('ready_requires_availability'),
+    sdk.settings.get('show_availability')
   ]);
   // A cleared setting (null / '') means the default, 1 - not 0.
   const n = min === null || min === undefined || min === '' ? NaN : Number(min);
   return {
     allServicesComplete: all !== false,
     minTravellers: Number.isInteger(n) && n >= 0 ? Math.min(n, 500) : 1,
-    requiresAvailability: availability === true
+    // 2.32.0: a hidden "Check availability" never blocks a lead.
+    requiresAvailability: availability === true && shown === true
   };
 }
 

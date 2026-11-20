@@ -912,7 +912,9 @@ const REPORT_FILTER_TYPES = ['daterange', 'select'];
 /** Options the CRM fills itself (generic sources); anything else comes from options or optionsRoute. */
 const REPORT_FILTER_SOURCES = ['users', 'leadSources', 'pipelineStages'];
 /** Core report tabs an extension may keep beside its dashboard. */
-const CORE_REPORT_TABS = ['sales', 'conversion', 'activity-location', 'projects', 'employees', 'time', 'income-expense', 'ageing', 'recurring-invoices', 'payment-reconciliation'];
+const CORE_REPORT_TABS = ['sales', 'conversion', 'location-wise', 'activity-location', 'projects', 'employees', 'time', 'income-expense', 'ageing', 'recurring-invoices', 'payment-reconciliation'];
+/** CRM 3.56.0: core reports an extension's Reports page may show as one of its own tabs ({ coreTab }). */
+const EMBEDDABLE_CORE_TABS = ['location-wise'];
 const MAX_REPORT_SECTIONS = 24;
 const MAX_REPORT_FILTERS = 12;
 const REPORT_KEY_RE = /^[a-z][a-z0-9_]{1,39}$/;
@@ -1021,7 +1023,9 @@ function validateReportsDeclaration(raw, context, FILE = 'json/reports.json') {
       const label = str(isObject(t) ? t.label : '');
       if (!REPORT_ID_RE.test(id) || tabs.some((x) => x.id === id)) errors.push(`${FILE}: tab ${index + 1}: id must be unique, 2–40 lowercase letters, numbers or "-"`);
       else if (!label || label.length > 40) errors.push(`${FILE}: tab "${id}": label is required (max 40 characters)`);
-      else tabs.push({ id, label });
+      else if (isObject(t) && t.coreTab !== undefined && !EMBEDDABLE_CORE_TABS.includes(str(t.coreTab))) {
+        errors.push(`${FILE}: tab "${id}": coreTab must be one of ${EMBEDDABLE_CORE_TABS.join(', ')}`);
+      } else tabs.push({ id, label, ...(isObject(t) && t.coreTab !== undefined ? { coreTab: str(t.coreTab) } : {}) });
     }
   }
 

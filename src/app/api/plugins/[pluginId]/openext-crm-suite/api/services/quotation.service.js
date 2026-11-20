@@ -1396,6 +1396,12 @@ async function resolveQuotationClientId(req, quotation, options = {}) {
 
     if (lead.convertedClientId) {
       clientId = String(lead.convertedClientId);
+    } else if (convertLead && lead.forClientId) {
+      // CRM 3.56.0: the lead is an existing client's enquiry — that client gets it (Won, linked; no new client).
+      const forClientId = String(lead.forClientId);
+      await validateClient(req, forClientId);
+      await closeClientEnquiry(req, leadId, forClientId);
+      clientId = forClientId;
     } else if (convertLead) {
       const stages = await SettingService.getPipelineStages(req);
       const wonStage = SettingService.resolveWonStage(stages);
