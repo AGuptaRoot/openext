@@ -79,10 +79,12 @@ const PERMISSION_GROUPS = Object.freeze([
       { key: 'crm.finance.read', label: 'View Quotations, Invoices & Payments' },
       { key: 'crm.finance.write', label: 'Create / Edit Quotes, Invoices & Payments' },
       { key: 'crm.finance.delete', label: 'Delete Financial Documents' },
+      { key: 'crm.quotes.write', label: 'Create / Edit / Send Quotations' },
       { key: 'crm.quotes.approveDiscount', label: 'Approve Quotation Discounts' },
       { key: 'crm.orders.read', label: 'View Sales Orders' },
       { key: 'crm.orders.write', label: 'Create / Dispatch Orders' },
-      { key: 'crm.orders.delete', label: 'Delete Sales Orders' }
+      { key: 'crm.orders.delete', label: 'Delete Sales Orders' },
+      { key: 'crm.orders.return', label: 'Return Sales Orders' }
     ]
   },
   {

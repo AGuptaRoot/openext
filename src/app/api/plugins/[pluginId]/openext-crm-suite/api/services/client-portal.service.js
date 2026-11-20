@@ -460,10 +460,12 @@ async function inviteContact(req, clientId, input = {}) {
   result.loginCredentials = {
     username: result.username || username,
     email: result.email,
-    password: initialPassword,
+    // CRM 3.58.1: the password is only emailed (or sealed until approval) — never returned.
     loginUrl
   };
   result.requiresApproval = needsApproval;
+  // CRM 3.59.0: a request that needs approval alerts the CRM / Sales Managers. Not awaited.
+  if (needsApproval) void require('./crm-alerts.service').portalApprovalNeeded(req, { access: result, client });
 
   if (needsApproval) {
     result.emailSent = false;
@@ -775,10 +777,12 @@ async function inviteLeadContact(req, leadId, input = {}) {
   result.loginCredentials = {
     username: result.username || username,
     email: result.email,
-    password: initialPassword,
+    // CRM 3.58.1: the password is only emailed (or sealed until approval) — never returned.
     loginUrl: buildClientPortalLoginUrl(req)
   };
   result.requiresApproval = needsApproval;
+  // CRM 3.59.0: a request that needs approval alerts the CRM / Sales Managers. Not awaited.
+  if (needsApproval) void require('./crm-alerts.service').portalApprovalNeeded(req, { access: result, lead });
 
   if (needsApproval) {
     result.emailSent = false;

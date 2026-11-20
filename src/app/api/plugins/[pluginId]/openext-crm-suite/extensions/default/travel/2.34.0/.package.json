@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.33.0",
-  "checksum": "f138b2a6d57a7d557a6710f319b85af3e3d0acbd33a1034671b1b7b30dceb71f",
-  "writtenAt": "2026-11-20T08:59:54.356Z",
+  "version": "2.34.0",
+  "checksum": "66b5d2429f8770d822ad56c55a5fd3621c7c4056a2fa7b07ee3d3e0ad9203701",
+  "writtenAt": "2026-11-20T12:16:13.866Z",
   "files": [
     {
       "path": "README.md",
@@ -11,12 +11,12 @@
     },
     {
       "path": "WORKFLOW.md",
-      "sha256": "a8af374c6ee40b584120d04d32ded7ebb2d005cf31412500ae84541e7a0036dc",
+      "sha256": "6e0f7417426416814747285341986100bd6b2843b119bac6309505bab9f11870",
       "size": 15259
     },
     {
       "path": "crm-extension.json",
-      "sha256": "28d77483d96965ecd133287d19fd05b2159dd11c7e55bf5ff7d8b73c206b4ec7",
+      "sha256": "d93dc7217475004a6f3f07a700023151952ba6c7b44cb1bf06e1420a64964d45",
       "size": 13684
     },
     {
@@ -216,8 +216,8 @@
     },
     {
       "path": "api/services/booking-store.js",
-      "sha256": "a9757243bb8a53087c33cea571065cdbf5443f1b0e9ecc866f92058c73b29e0a",
-      "size": 21555
+      "sha256": "08c1a4ab2b7c5e38682cd27e7af7f616e24cd4653422352562964e790ebd8d8d",
+      "size": 23240
     },
     {
       "path": "api/services/catalog.js",
@@ -246,8 +246,8 @@
     },
     {
       "path": "api/services/passport-alerts.js",
-      "sha256": "976c2a3d82d3168d6ef808a643839251c28d9322e8eada67347bf1de15cfe153",
-      "size": 6440
+      "sha256": "684ddd30096f2f73ad0f069f7b9b7849fcaa5008d41328ba3fdf6c3db654cdd0",
+      "size": 6564
     },
     {
       "path": "api/services/readiness.js",

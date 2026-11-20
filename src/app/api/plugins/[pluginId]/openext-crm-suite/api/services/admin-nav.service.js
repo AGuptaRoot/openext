@@ -117,7 +117,8 @@ async function buildAdminNav(req) {
     for (const routeId of (def && def.hiddenModules) || []) hide.add(String(routeId));
     // GST suite (CRM 3.53.0): the cash book is the agency's own money: staff with finance read only
     // (the page and its API refuse everyone else in any case).
-    if (client || !hasPermission(req, 'crm.finance.read')) {
+    // CRM 3.58.1: finance writers or report readers only (a read-only finance user no longer sees them).
+    if (client || !(hasPermission(req, 'crm.finance.write') || hasPermission(req, 'crm.reports.read'))) {
       hide.add('cashbook');
       hide.add('reconciliation');
       hide.add('gst-reports');

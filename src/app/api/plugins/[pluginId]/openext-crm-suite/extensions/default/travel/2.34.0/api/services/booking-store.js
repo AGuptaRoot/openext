@@ -480,8 +480,39 @@ async function rollupBooking(sdk, bookingId) {
       patch.cancel_reason = str(booking.cancel_reason) || 'Every service was cancelled';
     }
     await sdk.models.Booking.updateById(booking._id, patch);
+    // 2.34.0: every service confirmed → the lead's owner gets an alert (bell + phone push). Not awaited.
+    if (next === 'Confirmed') void notifyBookingConfirmed(sdk, booking);
   }
   return next;
+}
+
+/**
+ * 2.34.0: "Booking confirmed" alert for the lead's owner (its assigned user, else its creator). Not for the
+ * person who confirmed it; never throws. Holds the booking number, guest and dates — no document numbers.
+ */
+async function notifyBookingConfirmed(sdk, booking) {
+  try {
+    if (!sdk || typeof sdk.notify !== 'function' || !booking) return { sent: 0 };
+    const leadId = str(booking.lead_id);
+    const lead = ID_RE.test(leadId) && sdk.crm && sdk.crm.leads ? await sdk.crm.leads.findById(leadId).catch(() => null) : null;
+    const owner = [lead && lead.assignedTo, lead && lead.createdBy].map((v) => str(v && typeof v === 'object' ? v._id : v)).find((v) => ID_RE.test(v)) || '';
+    const actor = str(sdk.user && sdk.user.id);
+    if (!owner || owner === actor) return { sent: 0 };
+    const start = str(booking.travel_start_date).slice(0, 10);
+    const end = str(booking.travel_end_date).slice(0, 10);
+    const when = start ? (end && end !== start ? `${start} to ${end}` : start) : '';
+    return await sdk.notify({
+      userIds: [owner],
+      type: 'booking_confirmed',
+      title: 'Booking confirmed',
+      message: [str(booking.number), str(booking.guest_name) || str(booking.title), when].filter(Boolean).join(' – ').slice(0, 300),
+      link: bookingLink(booking._id),
+      linkLabel: 'Open booking',
+      key: `booking-confirmed:${booking._id}:${Date.now()}`
+    });
+  } catch {
+    return { sent: 0 };
+  }
 }
 
 function permissionsOf(sdk) {
@@ -506,6 +537,7 @@ function escapeRegex(text) {
 }
 
 module.exports = {
+  notifyBookingConfirmed,
   ID_RE,
   VOUCHER_TYPES,
   ISSUABLE_TYPES,

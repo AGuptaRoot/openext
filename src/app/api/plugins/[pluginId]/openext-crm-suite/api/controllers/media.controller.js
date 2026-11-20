@@ -80,6 +80,12 @@ async function upload(req, res) {
  * GET /media/file?key=...&provider=local|s3
  * Authenticated stream for avatars and other CRM media (browser <img> / download).
  */
+/** True when the storage key has this tenant as one of its path segments. */
+function keyBelongsToTenant(key, tenantId) {
+  const segment = StorageUtil.sanitizePathSegment(tenantId);
+  return String(key || '').split('/').includes(segment);
+}
+
 async function serveFile(req, res) {
   try {
     const key = String(req.query.key || req.query.storageKey || '').trim();
@@ -93,6 +99,14 @@ async function serveFile(req, res) {
     if (!StorageUtil.isSafeStorageKey(key)) {
       const err = new Error('Invalid media key');
       err.status = 400;
+      throw err;
+    }
+    // CRM 3.58.1: tenant isolation — every CRM storage key has the tenant as a path segment
+    // ({prefix}/{tenant}/… or /upload/crm/{tenant}/…). Another tenant's key is answered as not found.
+    if (!keyBelongsToTenant(key, resolveTenantId(req))) {
+      const err = new Error('File not found');
+      err.status = 404;
+      err.code = 'NOT_FOUND';
       throw err;
     }
 
@@ -127,6 +141,7 @@ async function storageStatus(req, res) {
 }
 
 module.exports = {
+  keyBelongsToTenant,
   upload,
   serveFile,
   storageStatus

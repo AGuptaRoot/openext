@@ -1041,6 +1041,8 @@ async function afterAccepted(req, quotation) {
     console.warn('[plugin:openext-crm-suite] quotation accepted hook failed:', err?.message || err);
   }
   await require('./proforma.service').maybeAutoInvoicePaidQuotation(req, id);
+  // CRM 3.59.0: its creator and the lead's owner get an alert. Not awaited.
+  void require('./crm-alerts.service').quotationAccepted(req, quotation);
 }
 
 /**

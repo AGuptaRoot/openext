@@ -57,19 +57,20 @@ module.exports = function registerReportsRoutes(app) {
 
   app.get(
     '/reports/recurring-invoices',
-    requireAnyPermission('crm.reports.read', 'crm.finance.read'),
+    // CRM 3.58.1: tenant-wide money reports — report readers or finance writers.
+    requireAnyPermission('crm.reports.read', 'crm.finance.write'),
     reportController.recurringInvoices
   );
 
   app.get(
     '/reports/credit-notes',
-    requireAnyPermission('crm.reports.read', 'crm.finance.read'),
+    requireAnyPermission('crm.reports.read', 'crm.finance.write'),
     reportController.creditNotes
   );
 
   app.get(
     '/reports/payment-reconciliation',
-    requireAnyPermission('crm.reports.read', 'crm.finance.read'),
+    requireAnyPermission('crm.reports.read', 'crm.finance.write'),
     reportController.paymentReconciliation
   );
 

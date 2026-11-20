@@ -101,6 +101,8 @@ async function notifyFor(sdk, rows, today) {
       const res = await sdk.notify({
         userIds: [owner],
         title: 'Passport Expiry Alert',
+        // 2.34.0: the alert type, so the user can switch its phone push off (CRM 3.59.0).
+        type: 'passport_expiry',
         message: `${fullName(row)}'s passport expires on ${prettyDay(expiry)}.`,
         link: travellerLink(row),
         linkLabel: 'View Traveller',

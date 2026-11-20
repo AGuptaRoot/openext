@@ -1,7 +1,7 @@
 'use strict';
 
 const controller = require('../controllers/gst-reports.controller');
-const { requirePermission } = require('../middleware/permission.middleware');
+const { requirePermission, requireAnyPermission } = require('../middleware/permission.middleware');
 
 /**
  * GST reports (GST suite, Step 5; documentation/gst-planning/03 §6): GSTR-1 (summary, portal JSON, CSV per
@@ -9,9 +9,11 @@ const { requirePermission } = require('../middleware/permission.middleware');
  * the existing finance read permission (no new role). Auto-loaded from api/routes like the other routes.
  */
 module.exports = function registerGstReportRoutes(app) {
-  app.get('/gst/reports/gstr1', requirePermission('crm.finance.read'), controller.gstr1);
-  app.get('/gst/reports/gstr1/export', requirePermission('crm.finance.read'), controller.gstr1Export);
-  app.get('/gst/reports/advances', requirePermission('crm.finance.read'), controller.advances);
-  app.get('/gst/reports/credit-notes', requirePermission('crm.finance.read'), controller.creditNotes);
-  app.get('/gst/reports/tcs', requirePermission('crm.finance.read'), controller.tcs);
+  // CRM 3.58.1: tenant-wide GST returns (the TCS register holds full client PANs) — finance writers or
+  // report readers only, not read-only finance users.
+  app.get('/gst/reports/gstr1', requireAnyPermission('crm.finance.write', 'crm.reports.read'), controller.gstr1);
+  app.get('/gst/reports/gstr1/export', requireAnyPermission('crm.finance.write', 'crm.reports.read'), controller.gstr1Export);
+  app.get('/gst/reports/advances', requireAnyPermission('crm.finance.write', 'crm.reports.read'), controller.advances);
+  app.get('/gst/reports/credit-notes', requireAnyPermission('crm.finance.write', 'crm.reports.read'), controller.creditNotes);
+  app.get('/gst/reports/tcs', requireAnyPermission('crm.finance.write', 'crm.reports.read'), controller.tcs);
 };

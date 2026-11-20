@@ -1,6 +1,26 @@
 'use strict';
 
 const PersonContactService = require('../services/person-contact.service');
+const { hasPermission } = require('../utils/sales-access.util');
+
+/**
+ * CRM 3.58.1: a contact's PAN in full only for users who may edit contacts or leads (the edit, lead and
+ * client forms copy it); everyone else sees it masked (XXXXXX234F).
+ */
+function canSeeFullPan(req) {
+  return hasPermission(req, 'crm.contacts.write') || hasPermission(req, 'crm.leads.write');
+}
+
+function maskPan(pan) {
+  const value = String(pan || '');
+  return value.length >= 4 ? `XXXXXX${value.slice(-4)}` : value ? 'XXXXXX' : '';
+}
+
+function panSafe(req, value) {
+  if (canSeeFullPan(req) || !value) return value;
+  const one = (row) => (row && typeof row === 'object' && row.pan ? { ...row, pan: maskPan(row.pan) } : row);
+  return Array.isArray(value) ? value.map(one) : one(value);
+}
 
 function sendError(res, error) {
   const status = error.status || 500;
@@ -16,7 +36,7 @@ function sendError(res, error) {
 async function list(req, res) {
   try {
     const result = await PersonContactService.list(req);
-    res.json({ success: true, data: result.data, meta: result.meta, message: 'Contacts loaded' });
+    res.json({ success: true, data: panSafe(req, result.data), meta: result.meta, message: 'Contacts loaded' });
   } catch (error) {
     sendError(res, error);
   }
@@ -25,7 +45,7 @@ async function list(req, res) {
 async function getById(req, res) {
   try {
     const data = await PersonContactService.getById(req, req.params.id);
-    res.json({ success: true, data, message: 'Contact loaded' });
+    res.json({ success: true, data: panSafe(req, data), message: 'Contact loaded' });
   } catch (error) {
     sendError(res, error);
   }
@@ -68,7 +88,7 @@ async function checkDuplicates(req, res) {
     });
     res.json({
       success: true,
-      data: { duplicates, isDuplicate: duplicates.length > 0 },
+      data: { duplicates: panSafe(req, duplicates), isDuplicate: duplicates.length > 0 },
       message: duplicates.length ? 'Duplicate contacts found' : 'No duplicates'
     });
   } catch (error) {
@@ -77,6 +97,7 @@ async function checkDuplicates(req, res) {
 }
 
 module.exports = {
+  maskPan,
   list,
   getById,
   create,

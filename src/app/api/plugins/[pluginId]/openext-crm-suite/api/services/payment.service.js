@@ -293,6 +293,8 @@ async function recordPaymentAgainstInvoice(req, input, invoiceId, amount) {
     description: `Payment recorded: ${paymentNo} (${normalizedAmount}) against ${invoice.invoiceNo}`,
     metadata: { invoiceId: result.invoiceId, clientId: result.clientId, amount: normalizedAmount }
   });
+  // CRM 3.59.0: the invoice / quotation creator and the lead's owner get an alert. Not awaited.
+  void require('./crm-alerts.service').paymentReceived(req, { payment: result, invoice });
 
   // Money on a proforma may accept its quotation and raise the tax invoice (Settings → General).
   // Same for Razorpay and for payments entered by staff; never fails the payment.

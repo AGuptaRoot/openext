@@ -209,6 +209,16 @@ module.exports = {
       }
     }, { logger: cms.logger });
 
+    // CRM 3.59.0: hourly follow-up alerts (due within the hour / missed in the last day) — bell + phone push.
+    CronScheduler.scheduleJob('followup-alerts', '0 * * * *', async () => {
+      try {
+        const r = await require('./services/crm-alerts.service').followUpSweep(cms);
+        cms.logger?.info?.(`[CRM Cron] Follow-up alerts: ${r.due} due, ${r.missed} missed (${r.tenants} tenants)`);
+      } catch (err) {
+        cms.logger?.warn?.('[CRM Cron] Follow-up alerts error:', err?.message || err);
+      }
+    }, { logger: cms.logger });
+
     const activeJobs = CronScheduler.getActiveJobs();
     cms.logger.info(
       `Root CRM boot complete — reminder cron: ${JSON.stringify(activeJobs)}`

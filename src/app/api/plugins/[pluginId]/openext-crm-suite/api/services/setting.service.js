@@ -341,7 +341,10 @@ const DEFAULT_SETTINGS = [
   { key: 'groq_ocr_model', value: 'auto', category: 'integrations' },
   /** Google Maps / Places — encrypted at rest; client key only via dedicated endpoint. */
   { key: 'google_maps_api_key', value: '', category: 'integrations' },
-  { key: 'google_maps_api_key_hint', value: '', category: 'integrations' }
+  { key: 'google_maps_api_key_hint', value: '', category: 'integrations' },
+  /** CRM 3.59.0: Firebase Cloud Messaging (push) — the service account, encrypted; only a hint is shown. */
+  { key: 'fcm_service_account', value: '', category: 'integrations' },
+  { key: 'fcm_service_account_hint', value: '', category: 'integrations' }
 ];
 
 const COLLECTION_NAME = 'plugin_openext_crm_suite_settings';
@@ -350,7 +353,7 @@ const COLLECTION_NAME = 'plugin_openext_crm_suite_settings';
 const KNOWN_KEYS = new Set(DEFAULT_SETTINGS.map((item) => item.key));
 
 /** Secrets that must never appear in GET /settings or bulk PUT /settings. */
-const SECRET_SETTING_KEYS = new Set(['groq_api_key', 'google_maps_api_key']);
+const SECRET_SETTING_KEYS = new Set(['groq_api_key', 'google_maps_api_key', 'fcm_service_account']);
 
 /**
  * Rows owned by extensions (`ext_<extensionId>_…`) never appear in GET/PUT
@@ -369,7 +372,9 @@ const INTEGRATION_MANAGED_KEYS = new Set([
   'groq_api_key_hint',
   'groq_ocr_model',
   'google_maps_api_key',
-  'google_maps_api_key_hint'
+  'google_maps_api_key_hint',
+  'fcm_service_account',
+  'fcm_service_account_hint'
 ]);
 
 const DEFAULT_GROQ_OCR_MODEL = 'auto';

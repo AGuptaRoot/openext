@@ -18,6 +18,8 @@ const CrmNotificationSchema = new Schema(
     linkLabel: { type: String, default: '', trim: true, maxlength: 40 },
     // Who raised it: 'crm' or 'ext:<extensionId>'.
     source: { type: String, default: 'crm', trim: true, maxlength: 80 },
+    // CRM 3.59.0: the alert type (lead_assigned, payment_received, …) — the user's push on/off is per type.
+    type: { type: String, default: 'other', trim: true, maxlength: 40 },
     dedupeKey: { type: String, required: true, trim: true, maxlength: 200 },
     readAt: { type: Date, default: null }
   },

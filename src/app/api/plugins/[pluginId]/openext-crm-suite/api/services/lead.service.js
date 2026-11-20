@@ -825,6 +825,8 @@ async function create(req, input) {
     }
   });
 
+  // CRM 3.59.0: the new owner gets an alert (not when you create the lead for yourself). Not awaited.
+  void require('./crm-alerts.service').leadAssigned(req, doc, '');
   return enrichLeadAssignee(req, doc);
 }
 
@@ -1071,6 +1073,8 @@ async function update(req, id, input) {
     }
   });
 
+  // CRM 3.59.0: a changed owner gets an alert. Not awaited.
+  if (updates.assignedTo !== undefined && lead) void require('./crm-alerts.service').leadAssigned(req, lead, existing.assignedTo || '');
   return enrichLeadAssignee(req, lead);
 }
 
@@ -2432,6 +2436,8 @@ async function bulkAssign(req, input) {
     }
   });
 
+  // CRM 3.59.0: one alert for the new owner. Not awaited.
+  if (assignedTo && matchingIds.length) void require('./crm-alerts.service').leadsAssigned(req, matchingIds.map(String), assignedTo);
   return {
     updatedCount: matchingIds.length,
     totalRequested: leadIds.length,

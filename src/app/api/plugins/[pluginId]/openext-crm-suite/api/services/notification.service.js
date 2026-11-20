@@ -3,13 +3,15 @@
 /**
  * In-app notifications (CRM 3.33.0): a bell in the CRM header lists the signed-in user's alerts.
  *
- *   notify(req, { userIds, title, message, link, linkLabel, key, source })
+ *   notify(req, { userIds, title, message, link, linkLabel, key, source, type })
  *       → { sent, skipped }  each user gets the alert once per `key` (a repeat is skipped);
  *         users must belong to this tenant and be active; links stay inside the CRM.
  *   list(req)                → { items (newest 30), unread }   the signed-in staff user's own
  *   markRead(req, id) / markAllRead(req)
  *
  * Extensions call it through sdk.notify (their links: /ext/<id>/… or core record pages).
+ * CRM 3.59.0: each new alert also goes as a push to the user's phones (services/push.service.js), unless
+ * the user switched its `type` off. The push runs after the alert is saved and never fails notify().
  */
 
 const { resolveTenantId, resolveUserId, isClientUser } = require('../utils/tenant.util');
@@ -69,6 +71,9 @@ async function notify(req, input = {}, { extensionId = '' } = {}) {
   const source = extensionId ? `ext:${extensionId}` : 'crm';
   const dedupeKey = `${source}:${key}`;
   const link = safeLink(input.link, extensionId);
+  const type = require('./push.service').cleanType(input.type);
+  const message = text(input.message, 500);
+  const pushes = [];
   let sent = 0;
   let skipped = 0;
   for (const userId of users) {
@@ -78,22 +83,30 @@ async function notify(req, input = {}, { extensionId = '' } = {}) {
       continue;
     }
     try {
-      await Model.create({
+      const row = await Model.create({
         tenantId,
         userId,
         title,
-        message: text(input.message, 500),
+        type,
+        message,
         link,
         linkLabel: link ? text(input.linkLabel, 40) || 'Open' : '',
         source,
         dedupeKey
       });
       sent += 1;
+      pushes.push({ userId, title, message, link, type, source, notificationId: String((row && row._id) || '') });
     } catch (error) {
       // Two sweeps at once: the unique index keeps one.
       if (error && (error.code === 11000 || /duplicate/i.test(String(error.message)))) skipped += 1;
       else throw error;
     }
+  }
+  if (pushes.length) {
+    // Not awaited: the phone push never slows or fails the action that raised the alert.
+    Promise.resolve()
+      .then(() => require('./push.service').sendAlerts(req, pushes))
+      .catch(() => null);
   }
   return { sent, skipped, users: users.length };
 }
@@ -106,6 +119,7 @@ function present(row) {
     link: text(row.link, 300),
     linkLabel: text(row.linkLabel, 40),
     source: text(row.source, 80),
+    type: text(row.type, 40) || 'other',
     read: Boolean(row.readAt),
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null
   };
