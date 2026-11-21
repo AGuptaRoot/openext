@@ -10,6 +10,8 @@
  *   sdk.models.<Name>      tenant-locked repository (find, findOne, findById, count, create, updateById, deleteById)
  *   sdk.settings           getAll(), get(key), set(patch)  → the extension's own settings
  *   sdk.crm.<records>      read-only, tenant-scoped, permission-checked: leads, clients, contacts, opportunities, tickets
+ *   sdk.crm.notes.list(recordType, id) / sdk.crm.activities.list(recordType, id)   notes and activities of a
+ *                          lead or client (CRM 3.61.0; read-only, the CRM screens' access rules, no location data)
  *   sdk.values.get(recordType, id)  this extension's declared field values on a core record
  *   sdk.values.set(recordType, id, patch)  save them (CRM 3.34.0; the CRM's checks and permissions apply)
  *   sdk.crm.leads.createForClient(clientId, { title })  a new enquiry for a client (CRM 3.34.0, crm.leads.write)
@@ -453,6 +455,62 @@ function makeHttp(def) {
  * @param {object} req  CRM request (tenant and permissions resolved)
  * @param {object} def  active extension definition (uploaded, manifestVersion 2)
  */
+/**
+ * CRM 3.61.0 — sdk.crm.notes.list(type, id) / sdk.crm.activities.list(type, id): the notes and activities of a
+ * lead or client, read through the same CRM services the record pages use (tenant, sales-agent scope and
+ * private-note rules apply; a record the user may not see is a 404). Read-only, newest first, at most 100,
+ * and only the fields below: never activity locations (GPS).
+ */
+const TIMELINE_RECORDS = {
+  lead: { permission: 'crm.leads.read' },
+  client: { permission: 'crm.clients.read' }
+};
+const NOTE_KEYS = {
+  lead: ['content', 'createdByName', 'createdAt', 'editedAt'],
+  client: ['title', 'content', 'category', 'isPinned', 'isPrivate', 'createdByName', 'createdAt']
+};
+const ACTIVITY_KEYS = {
+  lead: ['title', 'eventType', 'eventDate', 'status', 'kind', 'source', 'description', 'assignedTo', 'assignedToName', 'completedAt', 'createdByName', 'createdAt'],
+  client: ['title', 'eventType', 'eventDate', 'status', 'description', 'durationMinutes', 'nextAction', 'createdByName', 'createdAt']
+};
+
+function pickFields(doc, keys) {
+  const out = { id: String((doc && doc._id) || '') };
+  for (const k of keys) if (doc && doc[k] !== undefined && doc[k] !== null) out[k] = doc[k];
+  return out;
+}
+
+function timelineReader(req, what) {
+  return Object.freeze({
+    async list(recordType, id) {
+      const type = String(recordType || '');
+      const spec = TIMELINE_RECORDS[type];
+      if (!spec) throw runtimeError(400, `${what}.list: recordType must be "lead" or "client"`, 'INVALID_INPUT');
+      if (!requestHasPermission(req, spec.permission)) throw runtimeError(403, `Reading ${what} of a ${type} needs ${spec.permission}`, 'FORBIDDEN');
+      const recordId = String(id || '');
+      if (!OBJECT_ID_RE.test(recordId)) return [];
+      let rows;
+      try {
+        if (what === 'notes') {
+          rows = type === 'lead'
+            ? await require('../services/lead-note.service').listByLead(req, recordId)
+            : await require('../services/client-note.service').listByClient(req, recordId);
+        } else {
+          rows = type === 'lead'
+            ? await require('../services/lead-event.service').listByLead(req, recordId)
+            : await require('../services/client-timeline.service').listEvents(req, recordId);
+        }
+      } catch (error) {
+        // A record this user may not see reads as missing (like the CRM pages).
+        if (error && error.status && error.status < 500) throw runtimeError(404, `${type === 'lead' ? 'Lead' : 'Client'} not found`, 'NOT_FOUND');
+        throw error;
+      }
+      const keys = (what === 'notes' ? NOTE_KEYS : ACTIVITY_KEYS)[type];
+      return cloneJson((Array.isArray(rows) ? rows : []).slice(0, 100).map((r) => pickFields(r, keys)), 512 * 1024, what);
+    }
+  });
+}
+
 function createSdk(req, def) {
   const tenantId = resolveTenantId(req);
   const userId = resolveUserId(req) || 'system';
@@ -484,6 +542,8 @@ function createSdk(req, def) {
 
   const crm = {};
   for (const key of Object.keys(CORE_READ)) crm[key] = coreReader(req, key, tenantId);
+  crm.notes = timelineReader(req, 'notes');
+  crm.activities = timelineReader(req, 'activities');
   // CRM 3.34.0: the few core records an extension may create for the user (CRM services and rules apply).
   const needWrite = (key, what) => {
     if (!requestHasPermission(req, key)) throw runtimeError(403, `${what} needs the ${key} permission`, 'FORBIDDEN');

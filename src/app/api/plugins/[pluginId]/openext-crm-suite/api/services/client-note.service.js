@@ -23,7 +23,18 @@ function appError(message, status = 400) {
 }
 
 function baseFilter(req) {
-  return { tenantId: resolveTenantId(req), isDeleted: false };
+  return { tenantId: resolveTenantId(req), isDeleted: false, ...privateNoteClause(req) };
+}
+
+/**
+ * CRM 3.61.0: a note marked Private is seen (and changed) only by the person who wrote it and by admins.
+ * Everyone else gets the client's other notes; a private note of someone else answers 404.
+ */
+function privateNoteClause(req) {
+  const { isAdmin } = require('../utils/sales-access.util');
+  if (isAdmin(req)) return {};
+  const userId = String(resolveUserId(req) || '');
+  return { $or: [{ isPrivate: { $ne: true } }, ...(userId ? [{ createdBy: userId }] : [])] };
 }
 
 async function assertClientAccess(req, clientId) {
@@ -188,5 +199,6 @@ module.exports = {
   create,
   update,
   togglePin,
-  remove
+  remove,
+  privateNoteClause
 };

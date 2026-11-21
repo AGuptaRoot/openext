@@ -235,7 +235,8 @@ async function getAccountTimeline(req, clientId, options = {}) {
 
   // 2. Client Notes
   if (['all', 'notes'].includes(categoryFilter)) {
-    const notes = await safeFind('ClientNote', { clientId: strClientId }, 50);
+    // 3.61.0: private notes only for their author and admins (client-note.service).
+    const notes = await safeFind('ClientNote', { clientId: strClientId, ...require('./client-note.service').privateNoteClause(req) }, 50);
     for (const note of notes) {
       timeline.push({
         id: `note_${note._id}`,

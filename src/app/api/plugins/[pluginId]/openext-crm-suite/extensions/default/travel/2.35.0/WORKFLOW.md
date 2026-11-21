@@ -1,6 +1,6 @@
 # crm-travel — Workflow
 
-Travel extension `travel` **2.34.0**, needs CRM `openext-crm-suite` **>= 3.59.0 < 4.0.0** (GST suite).
+Travel extension `travel` **2.35.0**, needs CRM `openext-crm-suite` **>= 3.61.0 < 4.0.0** (GST suite).
 
 This file explains, in simple English, how a travel enquiry moves through the CRM: from the first lead to
 the trip, the booking, vouchers and the client portal.
@@ -280,6 +280,25 @@ What the client sees:
 | Contact detail | Travellers tab |
 | Settings → Travel | Locations, readiness rules, availability, booking prefix, time zone... |
 | Reports / Dashboard | Enquiries to trips, revenue and collections, services, destinations, upcoming trips, traveller readiness |
+| Reports → Trips (2.35.0) | Every trip in one table: lead trips and client trips. Click a row to open the Trip page |
+| Trip page (2.35.0) | `/ext/travel/trip?lead=<id>` or `?client_trip=<id>`, opened from Reports → Trips |
+
+### Trips report and Trip page (2.35.0, CRM 3.61.0)
+
+- **Trips tab** (first tab of Reports): one row per trip.
+  - A lead trip is a travel lead (merged leads are left out).
+  - A client trip is a client Travel Requirement with no lead. When a client trip opens an enquiry lead, it is shown once, as that lead's trip.
+  - The date range uses the date the trip was created. Travel date is a column.
+  - Sales person, destination, service, booking status and payment filters apply. Lead source applies to lead trips only, so client trips are left out when it is set.
+  - Client trips need `crm.clients.read`. Quotations and payment need `crm.finance.read`; booking status needs `x.travel.bookings.read`.
+- **Trip page** (read-only): trip details, payment, and a count + list of quotations, invoices, proformas, bookings, itineraries, travellers, travel requirements, activities and notes.
+  - Each count jumps to its section; each section links to the CRM page or tab that manages it; each row opens its own record.
+  - Quotation revisions are shown once (latest version, with the number of revisions). Archived ones are left out.
+  - Invoices and proformas come only from the trip's own quotations. Paid / balance come from the CRM's verified payments.
+  - Travellers show name, age group, relation and passport / Aadhaar status only, never numbers or files.
+  - A client trip shows the client's notes and activities as "Client notes (all trips)" / "Client activities (all trips)", because the CRM keeps them on the client, not on one trip.
+  - Client-portal logins cannot open the page or the report (404).
+- **Private client notes** (CRM 3.61.0): only the note's author and admins see a note marked Private, on the client page and on the Trip page.
 
 Hidden CRM modules for travel: Sales Orders, Samples, Projects, Tasks, Time Logs, Payments, Tickets; Settings → Users.
 

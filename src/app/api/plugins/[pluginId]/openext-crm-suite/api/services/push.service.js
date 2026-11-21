@@ -2,6 +2,10 @@
 
 /**
  * CRM 3.59.0 — push notifications to the mobile app through Firebase Cloud Messaging (HTTP v1 API).
+ * CRM 3.62.0 — also to browsers (web push through FCM): the admin adds the Firebase web app config and the
+ * Web Push (VAPID) public key; a user turns browser alerts on from the notification bell, the browser gets an
+ * FCM token (Firebase JS SDK + the CRM's own service worker, GET /push/sw.js) and registers it as platform
+ * "web". The same sender, device table, preferences and dead-token cleanup serve phones and browsers.
  *
  * Settings → Integrations → Push notifications holds the Firebase service account of this tenant,
  * encrypted (only project_id, client_email and private_key are kept; GET shows a hint only).
@@ -91,6 +95,70 @@ function parseServiceAccount(raw) {
   return { project_id: projectId, client_email: clientEmail, private_key: privateKey };
 }
 
+/** Firebase web app config keys (public values: they identify the app, they are not secrets). */
+const WEB_CONFIG_KEYS = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'measurementId'];
+
+/**
+ * The web app config pasted by the admin: JSON, or the `const firebaseConfig = { … }` snippet from
+ * Firebase → Project settings → Your apps → Web app. → { apiKey, authDomain?, projectId, storageBucket?,
+ * messagingSenderId, appId }
+ */
+function parseWebConfig(raw) {
+  let src = raw;
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    if (s.length > 4000) throw appError('The web app config is too large', 400, 'FCM_WEB_CONFIG_INVALID');
+    try {
+      src = JSON.parse(s);
+    } catch {
+      // The JavaScript snippet: read each key: "value" pair (nothing is run).
+      src = {};
+      for (const key of WEB_CONFIG_KEYS) {
+        const m = s.match(new RegExp(`["']?${key}["']?\\s*:\\s*["']([^"'\\n]{1,300})["']`));
+        if (m) src[key] = m[1];
+      }
+    }
+  }
+  const c = src && typeof src === 'object' ? src : {};
+  const out = {};
+  for (const key of WEB_CONFIG_KEYS) {
+    const v = text(c[key], 300);
+    if (v) out[key] = v;
+  }
+  if (!/^AIza[0-9A-Za-z_-]{30,45}$/.test(out.apiKey || '')) throw appError('The web app config has no valid apiKey', 400, 'FCM_WEB_CONFIG_INVALID');
+  if (!/^[a-z0-9-]{4,100}$/.test(out.projectId || '')) throw appError('The web app config has no valid projectId', 400, 'FCM_WEB_CONFIG_INVALID');
+  if (!/^\d{5,20}$/.test(out.messagingSenderId || '')) throw appError('The web app config has no valid messagingSenderId', 400, 'FCM_WEB_CONFIG_INVALID');
+  if (!/^1:\d{5,20}:web:[0-9a-f]{6,40}$/.test(out.appId || '')) throw appError('The web app config has no valid appId (a "web" app, like 1:123…:web:abc…)', 400, 'FCM_WEB_CONFIG_INVALID');
+  if (out.authDomain && !/^[a-z0-9.-]{3,200}$/i.test(out.authDomain)) delete out.authDomain;
+  if (out.storageBucket && !/^[a-z0-9._-]{3,200}$/i.test(out.storageBucket)) delete out.storageBucket;
+  if (out.measurementId && !/^G-[A-Z0-9]{4,20}$/.test(out.measurementId)) delete out.measurementId;
+  return out;
+}
+
+/** The Web Push certificate public key (Firebase → Cloud Messaging → Web configuration → Key pair). */
+function parseVapidKey(raw) {
+  const key = String(raw || '').trim();
+  if (!/^[A-Za-z0-9_-]{80,100}$/.test(key)) {
+    throw appError('The Web Push key must be the public key of the key pair (about 87 letters, digits, - and _)', 400, 'FCM_VAPID_INVALID');
+  }
+  return key;
+}
+
+async function readWebSetup(req) {
+  const SettingService = require('./setting.service');
+  const rawConfig = String((await SettingService.readRawSettingValue(req, 'fcm_web_config')) || '').trim();
+  const vapidKey = String((await SettingService.readRawSettingValue(req, 'fcm_vapid_key')) || '').trim();
+  let config = null;
+  if (rawConfig) {
+    try {
+      config = parseWebConfig(rawConfig);
+    } catch {
+      config = null;
+    }
+  }
+  return { config, vapidKey: /^[A-Za-z0-9_-]{80,100}$/.test(vapidKey) ? vapidKey : '' };
+}
+
 function hintOf(sa) {
   const [name, domain] = String(sa.client_email || '').split('@');
   return `${String(name || '').slice(0, 10)}…@${String(domain || '').split('.')[0] || ''}… · ${sa.project_id}`;
@@ -115,8 +183,23 @@ async function getIntegration(req) {
   const stored = String((await SettingService.readRawSettingValue(req, 'fcm_service_account')) || '').trim();
   const hint = String((await SettingService.readRawSettingValue(req, 'fcm_service_account_hint')) || '').trim();
   const sa = stored ? await readServiceAccount(req) : null;
+  const web = await readWebSetup(req);
+  const webReady = Boolean(sa && web.config && web.vapidKey);
   return {
     configured: Boolean(sa),
+    web: {
+      configured: Boolean(web.config && web.vapidKey),
+      ready: webReady,
+      projectId: web.config ? web.config.projectId : '',
+      appId: web.config ? web.config.appId : '',
+      vapidSet: Boolean(web.vapidKey),
+      projectMatches: !sa || !web.config || web.config.projectId === sa.project_id,
+      message: webReady
+        ? 'Browser alerts are available: each user turns them on from the notification bell.'
+        : web.config || web.vapidKey
+          ? 'Add both the web app config and the Web Push key (and the service account) to turn browser alerts on.'
+          : 'Optional: add the Firebase web app config and the Web Push key to send alerts to browsers too.'
+    },
     hint: sa ? hint : '',
     projectId: sa ? sa.project_id : '',
     message: sa
@@ -141,6 +224,27 @@ async function updateIntegration(req, input = {}) {
     for (const key of [...tokenCache.keys()]) if (key.startsWith(`${resolveTenantId(req)}|`)) tokenCache.delete(key);
     await AuditService.log(req, { action: 'updated', module: 'settings', description: 'Push notifications (FCM) key removed' });
     return getIntegration(req);
+  }
+  // CRM 3.62.0: web push setup (public values, kept as they are).
+  if (body.clearWeb === true) {
+    await SettingService.upsertSettingValue(req, 'fcm_web_config', '');
+    await SettingService.upsertSettingValue(req, 'fcm_vapid_key', '');
+    await AuditService.log(req, { action: 'updated', module: 'settings', description: 'Browser push (FCM web) settings removed' });
+    return getIntegration(req);
+  }
+  const hasWeb = body.webConfig !== undefined || body.vapidKey !== undefined;
+  if (hasWeb) {
+    const current = await readWebSetup(req);
+    const config = body.webConfig !== undefined && body.webConfig !== '' ? parseWebConfig(body.webConfig) : current.config;
+    const vapidKey = body.vapidKey !== undefined && body.vapidKey !== '' ? parseVapidKey(body.vapidKey) : current.vapidKey;
+    const sa = await readServiceAccount(req);
+    if (config && sa && config.projectId !== sa.project_id) {
+      throw appError(`The web app is in Firebase project "${config.projectId}" but the service account is for "${sa.project_id}". Use the same project.`, 400, 'FCM_WEB_CONFIG_INVALID');
+    }
+    await SettingService.upsertSettingValue(req, 'fcm_web_config', config ? JSON.stringify(config) : '');
+    await SettingService.upsertSettingValue(req, 'fcm_vapid_key', vapidKey || '');
+    await AuditService.log(req, { action: 'updated', module: 'settings', description: 'Browser push (FCM web) settings saved', metadata: { projectId: config ? config.projectId : '' } });
+    if (body.serviceAccount === undefined || body.serviceAccount === null || body.serviceAccount === '') return getIntegration(req);
   }
   if (body.serviceAccount === undefined || body.serviceAccount === null || body.serviceAccount === '') {
     throw appError('Paste the service account JSON, or send clearKey: true', 400, 'FCM_KEY_INVALID');
@@ -232,7 +336,7 @@ async function registerDevice(req, input = {}) {
   if (!token || token.length < 20 || token.length > MAX_TOKEN_LENGTH || /\s/.test(token)) {
     throw appError('token must be the FCM registration token from the app', 400, 'INVALID_INPUT');
   }
-  if (!['android', 'ios'].includes(platform)) throw appError('platform must be "android" or "ios"', 400, 'INVALID_INPUT');
+  if (!['android', 'ios', 'web'].includes(platform)) throw appError('platform must be "android", "ios" or "web"', 400, 'INVALID_INPUT');
   const Device = model(req, 'CrmPushDevice');
   const tokenHash = hashToken(token);
   const values = {
@@ -343,8 +447,29 @@ function buildMessage(req, alert) {
     notification: { title: text(alert.title, 120), body: text(alert.message, 500) },
     data,
     android: { priority: 'high', notification: { sound: 'default', tag: data.notificationId || undefined } },
-    apns: { headers: { 'apns-priority': '10' }, payload: { aps: { sound: 'default' } } }
+    apns: { headers: { 'apns-priority': '10' }, payload: { aps: { sound: 'default' } } },
+    // CRM 3.62.0: browsers. The CRM service worker shows it and opens data.link on click.
+    webpush: { headers: { Urgency: 'high', TTL: '86400' }, notification: { title: text(alert.title, 120), body: text(alert.message, 500), tag: data.notificationId || undefined } }
   };
+}
+
+/**
+ * GET /devices/web-config — what a signed-in staff browser needs to turn on browser alerts:
+ * { enabled, config, vapidKey } (public Firebase values only; never the service account).
+ */
+async function getWebClientConfig(req) {
+  assertStaff(req);
+  const sa = await readServiceAccount(req);
+  const web = await readWebSetup(req);
+  const enabled = Boolean(sa && web.config && web.vapidKey && web.config.projectId === sa.project_id);
+  return enabled ? { enabled, config: web.config, vapidKey: web.vapidKey } : { enabled: false, config: null, vapidKey: '' };
+}
+
+/** GET /push/sw.js — the CRM's service worker for browser alerts (no data in it; same for every tenant). */
+function serviceWorkerSource() {
+  const fs = require('fs');
+  const path = require('path');
+  return fs.readFileSync(path.join(__dirname, '..', 'push', 'crm-push-sw.js'), 'utf8');
 }
 
 /**
@@ -418,15 +543,19 @@ async function sendTest(req) {
   if (!sa) throw appError('Push notifications are not set up: add the Firebase service account in Settings → Integrations', 503, 'FCM_NOT_CONFIGURED');
   await accessToken(req, sa); // 502 FCM_AUTH_FAILED when Firebase refuses the key
   const devices = await listDevices(req);
-  if (!devices.length) return { keyOk: true, devices: 0, sent: 0, message: 'The Firebase key works. No phone is registered for you yet — sign in on the mobile app first.' };
-  const result = await sendAlerts(req, [{ userId, title: 'Test notification', message: 'Push notifications work on this phone.', type: 'other', link: '' }]);
-  return { keyOk: true, devices: devices.length, ...result, message: result.sent ? `Sent to ${result.sent} phone(s).` : 'The key works, but no phone accepted the message.' };
+  if (!devices.length) return { keyOk: true, devices: 0, sent: 0, message: 'The Firebase key works. No device is registered for you yet — sign in on the mobile app, or turn on browser alerts from the notification bell.' };
+  const result = await sendAlerts(req, [{ userId, title: 'Test notification', message: 'Push notifications work on this device.', type: 'other', link: '' }]);
+  return { keyOk: true, devices: devices.length, ...result, message: result.sent ? `Sent to ${result.sent} device(s).` : 'The key works, but no device accepted the message.' };
 }
 
 module.exports = {
   PUSH_TYPES,
   cleanType,
   parseServiceAccount,
+  parseWebConfig,
+  parseVapidKey,
+  getWebClientConfig,
+  serviceWorkerSource,
   getIntegration,
   updateIntegration,
   registerDevice,

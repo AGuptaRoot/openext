@@ -60,6 +60,19 @@
       "order": 6,
       "description": "Your trips, payment status, tickets and vouchers.",
       "showInQuickActions": true
+    },
+    {
+      "id": "trip",
+      "label": "Trip",
+      "icon": "map",
+      "kind": "mount",
+      "slot": "page.trip",
+      "permission": "crm.leads.read",
+      "order": 9,
+      "description": "Everything about one trip: quotations, invoices, proformas, bookings, travellers, activities and notes (opened from Reports → Trips).",
+      "showInQuickActions": false,
+      "showInSidebar": false,
+      "audience": "staff"
     }
   ]
 }

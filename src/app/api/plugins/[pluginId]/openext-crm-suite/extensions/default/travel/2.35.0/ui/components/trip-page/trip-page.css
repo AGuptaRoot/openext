@@ -1,0 +1,25 @@
+/* <x-travel-trip-page-v1> */
+.tvx-tp { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.tvx-tp-top { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tvx-tp-top > .tvx-tp-link { align-self: flex-start; }
+.tvx-tp-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tvx-tp-h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--tvx-heading); overflow-wrap: anywhere; }
+.tvx-tp-counts { display: flex; flex-wrap: wrap; gap: 8px; }
+.tvx-tp-count { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; background: var(--tvx-surface-3); color: var(--tvx-text-3); padding: 6px 10px; font-size: 12px; cursor: pointer; }
+.tvx-tp-count:hover, .tvx-tp-count:focus-visible { border-color: var(--tvx-info-border); }
+.tvx-tp-count-n { font-size: 14px; font-weight: 700; color: var(--tvx-heading); }
+.tvx-tp-section { scroll-margin-top: 16px; }
+.tvx-tp-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.tvx-tp-section-head .tvx-h3 { margin: 0; }
+.tvx-tp-note { margin: 0 0 8px; font-size: 12px; }
+.tvx-tp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tvx-tp-row { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--tvx-border-soft); border-radius: 8px; padding: 8px 12px; min-width: 0; }
+.tvx-tp-row.is-link { cursor: pointer; }
+.tvx-tp-row.is-link:hover, .tvx-tp-row.is-link:focus-visible { background: var(--tvx-surface-3); }
+.tvx-tp-row-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tvx-tp-row-title { font-size: 13px; font-weight: 700; color: var(--tvx-heading); overflow-wrap: anywhere; }
+.tvx-tp-row-meta { font-size: 12px; overflow-wrap: anywhere; }
+.tvx-tp-dl { display: grid; grid-template-columns: minmax(110px, max-content) 1fr; gap: 4px 16px; margin: 0; font-size: 13px; }
+.tvx-tp-dl dt { color: var(--tvx-text-3); }
+.tvx-tp-dl dd { margin: 0; color: var(--tvx-heading); overflow-wrap: anywhere; }
+.tvx-tp-services { margin: 8px 0 0; font-size: 13px; }

@@ -25,6 +25,7 @@
  *   client.tab.travel_requirement  Client → Travel Requirement → <x-travel-client-travel-requirement-v1>
  *   opportunity.tab.trip           Opportunity → Trip        → <x-travel-opportunity-trip-v1>
  *   page.portal_bookings           Client portal → Bookings  → <x-travel-portal-bookings-v1>
+ *   page.trip                      Trip page (?lead= / ?client_trip=, from Reports → Trips) → <x-travel-trip-page-v1>
  *
  * Plain ES modules, no build step. Every class is prefixed "tvx-".
  */
@@ -43,6 +44,7 @@ import { TAG as LEAD_BOOKINGS } from './components/lead-bookings/lead-bookings.j
 import { TAG as OPPORTUNITY_TRIP } from './components/opportunity-trip/opportunity-trip.js';
 import { TAG as PORTAL_BOOKINGS } from './components/portal-bookings/portal-bookings.js';
 import { TAG as CLIENT_TRAVELLERS } from './components/client-travellers/client-travellers.js';
+import { TAG as TRIP_PAGE } from './components/trip-page/trip-page.js';
 import { TAG as CLIENT_TRAVEL_REQUIREMENT } from './components/client-travel-requirement/client-travel-requirement.js';
 
 const SLOTS = {
@@ -60,7 +62,8 @@ const SLOTS = {
   'client.tab.travellers': CLIENT_TRAVELLERS,
   'client.tab.travel_requirement': CLIENT_TRAVEL_REQUIREMENT,
   'opportunity.tab.trip': OPPORTUNITY_TRIP,
-  'page.portal_bookings': PORTAL_BOOKINGS
+  'page.portal_bookings': PORTAL_BOOKINGS,
+  'page.trip': TRIP_PAGE
 };
 
 export function mount(element, ctx) {

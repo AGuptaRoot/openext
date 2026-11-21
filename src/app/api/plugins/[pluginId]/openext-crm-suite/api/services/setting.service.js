@@ -344,7 +344,10 @@ const DEFAULT_SETTINGS = [
   { key: 'google_maps_api_key_hint', value: '', category: 'integrations' },
   /** CRM 3.59.0: Firebase Cloud Messaging (push) — the service account, encrypted; only a hint is shown. */
   { key: 'fcm_service_account', value: '', category: 'integrations' },
-  { key: 'fcm_service_account_hint', value: '', category: 'integrations' }
+  { key: 'fcm_service_account_hint', value: '', category: 'integrations' },
+  /** CRM 3.62.0: web push — the Firebase web app config (public values) and the Web Push (VAPID) public key. */
+  { key: 'fcm_web_config', value: '', category: 'integrations' },
+  { key: 'fcm_vapid_key', value: '', category: 'integrations' }
 ];
 
 const COLLECTION_NAME = 'plugin_openext_crm_suite_settings';
@@ -374,7 +377,9 @@ const INTEGRATION_MANAGED_KEYS = new Set([
   'google_maps_api_key',
   'google_maps_api_key_hint',
   'fcm_service_account',
-  'fcm_service_account_hint'
+  'fcm_service_account_hint',
+  'fcm_web_config',
+  'fcm_vapid_key'
 ]);
 
 const DEFAULT_GROQ_OCR_MODEL = 'auto';

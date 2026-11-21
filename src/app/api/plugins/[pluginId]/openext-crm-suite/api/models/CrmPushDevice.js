@@ -15,7 +15,7 @@ const CrmPushDeviceSchema = new Schema(
     userId: { type: String, required: true, trim: true },
     tokenHash: { type: String, required: true, trim: true, maxlength: 128 },
     token: { type: String, required: true },
-    platform: { type: String, enum: ['android', 'ios'], required: true },
+    platform: { type: String, enum: ['android', 'ios', 'web'], required: true },
     appVersion: { type: String, default: '', trim: true, maxlength: 40 },
     deviceName: { type: String, default: '', trim: true, maxlength: 80 },
     lastSeenAt: { type: Date, default: Date.now }

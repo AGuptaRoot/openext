@@ -15,7 +15,7 @@
 
 const { resolveTenantId, resolveUserId, isClientUser } = require('../utils/tenant.util');
 const { resolveUsernames } = require('../utils/user.util');
-const { isAdmin } = require('../utils/sales-access.util');
+const { isAdmin, hasPermission } = require('../utils/sales-access.util');
 const { isProjectManager } = require('../utils/ticket-access.util');
 const { buildEmployeeProjectScope } = require('../utils/project-access.util');
 const AuditService = require('./audit.service');
@@ -133,7 +133,7 @@ async function findLogs(req, { projectIds, from, to, userId = '' }) {
   };
   if (userId) filter.createdBy = userId;
   return TimeLog.find(filter)
-    .select('taskId projectId workDate hours description isBillable checkInTime checkOutTime status entryType approvalStatus createdBy createdAt')
+    .select('taskId projectId workDate hours description isBillable hourlyRate billableAmount checkInTime checkOutTime status entryType approvalStatus createdBy createdAt')
     .sort({ workDate: 1, checkInTime: 1, createdAt: 1 })
     .limit(MAX_LOGS)
     .lean();
@@ -166,6 +166,7 @@ const emptyTotals = () => ({
   pendingHours: 0,
   rejectedHours: 0,
   billableHours: 0,
+  billableAmount: 0,
   entries: 0,
   tasks: new Set(),
   projects: new Set(),
@@ -182,7 +183,11 @@ function addLog(totals, log, dayKey) {
   if (approval === 'Approved') totals.approvedHours += hours;
   else if (approval === 'Rejected') totals.rejectedHours += hours;
   else totals.pendingHours += hours; // Draft and Pending: not approved yet
-  if (log.isBillable !== false) totals.billableHours += hours;
+  if (log.isBillable !== false) {
+    totals.billableHours += hours;
+    // CRM 3.60.0: the amount saved on the entry (hours × the member's hourly rate); a running timer has none yet.
+    if (log.status !== 'Running') totals.billableAmount += Number(log.billableAmount) || 0;
+  }
   if (log.taskId) totals.tasks.add(str(log.taskId));
   if (log.projectId) totals.projects.add(str(log.projectId));
   if (dayKey) totals.days.add(dayKey);
@@ -195,6 +200,7 @@ const finishTotals = (t) => ({
   pendingHours: round2(t.pendingHours),
   rejectedHours: round2(t.rejectedHours),
   billableHours: round2(t.billableHours),
+  billableAmount: round2(t.billableAmount),
   entries: t.entries,
   tasks: t.tasks.size,
   projects: t.projects.size,
@@ -409,6 +415,12 @@ async function getEmployeeReport(req, userId, query = {}) {
 
   const summary = finishTotals(total);
   const names = await resolveUsernames(req, [employeeId]);
+  // CRM 3.60.0: billable amounts are money — only for users who may read finance.
+  const showAmounts = hasPermission(req, 'crm.finance.read');
+  const currency = showAmounts
+    ? String((await require('./setting.service').getAll(req).catch(() => ({}))).default_currency || 'INR').toUpperCase().slice(0, 3)
+    : '';
+  if (!showAmounts) delete summary.billableAmount;
   return {
     employee: { userId: employeeId, name: names[employeeId] || employeeId },
     period: range.period,
@@ -417,6 +429,8 @@ async function getEmployeeReport(req, userId, query = {}) {
     to: range.to,
     label: range.label,
     timeZone,
+    showAmounts,
+    currency,
     summary: {
       ...summary,
       averageHoursPerDay: summary.daysWorked ? round2(summary.hours / summary.daysWorked) : 0
@@ -439,6 +453,12 @@ async function getEmployeeReport(req, userId, query = {}) {
         entryType: log.entryType || 'manual',
         approvalStatus: log.approvalStatus || 'Approved',
         isBillable: log.isBillable !== false,
+        ...(showAmounts
+          ? {
+              hourlyRate: round2(log.hourlyRate),
+              billableAmount: log.isBillable !== false && log.status !== 'Running' ? round2(log.billableAmount) : 0
+            }
+          : {}),
         description: str(log.description).slice(0, 2000)
       };
     }),
@@ -497,6 +517,7 @@ function buildReportDocument(report, { generatedBy = '' } = {}) {
     { label: 'Approved hours', value: hrs(summary.approvedHours) },
     { label: 'Pending / rejected', value: `${hrs(summary.pendingHours)} / ${hrs(summary.rejectedHours)}` },
     { label: 'Billable hours', value: hrs(summary.billableHours) },
+    ...(report.showAmounts ? [{ label: 'Billable amount', value: `${report.currency || 'INR'} ${Number(summary.billableAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }] : []),
     { label: 'Time-log entries', value: String(summary.entries) },
     { label: 'Tasks worked on', value: String(summary.tasks) },
     { label: 'Projects', value: String(summary.projects) }
@@ -590,10 +611,11 @@ async function exportEmployeeReport(req, userId, query = {}) {
   };
   const viewerId = resolveUserId(req);
   const viewer = viewerId ? (await resolveUsernames(req, [viewerId]))[viewerId] : '';
-  const doc = buildReportDocument(report, { generatedBy: viewer && viewer !== viewerId ? viewer : '' });
+  const generatedBy = viewer && viewer !== viewerId ? viewer : '';
+  // CRM 3.60.0: the PDF is a landscape report (summary dashboard, charts, detail tables); Word keeps the document layout.
   const buffer = format === 'docx'
-    ? require('../utils/docx-document.util').renderDocumentDocx(doc, company)
-    : require('../utils/pdf-document.util').renderDocumentPdf(doc, company);
+    ? require('../utils/docx-document.util').renderDocumentDocx(buildReportDocument(report, { generatedBy }), company)
+    : require('../utils/work-report-pdf.util').renderWorkReportPdf(report, company, { generatedBy });
 
   await AuditService.log(req, {
     action: 'exported',

@@ -8,7 +8,8 @@ async function requireTenantContext(req, res, next) {
     /^quotations\/public\//.test(normalizedPath) ||
     /^invoices\/public\//.test(normalizedPath);
 
-  if (normalizedPath === 'health' || isPublicPortalPath) {
+  // CRM 3.62.0: the browser-alert service worker is static JavaScript (the browser re-checks it in the background).
+  if (normalizedPath === 'health' || normalizedPath === 'push/sw.js' || isPublicPortalPath) {
     await next();
     return;
   }

@@ -84,6 +84,16 @@
       "permission": "crm.leads.read"
     },
     {
+      "id": "trips",
+      "kind": "table",
+      "title": "Trips",
+      "subtitle": "Every trip, from leads and from clients. The date range uses the date the trip was created. Click a row to open the trip.",
+      "route": "/reports/trips",
+      "permission": "crm.leads.read",
+      "export": true,
+      "tab": "trips"
+    },
+    {
       "id": "revenue",
       "kind": "table",
       "title": "Revenue & Collections",
@@ -158,6 +168,10 @@
     }
   ],
   "tabs": [
+    {
+      "id": "trips",
+      "label": "Trips"
+    },
     {
       "id": "revenue",
       "label": "Revenue & Collections"
