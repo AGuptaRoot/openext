@@ -197,7 +197,7 @@ async function getIntegration(req) {
       vapidSet: Boolean(web.vapidKey),
       projectMatches: !sa || !web.config || web.config.projectId === sa.project_id,
       message: webReady
-        ? 'Browser alerts are available: each user turns them on from the notification bell.'
+        ? 'Browser alerts are available: each user turns them on in Settings → Integrations → My browser alerts.'
         : web.config || web.vapidKey
           ? 'Add both the web app config and the Web Push key (and the service account) to turn browser alerts on.'
           : 'Optional: add the Firebase web app config and the Web Push key to send alerts to browsers too.'
@@ -545,7 +545,7 @@ async function sendTest(req) {
   if (!sa) throw appError('Push notifications are not set up: add the Firebase service account in Settings → Integrations', 503, 'FCM_NOT_CONFIGURED');
   await accessToken(req, sa); // 502 FCM_AUTH_FAILED when Firebase refuses the key
   const devices = await listDevices(req);
-  if (!devices.length) return { keyOk: true, devices: 0, sent: 0, message: 'The Firebase key works. No device is registered for you yet — sign in on the mobile app, or turn on browser alerts from the notification bell.' };
+  if (!devices.length) return { keyOk: true, devices: 0, sent: 0, message: 'The Firebase key works. No device is registered for you yet: sign in on the CRM mobile app, or turn on Settings → Integrations → My browser alerts, then send the test again.' };
   const result = await sendAlerts(req, [{ userId, title: 'Test notification', message: 'Push notifications work on this device.', type: 'other', link: '' }]);
   return { keyOk: true, devices: devices.length, ...result, message: result.sent ? `Sent to ${result.sent} device(s).` : 'The key works, but no device accepted the message.' };
 }
