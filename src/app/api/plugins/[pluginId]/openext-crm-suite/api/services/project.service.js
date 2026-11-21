@@ -1059,6 +1059,9 @@ async function listMembers(req, projectId) {
     return {
       ...row,
       hourlyRate: Number(row.hourlyRate || 0),
+      shiftStart: String(row.shiftStart || ''),
+      shiftHours: Number(row.shiftHours || 0),
+      shiftDays: Array.isArray(row.shiftDays) && row.shiftDays.length ? row.shiftDays.map(Number) : [1, 2, 3, 4, 5, 6],
       username,
       designation,
       tenantRole,
@@ -1083,6 +1086,9 @@ async function addMember(req, projectId, memberInput) {
   const hourlyRate = (Number.isFinite(parsedRate) && parsedRate >= 0) ? Math.round(parsedRate * 100) / 100 : 0;
 
   if (!memberId) throw appError('userId is required');
+  // CRM 3.63.0: the optional shift, already checked by the route's validation (checked again here).
+  const shift = isObject ? require('./shift-alerts.service').parseShift(memberInput) : { value: null };
+  if (shift.error) throw appError(shift.error);
 
   const row = await ProjectMember.findOneAndUpdate(
     { tenantId: resolveTenantId(req), projectId: String(projectId), userId: memberId },
@@ -1090,6 +1096,7 @@ async function addMember(req, projectId, memberInput) {
       $set: {
         role,
         hourlyRate,
+        ...(shift.value || {}),
         updatedBy: userId,
         isDeleted: false,
         deletedAt: null,
@@ -1134,6 +1141,10 @@ async function updateMember(req, projectId, memberUserId, input = {}) {
   if (input.role !== undefined) {
     updates.role = String(input.role || 'member').trim();
   }
+  // CRM 3.63.0: shift (start time + hours + days).
+  const shift = require('./shift-alerts.service').parseShift(input || {});
+  if (shift.error) throw appError(shift.error);
+  if (shift.value) Object.assign(updates, shift.value);
 
   const row = await ProjectMember.findOneAndUpdate(
     { tenantId: resolveTenantId(req), projectId: String(projectId), userId: memberId, isDeleted: false },

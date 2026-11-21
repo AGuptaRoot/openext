@@ -219,6 +219,16 @@ module.exports = {
       }
     }, { logger: cms.logger });
 
+    // CRM 3.63.0: every 5 minutes — project shift alerts ("Start your timer", "Your hourly shift is over").
+    CronScheduler.scheduleJob('shift-alerts', '*/5 * * * *', async () => {
+      try {
+        const r = await require('./services/shift-alerts.service').shiftSweep(cms);
+        if (r.reminders || r.over) cms.logger?.info?.(`[CRM Cron] Shift alerts: ${r.reminders} timer reminders, ${r.over} shift over (${r.tenants} tenants)`);
+      } catch (err) {
+        cms.logger?.warn?.('[CRM Cron] Shift alerts error:', err?.message || err);
+      }
+    }, { logger: cms.logger });
+
     const activeJobs = CronScheduler.getActiveJobs();
     cms.logger.info(
       `Root CRM boot complete — reminder cron: ${JSON.stringify(activeJobs)}`

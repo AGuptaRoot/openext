@@ -9,6 +9,10 @@ const ProjectMemberSchema = new Schema(
     userId: { type: String, required: true, trim: true },
     role: { type: String, trim: true, default: 'member' },
     hourlyRate: { type: Number, default: 0, min: 0 },
+    /** CRM 3.63.0: the member's shift on this project — start "HH:mm", length in hours, week days (0 = Sunday). */
+    shiftStart: { type: String, trim: true, default: '' },
+    shiftHours: { type: Number, default: 0, min: 0, max: 16 },
+    shiftDays: { type: [Number], default: [1, 2, 3, 4, 5, 6] },
     createdBy: { type: String, default: 'system' },
     updatedBy: { type: String, default: 'system' },
     isDeleted: { type: Boolean, default: false },

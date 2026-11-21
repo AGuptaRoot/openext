@@ -218,9 +218,12 @@ function validateProjectMember(body) {
   }
 
   const role = trimString(source.role) || 'member';
+  // CRM 3.63.0: optional shift (start time + hours + days).
+  const shift = require('../services/shift-alerts.service').parseShift(source);
+  if (shift.error) errors.push(shift.error);
 
   if (errors.length) return fail(errors);
-  return ok({ userId, role, hourlyRate });
+  return ok({ userId, role, hourlyRate, ...(shift.value || {}) });
 }
 
 function validateProjectMemberUpdate(body) {
@@ -242,6 +245,10 @@ function validateProjectMemberUpdate(body) {
   if (source.role !== undefined) {
     value.role = trimString(source.role) || 'member';
   }
+  // CRM 3.63.0: shift (start time + hours + days); empty start or 0 hours clears it.
+  const shift = require('../services/shift-alerts.service').parseShift(source);
+  if (shift.error) errors.push(shift.error);
+  else if (shift.value) Object.assign(value, shift.value);
 
   if (errors.length) return fail(errors);
   return ok(value);

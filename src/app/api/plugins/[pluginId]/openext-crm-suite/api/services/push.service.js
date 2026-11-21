@@ -37,6 +37,8 @@ const PUSH_TYPES = Object.freeze([
   { type: 'portal_approval', label: 'A portal access request waits for approval' },
   { type: 'booking_confirmed', label: 'A booking is confirmed (Travel)' },
   { type: 'passport_expiry', label: 'A traveller passport expires soon (Travel)' },
+  { type: 'timer_reminder', label: 'My shift started and no timer is running (Projects)' },
+  { type: 'shift_over', label: 'My hourly shift is over (Projects)' },
   { type: 'other', label: 'Other alerts' }
 ]);
 
