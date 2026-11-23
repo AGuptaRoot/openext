@@ -883,7 +883,8 @@ async function update(req, id, input) {
       name: contact.name,
       email: contact.email,
       phone: contact.phone,
-      pan: contact.pan || '',
+      // CRM 3.64.0: the contact's PAN is stored encrypted.
+      pan: require('./person-contact.service').revealPan(contact) || '',
       salutation: contact.salutation || '',
       jobTitle: contact.jobTitle || '',
       gender: contact.gender || '',

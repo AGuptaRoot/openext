@@ -281,7 +281,8 @@
       "path": "/quotation-prefill",
       "permission": "crm.leads.read",
       "handler": "routes/sales.js#quotation",
-      "summary": "Sales flow: priced lines, sections and warnings for a new quotation"
+      "summary": "Sales flow: priced lines, sections and warnings for a new quotation (2.36.0: also checks / prices the unsaved steps of Create Invoice from Scratch)",
+      "timeoutMs": 20000
     },
     {
       "method": "POST",
@@ -496,7 +497,7 @@
       "path": "/clients/:client_id/quotation-start",
       "permission": "crm.leads.write",
       "handler": "routes/client-requirement.js#quotationStart",
-      "summary": "Client quotation: add the chosen travellers to the enquiry and open its trip opportunity",
+      "summary": "Client quotation: add the chosen travellers to the enquiry and open its trip opportunity (2.36.0: or save the whole trip of Create Invoice from Scratch)",
       "timeoutMs": 30000
     },
     {

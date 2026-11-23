@@ -100,6 +100,16 @@ async function accept(req, res) {
   }
 }
 
+/** CRM 3.64.0: POST /quotations/:id/staff-confirm — staff confirms the sale (salesFlow.staffConfirmedSale). */
+async function staffConfirm(req, res) {
+  try {
+    const doc = await QuotationService.staffConfirm(req, req.params.id);
+    res.json({ success: true, data: doc, message: 'Sale confirmed' });
+  } catch (error) {
+    sendError(res, error);
+  }
+}
+
 async function reject(req, res) {
   try {
     const doc = await QuotationService.reject(req, req.params.id);
@@ -414,6 +424,7 @@ module.exports = {
   remove,
   send,
   accept,
+  staffConfirm,
   reject,
   createRevision,
   getRevisions,

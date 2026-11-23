@@ -4,6 +4,44 @@ const { resolveTenantId, resolveUserId } = require('../utils/tenant.util');
 const { parsePagination } = require('../utils/pagination.util');
 const { toLiteralSearchTerm } = require('../utils/search.util');
 const AuditService = require('./audit.service');
+const DataProtection = require('../extension-runtime/data-protection');
+
+/**
+ * CRM 3.64.0: a contact's PAN is encrypted at rest (AES-GCM, CRM-held key, bound to the tenant), with a keyed
+ * hash to find duplicates and the last 4 characters to mask it. Older plain values are still read (and
+ * encrypted by migration 017). PAN values are never logged.
+ */
+const PAN_SCOPE = 'crm-core:person-contact';
+const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+
+function panHashOf(tenantId, pan) {
+  return pan ? DataProtection.hashText(tenantId, PAN_SCOPE, pan) : '';
+}
+
+/** Typed PAN → { pan (ciphertext), panHash, panLast4, plain }; '' clears it. 400 for a bad format. */
+function protectPan(tenantId, raw) {
+  const plain = String(raw || '').trim().toUpperCase();
+  if (!plain) return { pan: '', panHash: '', panLast4: '', plain: '' };
+  if (!PAN_RE.test(plain)) throw appError('PAN must look like ABCDE1234F');
+  return {
+    pan: DataProtection.encryptText(tenantId, PAN_SCOPE, plain),
+    panHash: panHashOf(tenantId, plain),
+    panLast4: plain.slice(-4),
+    plain
+  };
+}
+
+/** The readable PAN of a stored contact row (older plain values pass through; '' if it cannot be read). */
+function revealPan(row) {
+  const value = String((row && row.pan) || '');
+  if (!value) return '';
+  if (!value.startsWith(DataProtection.TEXT_PREFIX)) return value.toUpperCase();
+  try {
+    return DataProtection.decryptText(String(row.tenantId || ''), PAN_SCOPE, value);
+  } catch {
+    return '';
+  }
+}
 
 function getModel(req) {
   const PersonContact = req.cms?.models.get('PersonContact');
@@ -42,6 +80,8 @@ function serialize(doc) {
     : Number(item.clientsCount) || 0;
   item.companyName = item.companyName || '';
   item.IsportalAssigned = item.IsportalAssigned === true;
+  item.pan = revealPan(item);
+  delete item.panHash;
   return item;
 }
 
@@ -71,7 +111,7 @@ async function findDuplicates(req, { email, phone, pan, excludeId } = {}) {
   for (const variant of phoneMatchVariants(phone)) {
     filter.$or.push({ phone: variant });
   }
-  if (panN) filter.$or.push({ pan: panN });
+  if (panN) filter.$or.push({ panHash: panHashOf(resolveTenantId(req), panN) }, { pan: panN });
   if (!filter.$or.length) return [];
   if (excludeId) filter._id = { $ne: excludeId };
   const items = await PersonContact.find(filter).limit(20).lean();
@@ -85,7 +125,10 @@ async function list(req) {
   const search = toLiteralSearchTerm(req.query.search || req.query.q);
   if (search) {
     const re = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    filter.$or = [{ name: re }, { email: re }, { phone: re }, { pan: re }, { jobTitle: re }];
+    filter.$or = [{ name: re }, { email: re }, { phone: re }, { jobTitle: re }];
+    // A PAN is found only when typed in full (it is stored encrypted).
+    const panTerm = String(search).trim().toUpperCase();
+    if (PAN_RE.test(panTerm)) filter.$or.push({ panHash: panHashOf(resolveTenantId(req), panTerm) });
   }
 
   const leadId = String(req.query.leadId || '').trim();
@@ -282,10 +325,21 @@ async function create(req, input) {
   const userId = resolveUserId(req);
   const name = String(input.name || '').trim();
   if (!name) throw appError('Contact name is required');
+  // CRM 3.64.1: Contacts → Create Contact and Create Invoice from Scratch send requireAll — email, mobile,
+  // company name and job title are required (other places that make a contact, e.g. lead create, do not).
+  if (input.requireAll === true) {
+    const missing = [];
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(input.email))) missing.push('a valid email');
+    if (!/^\+?\d{7,15}$/.test(normalizePhone(input.phone))) missing.push('a valid mobile number');
+    if (!String(input.companyName || input.company || '').trim()) missing.push('the company name');
+    if (!String(input.jobTitle || '').trim()) missing.push('the job title');
+    if (missing.length) throw appError(`Enter ${missing.join(', ')}.`);
+  }
 
   const email = normalizeEmail(input.email);
   const phone = normalizePhone(input.phone);
-  const pan = normalizePan(input.pan);
+  const panInfo = protectPan(tenantId, input.pan);
+  const pan = panInfo.plain;
 
   if (!input.allowDuplicate) {
     const dupes = await findDuplicates(req, { email, phone, pan });
@@ -305,7 +359,9 @@ async function create(req, input) {
     email,
     phone,
     gender: String(input.gender || '').trim(),
-    pan,
+    pan: panInfo.pan,
+    panHash: panInfo.panHash,
+    panLast4: panInfo.panLast4,
     jobTitle: String(input.jobTitle || '').trim(),
     companyName: String(input.companyName || input.company || '').trim(),
     leadIds: [],
@@ -342,7 +398,14 @@ async function update(req, id, input) {
   if (input.email !== undefined) updates.email = normalizeEmail(input.email);
   if (input.phone !== undefined) updates.phone = normalizePhone(input.phone);
   if (input.gender !== undefined) updates.gender = String(input.gender || '').trim();
-  if (input.pan !== undefined) updates.pan = normalizePan(input.pan);
+  let panPlain;
+  if (input.pan !== undefined) {
+    const panInfo = protectPan(resolveTenantId(req), input.pan);
+    panPlain = panInfo.plain;
+    updates.pan = panInfo.pan;
+    updates.panHash = panInfo.panHash;
+    updates.panLast4 = panInfo.panLast4;
+  }
   if (input.jobTitle !== undefined) updates.jobTitle = String(input.jobTitle || '').trim();
   if (input.companyName !== undefined) updates.companyName = String(input.companyName || '').trim();
 
@@ -350,7 +413,7 @@ async function update(req, id, input) {
     const dupes = await findDuplicates(req, {
       email: updates.email !== undefined ? updates.email : existing.email,
       phone: updates.phone !== undefined ? updates.phone : existing.phone,
-      pan: updates.pan !== undefined ? updates.pan : existing.pan,
+      pan: panPlain !== undefined ? panPlain : existing.pan,
       excludeId: id
     });
     if (dupes.length) {
@@ -616,5 +679,8 @@ module.exports = {
   linkLead,
   linkClient,
   unlinkClient,
-  phoneMatchVariants
+  phoneMatchVariants,
+  revealPan,
+  protectPan,
+  PAN_SCOPE
 };

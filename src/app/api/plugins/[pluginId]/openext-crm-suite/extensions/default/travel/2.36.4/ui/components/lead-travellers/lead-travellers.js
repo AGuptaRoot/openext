@@ -20,6 +20,8 @@
  * Embeddable (Travellers page, booking traveller picker): ctx.startWith = 'add' | { edit: id } opens
  * the form at once; ctx.onSaved(travellerId) is called after a traveller is saved or added;
  * ctx.onDone() hands control back after Save / Cancel of the form.
+ * 2.36.2: ctx.photoNote (text) is shown under each document photo — Create Invoice from Scratch keeps its
+ * travellers in the unsaved draft, so a photo there is only read (OCR) and not stored.
  */
 
 import { h, errorText } from '../../shared/dom.js';
@@ -1554,7 +1556,8 @@ function renderLeadTravellers(root, ctx) {
       fileInput,
       thumbBox,
       h('div', { class: 'tvx-tr-preview-actions' }, previewButtons),
-      doc.ocrError ? h('div', { class: 'tvx-msg tvx-msg-error', text: doc.ocrError }) : null
+      doc.ocrError ? h('div', { class: 'tvx-msg tvx-msg-error', text: doc.ocrError }) : null,
+      typeof ctx.photoNote === 'string' && ctx.photoNote ? h('p', { class: 'tvx-muted tvx-help', text: ctx.photoNote }) : null
     ]);
 
     return h('div', { class: 'tvx-tr-doc-block' }, [previewBox, fieldsContent]);

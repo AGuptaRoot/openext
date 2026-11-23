@@ -595,6 +595,10 @@ async function config(req) {
     clientQuotationStartsWithLead: Boolean(flow.clientQuotationStartsWithLead),
     bookingAfterAdvance: Boolean(flow.bookingAfterAdvance),
     lockWonLead: Boolean(flow.lockWonLead),
+    // 3.64.0: staff may confirm a sale (accept a quotation for the client, audited) — the guided invoice uses it.
+    staffConfirmedSale: Boolean(flow.staffConfirmedSale),
+    // 3.64.0: "Create Invoice from Scratch" (routes stay on the server).
+    guidedInvoice: guidedInvoiceOf(flow),
     // GST suite (CRM 3.53.0): the optional "preferred payment method" on proformas / invoices.
     paymentPreference: paymentPreferenceOf(flow),
     // 3.34.0: a quotation for a client goes through the extension (eligible clients, a picker, a start step).
@@ -704,11 +708,17 @@ async function quotationPrefill(req, body = {}) {
   );
   if (!data) return unavailable('none');
   if (data.failed) return unavailable('failed', data.message);
-  const groupKeys = groupKeysOf(flow);
   return {
     available: true,
     leadId: forRecord ? '' : leadId,
     ...(forRecord ? { recordId, clientId } : {}),
+    ...presentPrefill(data, groupKeysOf(flow))
+  };
+}
+
+/** A quotation prefill answer of the extension, cleaned (shared by quotation-prefill and the guided invoice). */
+function presentPrefill(data, groupKeys) {
+  return {
     title: text(data.title, 200),
     description: text(data.description, 2000),
     summary: cleanSummary(data.summary),
@@ -1048,8 +1058,93 @@ async function recordRules(req) {
     lockConvertedLead: Boolean(flow && flow.lockConvertedLead),
     completeOpportunitiesOnConversion: Boolean(flow && flow.completeOpportunitiesOnConversion),
     lockWonLead: Boolean(flow && flow.lockWonLead),
-    oneAcceptedQuotationPerLead: Boolean(flow && flow.oneAcceptedQuotationPerLead)
+    oneAcceptedQuotationPerLead: Boolean(flow && flow.oneAcceptedQuotationPerLead),
+    staffConfirmedSale: Boolean(flow && flow.staffConfirmedSale)
   };
+}
+
+/* ------------------------------------------------- 3.64.0: guided invoice ("Create Invoice from Scratch") */
+
+const GUIDED_DRAFT_MAX = 200000;
+
+/** salesFlow.guidedInvoice for the pages ({ label, title, steps }), or null. Routes are never sent. */
+function guidedInvoiceOf(flow) {
+  const gi = flow && flow.guidedInvoice;
+  if (!isPlainObject(gi) || !gi.commitRoute || !Array.isArray(gi.steps) || !gi.steps.length) return null;
+  return {
+    label: text(gi.label, 60) || 'Create Invoice from Scratch',
+    title: text(gi.title, 80),
+    steps: gi.steps
+      .filter((s) => isPlainObject(s) && /^[a-z][a-z0-9_]{1,40}$/.test(String(s.id || '')) && /^guided\.[a-z][a-z0-9_]{1,40}$/.test(String(s.slot || '')))
+      .slice(0, 6)
+      .map((s) => ({ id: String(s.id), title: text(s.title, 60), slot: String(s.slot) }))
+  };
+}
+
+async function guidedContract(req) {
+  const flow = await contract(req);
+  const gi = flow && flow.guidedInvoice;
+  if (!isPlainObject(gi) || !gi.commitRoute) {
+    const error = new Error('The active extension does not offer Create Invoice from Scratch');
+    error.status = 404;
+    error.code = 'GUIDED_INVOICE_UNAVAILABLE';
+    throw error;
+  }
+  return gi;
+}
+
+/** The extension steps' values: a plain object of at most 200 KB (as JSON). */
+function guidedDraftOf(body) {
+  const draft = body && isPlainObject(body.draft) ? body.draft : null;
+  if (!draft) throw badRequest('draft is required');
+  if (JSON.stringify(draft).length > GUIDED_DRAFT_MAX) throw badRequest('The form is too large');
+  return draft;
+}
+
+/** POST /sales-flow/guided-invoice/check { draft, step } → { errors: [text] } (nothing is saved). */
+async function guidedInvoiceCheck(req, body = {}) {
+  const gi = await guidedContract(req);
+  const draft = guidedDraftOf(body);
+  const step = text(body.step, 40);
+  if (!(gi.steps || []).some((s) => s.id === step)) throw badRequest('step is not valid');
+  const data = await callRoute(req, 'POST', gi.checkRoute, { draft, check: step });
+  const errors = Array.isArray(data && data.errors) ? data.errors.map((e) => text(e, 300)).filter(Boolean).slice(0, 30) : [];
+  return { errors };
+}
+
+/**
+ * POST /sales-flow/guided-invoice/preview { draft } → the quotation lines (same shape as quotation-prefill)
+ * built from the unsaved steps, so the user can enter the prices. Nothing is saved.
+ */
+async function guidedInvoicePreview(req, body = {}) {
+  const gi = await guidedContract(req);
+  const draft = guidedDraftOf(body);
+  const data = await callRoute(req, 'POST', gi.previewRoute, { draft, leadId: '', opportunityId: '' });
+  const errors = Array.isArray(data && data.errors) ? data.errors.map((e) => text(e, 300)).filter(Boolean).slice(0, 30) : [];
+  if (errors.length) return { available: false, errors };
+  return { available: true, ...presentPrefill(data, groupKeysOf(await contract(req))) };
+}
+
+/**
+ * POST /sales-flow/guided-invoice/commit { clientId, draft } → { leadId }: the extension saves its steps for
+ * the client (e.g. the trip with its travellers). Safe to retry: the extension reuses what it already made.
+ */
+async function guidedInvoiceCommit(req, body = {}) {
+  const gi = await guidedContract(req);
+  const clientId = text(body.clientId, 24);
+  if (!ID_RE.test(clientId)) throw badRequest('clientId is not valid');
+  // The user must be allowed to see the client (sales-agent scope applies).
+  await require('./client.service').getById(req, clientId, { includeQuality: false });
+  const draft = guidedDraftOf(body);
+  const data = await callRoute(req, 'POST', routeFor(gi.commitRoute, clientId), { draft });
+  const leadId = text(data && data.leadId, 24);
+  if (!ID_RE.test(leadId)) {
+    const error = new Error(text(data && data.message, 300) || 'The trip could not be saved');
+    error.status = 409;
+    throw error;
+  }
+  await require('./extension-records.service').markEnquiryForClient(req, leadId, clientId).catch(() => false);
+  return { leadId };
 }
 
 /**
@@ -1130,7 +1225,17 @@ async function quotationDateRules(req, { leadId = '', opportunityId = '', record
  * extension's rules: Issue Date not before issueDateMin (checkIssueMin: a new quotation, or a changed
  * issue date) and Valid Till not after validTillMax.
  */
-function quotationDateProblems({ issueDate, validTill, rules = {}, checkIssueMin = false }) {
+/**
+ * CRM 3.64.5 (checkMinValidity: a new quotation, a revision, or a changed date): Valid Till must be at least
+ * 1 day after Issue Date. The one exception is "valid today only": when the extension's latest allowed date
+ * (validTillMax, e.g. the trip starts today) is the issue date itself, Valid Till = Issue Date is the only day
+ * possible and is allowed (the quotation is valid until the end of that day).
+ */
+function sameDayValidityAllowed(issueDate, rules = {}) {
+  return Boolean(issueDate && rules.validTillMax && rules.validTillMax === issueDate);
+}
+
+function quotationDateProblems({ issueDate, validTill, rules = {}, checkIssueMin = false, checkMinValidity = false }) {
   const { prettyDay } = require('../utils/date-only.util');
   const out = [];
   if (checkIssueMin && rules.issueDateMin && issueDate && issueDate < rules.issueDateMin) {
@@ -1138,6 +1243,8 @@ function quotationDateProblems({ issueDate, validTill, rules = {}, checkIssueMin
   }
   if (issueDate && validTill && validTill < issueDate) {
     out.push({ field: 'validTill', message: 'Valid Till cannot be before Issue Date.' });
+  } else if (checkMinValidity && issueDate && validTill && validTill === issueDate && !sameDayValidityAllowed(issueDate, rules)) {
+    out.push({ field: 'validTill', message: 'Valid Till must be at least 1 day after Issue Date.' });
   }
   if (rules.validTillMax && validTill && validTill > rules.validTillMax) {
     out.push({ field: 'validTill', message: `Valid Till cannot be after ${rules.validTillMaxLabel || 'the latest allowed date'} (${prettyDay(rules.validTillMax)}).` });
@@ -1337,4 +1444,4 @@ async function clientQuotationStart(req, clientId, body = {}) {
   return { leadId: ID_RE.test(leadId) ? leadId : '', opportunityId: ID_RE.test(opportunityId) ? opportunityId : '' };
 }
 
-module.exports = { paymentPreference, paymentPreferenceOf, clientLeadFormSyncStatus, clientLeadFormSync, clientQuotationWithoutOpportunity, assertClientQuotationEligible, clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };
+module.exports = { sameDayValidityAllowed, guidedInvoiceOf, guidedInvoiceCheck, guidedInvoicePreview, guidedInvoiceCommit, paymentPreference, paymentPreferenceOf, clientLeadFormSyncStatus, clientLeadFormSync, clientQuotationWithoutOpportunity, assertClientQuotationEligible, clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };

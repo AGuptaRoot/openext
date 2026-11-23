@@ -54,7 +54,7 @@ async function getById(req, res) {
 async function create(req, res) {
   try {
     const data = await PersonContactService.create(req, req.body || {});
-    res.status(201).json({ success: true, data, message: 'Contact created' });
+    res.status(201).json({ success: true, data: panSafe(req, data), message: 'Contact created' });
   } catch (error) {
     sendError(res, error);
   }
@@ -63,7 +63,7 @@ async function create(req, res) {
 async function update(req, res) {
   try {
     const data = await PersonContactService.update(req, req.params.id, req.body || {});
-    res.json({ success: true, data, message: 'Contact updated' });
+    res.json({ success: true, data: panSafe(req, data), message: 'Contact updated' });
   } catch (error) {
     sendError(res, error);
   }

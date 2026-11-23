@@ -204,10 +204,19 @@ async function loadClientTrip(sdk, recordId, clientId) {
   const values = row.values && typeof row.values === 'object' ? row.values : {};
   const forms = row.requirements && typeof row.requirements === 'object' ? row.requirements : {};
   const travellerIds = (Array.isArray(row.traveller_ids) ? row.traveller_ids : []).map(str).filter((t) => ID_RE.test(t)).slice(0, 200);
-  const [services, travellers] = await Promise.all([
-    readServices(sdk),
-    travellerIds.length ? sdk.models.Traveller.find({ _id: { $in: travellerIds } }, { limit: 200, sort: { createdAt: 1 } }) : Promise.resolve([])
-  ]);
+  const travellers = travellerIds.length ? await sdk.models.Traveller.find({ _id: { $in: travellerIds } }, { limit: 200, sort: { createdAt: 1 } }) : [];
+  return buildClientTrip(sdk, { values, forms, travellers, name: str(clientRecord.name), recordId: id, clientId: client });
+}
+
+/**
+ * 2.36.0: a client trip from its parts — the saved row (loadClientTrip) or the unsaved steps of
+ * "Create Invoice from Scratch" (travellers as rows: first_name, last_name, dob, year_of_birth).
+ */
+async function buildClientTrip(sdk, { values = {}, forms = {}, travellers = [], name = '', recordId = '', clientId = '' }) {
+  const id = recordId;
+  const client = clientId;
+  const clientRecord = { name };
+  const services = await readServices(sdk);
   const start = str(values.travel_start_date).slice(0, 10);
   const end = str(values.travel_end_date).slice(0, 10);
   let timeZone = rules.DEFAULT_TZ;
@@ -794,6 +803,9 @@ async function validity(sdk, trip) {
   const holdDay = earliest === null ? '' : todayIn(trip.timeZone, new Date(earliest));
   const [fromHolds, days] = await Promise.all([flagSetting(sdk, 'validity_from_holds', true), numberSetting(sdk, 'quotation_validity_days', 7, 1, 90)]);
   let validTill = fromHolds && holdDay ? holdDay : addDays(trip.today, days);
+  // 2.36.4 (CRM 3.64.5): Valid Till is at least 1 day after the issue date (today); the same day only when the
+  // trip itself starts today ("valid today only"). A hold ending today is still shown as the latest suggested day.
+  if (validTill <= trip.today) validTill = rules.isValidDate(trip.start) && trip.start === trip.today ? trip.today : addDays(trip.today, 1);
   if (rules.isValidDate(trip.start) && validTill > trip.start && trip.start >= trip.today) validTill = trip.start;
   return { validTill, validTillMax: holdDay };
 }
@@ -825,9 +837,10 @@ function dayPlanPanel(trip, lines, services) {
   };
 }
 
-async function quotationPrefill(sdk, leadId, opportunityId = '', { recordId = '', clientId = '' } = {}) {
-  // 2.28.0: a client trip (CRM recordId + clientId): no lead, no opportunity.
-  const trip = recordId ? await loadClientTrip(sdk, recordId, clientId) : await loadTrip(sdk, leadId);
+async function quotationPrefill(sdk, leadId, opportunityId = '', { recordId = '', clientId = '', trip: built = null } = {}) {
+  // 2.28.0: a client trip (CRM recordId + clientId): no lead, no opportunity. 2.36.0: or a trip built from an
+  // unsaved draft (Create Invoice from Scratch).
+  const trip = built || (recordId ? await loadClientTrip(sdk, recordId, clientId) : await loadTrip(sdk, leadId));
   const services = await readServices(sdk);
   const [opp, { validTill, validTillMax }] = await Promise.all([opportunityTrip(sdk, opportunityId, trip.id), validity(sdk, trip)]);
   const oppValues = opp.values;
@@ -920,4 +933,4 @@ async function quotationPrefill(sdk, leadId, opportunityId = '', { recordId = ''
   };
 }
 
-module.exports = { TRIP_REF_PREFIX, loadClientTrip, travellerNotices, opportunityPrefill, quotationPrefill, requirementSummary, dateRange, linesForService, lineColumns, flexibilityFor, applyOpportunityPrices };
+module.exports = { TRIP_REF_PREFIX, loadClientTrip, buildClientTrip, travellerNotices, opportunityPrefill, quotationPrefill, requirementSummary, dateRange, linesForService, lineColumns, flexibilityFor, applyOpportunityPrices };

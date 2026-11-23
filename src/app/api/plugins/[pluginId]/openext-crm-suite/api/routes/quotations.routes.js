@@ -146,6 +146,12 @@ module.exports = function registerQuotationsRoutes(app) {
     requirePermission('crm.finance.write'),
     quotationController.accept
   );
+  // CRM 3.64.0: staff confirms the sale for the client (only when the active extension allows it).
+  app.post(
+    '/quotations/:id/staff-confirm',
+    requirePermission('crm.finance.write'),
+    quotationController.staffConfirm
+  );
   app.post(
     '/quotations/:id/reject',
     requirePermission('crm.finance.write'),

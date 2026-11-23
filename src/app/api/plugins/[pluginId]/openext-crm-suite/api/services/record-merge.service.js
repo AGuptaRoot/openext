@@ -115,10 +115,43 @@ async function getLeadMergeCandidates(req, primaryId) {
   return result.matches.filter((match) => !match.restricted && match.id);
 }
 
+/**
+ * CRM 3.64.3: one mobile number written in different ways (+919876543210, 919876543210, 98765 43210) is the
+ * same number: compared by its last 10 digits (all digits when shorter), at least 7 digits.
+ */
+function clientPhoneKey(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length >= 7 ? digits.slice(-10) : '';
+}
+
+/** The stored forms a typed mobile number may have (for the indexed lookup). */
+function clientPhoneVariants(value) {
+  const raw = String(value || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  const key = clientPhoneKey(raw);
+  const out = new Set([raw]);
+  if (digits) {
+    out.add(digits);
+    out.add(`+${digits}`);
+  }
+  if (key) {
+    out.add(key);
+    if (key.length === 10 && digits.length > 10) {
+      const cc = digits.slice(0, digits.length - 10);
+      out.add(`+${cc} ${key}`);
+      out.add(`${cc}${key}`);
+    }
+  }
+  return [...out].filter(Boolean);
+}
+
 function clientDuplicateReasons(input, candidate) {
   const reasons = [];
   if (input.email && input.email === String(candidate.email || '').trim().toLowerCase()) reasons.push('email');
-  if (input.phone && input.phone === String(candidate.phone || '').trim()) reasons.push('mobile');
+  const phoneKey = clientPhoneKey(input.phone);
+  if (input.phone && (input.phone === String(candidate.phone || '').trim() || (phoneKey && phoneKey === clientPhoneKey(candidate.phone)))) {
+    reasons.push('mobile');
+  }
   const similarity = companySimilarity(input.name, candidate.name);
   if (input.name && similarity >= COMPANY_SIMILARITY_THRESHOLD) reasons.push('company');
   return { reasons, similarity };
@@ -138,7 +171,7 @@ async function findClientDuplicates(req, input, options = {}) {
 
   const exact = [];
   if (normalized.email) exact.push({ email: normalized.email });
-  if (normalized.phone) exact.push({ phone: normalized.phone });
+  if (normalized.phone) exact.push({ phone: { $in: clientPhoneVariants(normalized.phone) } });
   const tokens = buildCompanyTokens(normalized.name);
   const projection = '_id name email phone taxId website billingAddress leadId companyKey createdAt';
   const [exactRows, companyRows] = await Promise.all([

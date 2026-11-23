@@ -26,6 +26,11 @@ const opportunityIdOf = (req) => (req.body && typeof req.body.opportunityId === 
 exports.opportunity = async (req, sdk) => opportunityPrefill(sdk, leadIdOf(req, sdk));
 exports.quotation = async (req, sdk) => {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
+  // 2.36.0: Create Invoice from Scratch — check one step ({ draft, check }) or price the unsaved trip ({ draft }).
+  if (body.draft && typeof body.draft === 'object' && !body.leadId) {
+    const guided = require('../services/guided-sale.js');
+    return typeof body.check === 'string' && body.check ? guided.check(sdk, body.draft, body.check, body) : guided.preview(sdk, body.draft);
+  }
   // 2.28.0 (CRM 3.51.0): a client trip — the client + its trip record, no lead.
   if (typeof body.recordId === 'string' && body.recordId && !body.leadId) {
     return quotationPrefill(sdk, '', '', { recordId: body.recordId.trim(), clientId: String(body.clientId || '').trim() });

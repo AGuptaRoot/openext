@@ -1,0 +1,9 @@
+/* <x-travel-guided-sale-v1>: travel steps of Create Invoice from Scratch (2.36.0). */
+.tvx-gs { display: flex; flex-direction: column; gap: 12px; }
+.tvx-gs-person { display: flex; flex-direction: column; gap: 10px; }
+.tvx-gs-person-title { margin: 0; font-size: 14px; font-weight: 700; }
+.tvx-gs-match { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tvx-gs-note { margin: 0; font-size: 12px; }
+.tvx-gs-fields { min-height: 40px; }
+.tvx-gs-error { display: block; margin-top: 4px; font-size: 11px; font-weight: 500; color: #b91c1c; }
+.tvx-gs-upper { text-transform: uppercase; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }

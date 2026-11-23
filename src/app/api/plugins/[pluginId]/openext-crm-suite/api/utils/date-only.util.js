@@ -16,6 +16,22 @@ function isDay(value) {
   return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
 }
 
+/**
+ * CRM 3.64.5: today's day in the workspace time zone (CRM_TIME_ZONE, default Asia/Kolkata — the same default as
+ * the alerts). Used for "has this quotation expired": a quotation is valid until the END of its Valid Till day.
+ */
+function workspaceDay(now = new Date(), timeZone = process.env.CRM_TIME_ZONE || 'Asia/Kolkata') {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+    const get = (type) => (parts.find((p) => p.type === type) || {}).value || '';
+    const day = `${get('year')}-${get('month')}-${get('day')}`;
+    if (isDay(day)) return day;
+  } catch {
+    /* unknown zone: the server's own day below */
+  }
+  return localDay(now);
+}
+
 /** Today's day on this server's clock (its local time zone, not UTC). */
 function localDay(now = new Date()) {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -57,4 +73,5 @@ function prettyDay(day) {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
-module.exports = { DAY_RE, isDay, localDay, dayOf, dayToDate, addDays, prettyDay };
+module.exports = {
+  workspaceDay, DAY_RE, isDay, localDay, dayOf, dayToDate, addDays, prettyDay };

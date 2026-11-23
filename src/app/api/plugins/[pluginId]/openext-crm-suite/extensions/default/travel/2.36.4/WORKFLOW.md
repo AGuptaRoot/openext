@@ -1,6 +1,6 @@
 # crm-travel — Workflow
 
-Travel extension `travel` **2.35.0**, needs CRM `openext-crm-suite` **>= 3.61.0 < 4.0.0** (GST suite).
+Travel extension `travel` **2.36.4**, needs CRM `openext-crm-suite` **>= 3.64.0 < 4.0.0** (GST suite).
 
 This file explains, in simple English, how a travel enquiry moves through the CRM: from the first lead to
 the trip, the booking, vouchers and the client portal.
@@ -126,6 +126,8 @@ When the lead is ready, the CRM enables **Create Opportunity** and can move the 
 - Lines are grouped as Flights, Hotel, Transfers, Activities, Visa, Insurance and Other. Each line has extra fields: availability, date, route, cabin class, room type, meal plan and provider.
 - Per-person services use the traveller count. If there are no travellers, they are quoted for 1 person and a warning is shown.
 - "Valid till" cannot be later than the travel start date.
+- "Valid till" must be **at least 1 day after the issue date** (CRM 3.64.5). The one exception is a trip that **starts today**: "Valid today only" (valid till = issue date), to be accepted or staff-confirmed before midnight.
+- A quotation is valid **until the end of** its Valid Till day (workspace time zone, CRM_TIME_ZONE, default Asia/Kolkata); it shows Expired from the next day.
 - **Price per person** can be shown (setting `show_price_per_person`).
 - On save, the CRM calls the hook `/sales-flow/quotation-saved`; the stage moves to **Quotation Sent**.
 - A revision (R1, R2...) keeps the same links.
@@ -246,6 +248,21 @@ stateDiagram-v2
 
 - The invoice is made **from the quotation** (`invoiceFromQuotation`), with travel lines and the "Travel Summary" print layout.
 - Recurring invoices, invoice templates and write-off are hidden for travel.
+
+### Create Invoice from Scratch (2.36.0, CRM 3.64.0)
+
+Invoices → **Create Invoice from Scratch** (admin, manager, finance; not sales reps). Six steps, **nothing is saved until Create**:
+
+1. **Client**: company name, mobile (country code), email (optional), state, GSTIN (optional, checked). A mobile or email another client already has shows a warning under the field and the existing client is offered ("Use this client"); a client is never duplicated (CRM 3.64.3). A similar name is only a hint.
+2. **Contact Person**: salutation, name, gender, email, mobile, PAN (optional, encrypted), job title. Company name = the client's (locked). An existing contact is reused.
+3. **Travel Information**: the same fields and checks as the client's Travel Requirement. 2.36.3: when an **existing client** is picked in step 1 and its trip (open trip or saved Travel Requirement) has **no quotation**, steps 3, 4 and 5 are filled from it and Create updates that same trip (never a second one). When that trip **has a quotation**, nothing is filled and Next is blocked: finish or close that trip first (one open trip per client).
+4. **Travellers**: at least one. **The same form as Travellers → Add traveller** (2.36.2: the lead Travellers component on the draft) — same fields, rules, OCR, "Existing Traveller Found" card and "Add existing traveller". Each save is checked by the server; nothing is stored until Create. A document photo is only read (OCR) here, not stored: add it on the trip's Travellers tab afterwards.
+5. **Travel Requirements**: one form per service chosen in step 3.
+6. **Invoice**: the lines are built from steps 3–5; only the prices are entered. Payment term: **full payment only**.
+
+On Create, in order: client → contact (added to the client) → the trip is saved (Travel Requirement, trip enquiry opened, travellers added) → quotation (full payment) → **staff confirms the sale** (salesFlow.staffConfirmedSale, audited) → **tax invoice** (unpaid until a payment is recorded). If a step fails, **Retry** goes on from it; nothing is made twice. A client that already has another open trip is refused (finish that trip first).
+
+No new route: the draft is checked and priced through `POST /quotation-prefill { draft, check? }` and saved through `POST /clients/:client_id/quotation-start { draft }`. The booking follows the normal flow after payment.
 
 ---
 

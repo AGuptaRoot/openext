@@ -1107,7 +1107,7 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
         //   no Load / Save as Template on the quotation form, the template pages redirect). Stored templates are kept.
         // oneAcceptedQuotationPerLead: a lead has at most one Accepted / Converted quotation (counting the
         //   quotations of its opportunities too); on accept its other Draft / Sent quotations are Closed.
-        for (const key of ['hideShipping', 'lockOpportunityContact', 'invoiceFromQuotation', 'hideRecurringInvoices', 'hideInvoiceTemplates', 'hideQuotationTemplates', 'hideInvoiceWriteOff', 'lockOpportunityOnAccept', 'lockConvertedLead', 'completeOpportunitiesOnConversion', 'clientQuotationStartsWithLead', 'bookingAfterAdvance', 'lockWonLead', 'oneAcceptedQuotationPerLead']) {
+        for (const key of ['hideShipping', 'lockOpportunityContact', 'invoiceFromQuotation', 'hideRecurringInvoices', 'hideInvoiceTemplates', 'hideQuotationTemplates', 'hideInvoiceWriteOff', 'lockOpportunityOnAccept', 'lockConvertedLead', 'completeOpportunitiesOnConversion', 'clientQuotationStartsWithLead', 'bookingAfterAdvance', 'lockWonLead', 'oneAcceptedQuotationPerLead', 'staffConfirmedSale']) {
           if (source.salesFlow[key] === undefined) continue;
           if (typeof source.salesFlow[key] !== 'boolean') errors.push(`salesFlow.${key} must be true or false`);
           else if (source.salesFlow[key]) salesFlow[key] = true;
@@ -1165,6 +1165,45 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
               ...(clientTab && /^[a-z][a-z0-9_-]{1,59}$/.test(clientTab) ? { clientTab } : {}),
               ...(leadFormSync ? { leadFormSync } : {})
             };
+          }
+        }
+        // CRM 3.64.0 guided invoice ("Create Invoice from Scratch" on the invoice list): the CRM's own steps
+        // (client, contact, pricing) around the extension's steps (each a UI slot "guided.<id>"). The extension's
+        // routes: checkRoute (POST { draft, step } → { errors }), previewRoute (POST { draft } → quotation
+        // prefill shape) and commitRoute (POST, one ":param" = the client id, { draft } → { leadId }).
+        if (source.salesFlow.guidedInvoice !== undefined) {
+          const gi = source.salesFlow.guidedInvoice;
+          const routes = (backend && backend.routes) || [];
+          const has = (method, path) => routes.some((r) => r.method === method && r.path === path);
+          const oneParam = (p) => (p.match(/:[a-z][a-z0-9_]*/gi) || []).length === 1;
+          if (!isObject(gi)) errors.push('salesFlow.guidedInvoice must be an object');
+          else {
+            const label = str(gi.label);
+            const title = str(gi.title);
+            const checkRoute = str(gi.checkRoute);
+            const previewRoute = str(gi.previewRoute);
+            const commitRoute = str(gi.commitRoute);
+            if (!label || label.length > 60) errors.push('salesFlow.guidedInvoice.label is required (60 characters at most)');
+            if (title.length > 80) errors.push('salesFlow.guidedInvoice.title is too long (80 characters at most)');
+            if (!has('POST', checkRoute)) errors.push(`salesFlow.guidedInvoice.checkRoute "${checkRoute}" must be a POST route declared in api/routes.json`);
+            if (!has('POST', previewRoute)) errors.push(`salesFlow.guidedInvoice.previewRoute "${previewRoute}" must be a POST route declared in api/routes.json`);
+            if (!has('POST', commitRoute) || !oneParam(commitRoute)) errors.push(`salesFlow.guidedInvoice.commitRoute "${commitRoute}" must be a POST route with one ":param" (the client id)`);
+            const steps = [];
+            if (!Array.isArray(gi.steps) || !gi.steps.length || gi.steps.length > 6) errors.push('salesFlow.guidedInvoice.steps must list 1 to 6 steps');
+            else {
+              const seen = new Set();
+              for (const step of gi.steps) {
+                const id = isObject(step) ? str(step.id) : '';
+                const stepTitle = isObject(step) ? str(step.title) : '';
+                const slot = isObject(step) ? str(step.slot) : '';
+                if (!/^[a-z][a-z0-9_]{1,40}$/.test(id) || seen.has(id)) errors.push(`salesFlow.guidedInvoice step id "${id}" must be a unique lowercase id`);
+                if (!stepTitle || stepTitle.length > 60) errors.push(`salesFlow.guidedInvoice step "${id}" needs a title (60 characters at most)`);
+                if (!/^guided\.[a-z][a-z0-9_]{1,40}$/.test(slot)) errors.push(`salesFlow.guidedInvoice step "${id}" slot must look like "guided.<name>"`);
+                seen.add(id);
+                steps.push({ id, title: stepTitle, slot });
+              }
+            }
+            salesFlow.guidedInvoice = { label, ...(title ? { title } : {}), checkRoute, previewRoute, commitRoute, steps };
           }
         }
         // Service invoice PDF: { layout: 'service', title?, summaryTitle?, linesTitle?, footer? }. The

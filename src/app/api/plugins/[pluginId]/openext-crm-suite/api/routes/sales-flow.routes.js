@@ -18,10 +18,25 @@
  *                                                                   (services/lead-workflow.service.js quotationCandidates):
  *                                                                   { leads, notReady, hidden, hasReadiness, included? }
  *
+ * CRM 3.64.0 — "Create Invoice from Scratch" (salesFlow.guidedInvoice), finance users only (not sales reps):
+ * POST /sales-flow/guided-invoice/check   { draft, step }      the extension checks one of its steps → { errors }
+ * POST /sales-flow/guided-invoice/preview { draft }            the lines to price (nothing saved)
+ * POST /sales-flow/guided-invoice/commit  { clientId, draft }  the extension saves its steps → { leadId }
+ *
  * All answer { available: false } when no active extension offers it.
  */
 
-const { requireAnyPermission } = require('../middleware/permission.middleware');
+const { requireAnyPermission, requirePermission } = require('../middleware/permission.middleware');
+
+/** The guided invoice ends in a tax invoice: like Convert to Invoice, never for sales representatives. */
+function guidedAccess(req) {
+  const { isSalesRepresentative, isAdmin, isSalesManager } = require('../utils/sales-access.util');
+  if (isSalesRepresentative(req) && !isAdmin(req) && !isSalesManager(req)) {
+    const error = new Error('Sales representatives cannot create invoices from scratch');
+    error.status = 403;
+    throw error;
+  }
+}
 const SalesFlowService = require('../services/sales-flow.service');
 
 function fail(res, error, fallback) {
@@ -125,6 +140,39 @@ module.exports = function registerSalesFlowRoutes(app) {
       fail(res, error, 'Failed to load the quotation date rules');
     }
   });
+
+  app.post('/sales-flow/guided-invoice/check', requirePermission('crm.finance.write'), async (req, res) => {
+    try {
+      guidedAccess(req);
+      res.json({ success: true, data: await SalesFlowService.guidedInvoiceCheck(req, req.body || {}) });
+    } catch (error) {
+      fail(res, error, 'Failed to check this step');
+    }
+  });
+
+  app.post('/sales-flow/guided-invoice/preview', requirePermission('crm.finance.write'), async (req, res) => {
+    try {
+      guidedAccess(req);
+      res.json({ success: true, data: await SalesFlowService.guidedInvoicePreview(req, req.body || {}) });
+    } catch (error) {
+      fail(res, error, 'Failed to prepare the invoice lines');
+    }
+  });
+
+  app.post(
+    '/sales-flow/guided-invoice/commit',
+    requirePermission('crm.finance.write'),
+    requirePermission('crm.leads.write'),
+    requirePermission('crm.clients.write'),
+    async (req, res) => {
+      try {
+        guidedAccess(req);
+        res.json({ success: true, data: await SalesFlowService.guidedInvoiceCommit(req, req.body || {}) });
+      } catch (error) {
+        fail(res, error, 'Failed to save the trip');
+      }
+    }
+  );
 
   app.post('/sales-flow/quotation-prefill', requireAnyPermission(['crm.finance.write']), async (req, res) => {
     try {

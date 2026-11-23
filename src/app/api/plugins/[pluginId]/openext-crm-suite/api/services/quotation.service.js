@@ -47,11 +47,11 @@ const refId = (ref) => String((ref && typeof ref === 'object' ? ref._id : ref) |
  * the active extension's limits (salesFlow.quotationDatesRoute, e.g. not valid after the trip starts).
  * Days are compared as "YYYY-MM-DD" (date-only, no time-zone shift). 400 INVALID_QUOTATION_DATES.
  */
-async function assertCommercialDates(req, { leadId, opportunityId, recordId, clientId, issueDate, validTill, checkIssueMin, rules }) {
+async function assertCommercialDates(req, { leadId, opportunityId, recordId, clientId, issueDate, validTill, checkIssueMin, checkMinValidity, rules }) {
   const SalesFlow = require('./sales-flow.service');
   const { dayOf } = require('../utils/date-only.util');
   const limits = rules || (await SalesFlow.quotationDateRules(req, { leadId: refId(leadId), opportunityId: refId(opportunityId), recordId, clientId: refId(clientId) }));
-  SalesFlow.assertQuotationDates({ issueDate: dayOf(issueDate), validTill: dayOf(validTill), rules: limits, checkIssueMin: Boolean(checkIssueMin) });
+  SalesFlow.assertQuotationDates({ issueDate: dayOf(issueDate), validTill: dayOf(validTill), rules: limits, checkIssueMin: Boolean(checkIssueMin), checkMinValidity: Boolean(checkMinValidity) });
   return limits;
 }
 
@@ -202,16 +202,19 @@ function assertNonZeroTotal(grandTotal) {
   }
 }
 
-function withEffectiveStatus(doc) {
+/**
+ * CRM 3.64.5: a quotation is valid until the END of its Valid Till day (workspace time zone). Before, Valid Till
+ * (stored at UTC midnight) counted as expired from the start of that day — "valid till today" was already expired.
+ */
+function withEffectiveStatus(doc, today = require('../utils/date-only.util').workspaceDay()) {
   if (!doc) return doc;
-  const now = new Date();
-
   if (doc.status === 'Draft' || doc.status === 'Sent') {
-    if (doc.expiryDate && new Date(doc.expiryDate) < now) {
+    const { dayOf } = require('../utils/date-only.util');
+    const validTill = doc.expiryDate ? dayOf(doc.expiryDate) : '';
+    if (validTill && validTill < today) {
       return { ...doc, status: 'Expired' };
     }
   }
-
   return doc;
 }
 
@@ -381,7 +384,7 @@ async function list(req) {
     Estimate.countDocuments(finalFilter)
   ]);
 
-  const withStatus = items.map(withEffectiveStatus);
+  const withStatus = items.map((item) => withEffectiveStatus(item));
   const withCustomer = await enrichWithCustomerLabel(req, withStatus);
   const enriched = await enrichQuotationsWithDeals(req, withCustomer);
 
@@ -519,11 +522,12 @@ async function create(req, input) {
   const validDays = Number(settings.quotation_valid_days || 30);
   let expiryDate = input.expiryDate ? new Date(input.expiryDate) : null;
   if (!expiryDate || isNaN(expiryDate.getTime())) {
-    let day = DateOnly.addDays(issueDay, validDays);
+    let day = DateOnly.addDays(issueDay, Math.max(1, validDays));
     if (dateRules.validTillMax && day > dateRules.validTillMax && dateRules.validTillMax >= issueDay) day = dateRules.validTillMax;
     expiryDate = DateOnly.dayToDate(day);
   }
-  await assertCommercialDates(req, { issueDate: issueDay, validTill: expiryDate, checkIssueMin: true, rules: dateRules });
+  // CRM 3.64.5: Valid Till at least 1 day after Issue Date ("valid today only" only when the limit is that day).
+  await assertCommercialDates(req, { issueDate: issueDay, validTill: expiryDate, checkIssueMin: true, checkMinValidity: true, rules: dateRules });
 
   const quotationNo = await getNextNumber(req, 'quotation');
 
@@ -724,7 +728,11 @@ async function update(req, id, input) {
       clientId: existing.clientId,
       issueDate: issueDay,
       validTill: updates.expiryDate !== undefined ? updates.expiryDate : existing.expiryDate,
-      checkIssueMin: input.issueDate !== undefined && issueDay !== dayOf(existing.issueDate)
+      checkIssueMin: input.issueDate !== undefined && issueDay !== dayOf(existing.issueDate),
+      // 3.64.5: the minimum validity is checked when a date is changed (older quotations are left as they are).
+      checkMinValidity:
+        (input.issueDate !== undefined && issueDay !== dayOf(existing.issueDate)) ||
+        (input.expiryDate !== undefined && dayOf(input.expiryDate) !== dayOf(existing.expiryDate))
     });
   }
 
@@ -1636,7 +1644,7 @@ async function listByLead(req, leadId) {
   };
 
   const items = await Estimate.find(filter).sort({ createdAt: -1 }).lean();
-  const withStatus = items.map(withEffectiveStatus);
+  const withStatus = items.map((item) => withEffectiveStatus(item));
   return enrichWithCustomerLabel(req, withStatus);
 }
 
@@ -1653,7 +1661,7 @@ async function listByClient(req, clientId) {
   };
 
   const items = await Estimate.find(filter).sort({ createdAt: -1 }).lean();
-  const withStatus = items.map(withEffectiveStatus);
+  const withStatus = items.map((item) => withEffectiveStatus(item));
   return enrichWithCustomerLabel(req, withStatus);
 }
 
@@ -1730,9 +1738,16 @@ async function createRevision(req, id, options = {}) {
   const revisionIssueDay = revisionRules.issueDateMin || DateOnly.localDay();
   let revisionExpiry = options.expiryDate ? new Date(options.expiryDate) : existing.expiryDate;
   if (options.expiryDate) {
-    await assertCommercialDates(req, { issueDate: revisionIssueDay, validTill: options.expiryDate, rules: revisionRules });
-  } else if (revisionRules.validTillMax && DateOnly.dayOf(revisionExpiry) > revisionRules.validTillMax && revisionRules.validTillMax >= revisionIssueDay) {
-    revisionExpiry = DateOnly.dayToDate(revisionRules.validTillMax);
+    await assertCommercialDates(req, { issueDate: revisionIssueDay, validTill: options.expiryDate, checkMinValidity: true, rules: revisionRules });
+  } else {
+    // 3.64.5: the old Valid Till is kept only when it is still after the revision's issue date; else the default validity.
+    if (!(DateOnly.dayOf(revisionExpiry) > revisionIssueDay)) {
+      const revisionSettings = await SettingService.getAll(req).catch(() => ({}));
+      revisionExpiry = DateOnly.dayToDate(DateOnly.addDays(revisionIssueDay, Math.max(1, Number(revisionSettings.quotation_valid_days || 30))));
+    }
+    if (revisionRules.validTillMax && DateOnly.dayOf(revisionExpiry) > revisionRules.validTillMax && revisionRules.validTillMax >= revisionIssueDay) {
+      revisionExpiry = DateOnly.dayToDate(revisionRules.validTillMax);
+    }
   }
 
   // Mark all existing revisions in this branch as not the latest version
@@ -1854,7 +1869,7 @@ async function getRevisionHistory(req, id) {
     .sort({ version: 1, createdAt: 1 })
     .lean();
 
-  const withStatus = revisions.map(withEffectiveStatus);
+  const withStatus = revisions.map((item) => withEffectiveStatus(item));
   const withCustomer = await enrichWithCustomerLabel(req, withStatus);
   return enrichQuotationsWithDeals(req, withCustomer);
 }
@@ -2351,7 +2366,37 @@ async function exportQuotations(req, query = {}) {
   };
 }
 
+/**
+ * CRM 3.64.0 — salesFlow.staffConfirmedSale: a finance user confirms the sale for the client (the quotation
+ * is accepted as if the client did; audited). Used by "Create Invoice from Scratch". Safe to repeat: an
+ * already accepted quotation is returned as it is. Sales representatives cannot confirm a sale.
+ */
+async function staffConfirm(req, id) {
+  const rules = await require('./sales-flow.service').recordRules(req);
+  if (!rules.staffConfirmedSale) {
+    throw appError('Only clients can accept quotations in this workspace.', 403, { code: 'STAFF_CONFIRM_OFF' });
+  }
+  const { isSalesRepresentative, isAdmin, isSalesManager } = require('../utils/sales-access.util');
+  if (isSalesRepresentative(req) && !isAdmin(req) && !isSalesManager(req)) {
+    throw appError('Sales representatives cannot confirm a sale', 403);
+  }
+  const existing = await findQuotationOrThrow(req, id);
+  if (['Accepted', 'Converted'].includes(existing.status)) return existing;
+  if (!['Draft', 'Sent'].includes(existing.status)) throw appError(`A ${String(existing.status || '').toLowerCase()} quotation cannot be confirmed`, 409);
+  await assertNotExpired(existing);
+  const doc = await accept(req, id, { system: true });
+  await AuditService.log(req, {
+    action: 'updated',
+    module: 'quotation',
+    recordId: String(id),
+    description: `Sale confirmed by staff for the client: ${(doc && doc.quotationNo) || existing.quotationNo || id}`,
+    metadata: { staffConfirmed: true, clientId: String((doc && doc.clientId) || existing.clientId || '') }
+  });
+  return doc;
+}
+
 module.exports = {
+  staffConfirm,
   closeOtherOpportunityQuotations,
   closeOtherLeadQuotations,
   assertLeadNotAccepted,

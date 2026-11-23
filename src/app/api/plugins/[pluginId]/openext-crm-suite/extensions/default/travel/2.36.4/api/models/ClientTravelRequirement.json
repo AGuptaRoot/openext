@@ -71,6 +71,10 @@
     "accepted_at": {
       "type": "text",
       "label": "Quotation accepted (2.30.0: the requirement is used)"
+    },
+    "guided_ref": {
+      "type": "text",
+      "label": "Create Invoice from Scratch run (2.36.0: a retry reuses this trip)"
     }
   }
 }

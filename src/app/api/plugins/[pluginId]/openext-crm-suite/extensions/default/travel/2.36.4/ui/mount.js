@@ -46,6 +46,7 @@ import { TAG as PORTAL_BOOKINGS } from './components/portal-bookings/portal-book
 import { TAG as CLIENT_TRAVELLERS } from './components/client-travellers/client-travellers.js';
 import { TAG as TRIP_PAGE } from './components/trip-page/trip-page.js';
 import { TAG as CLIENT_TRAVEL_REQUIREMENT } from './components/client-travel-requirement/client-travel-requirement.js';
+import { TAG as GUIDED_SALE } from './components/guided-sale/guided-sale.js';
 
 const SLOTS = {
   'page.travel_services': SERVICE_BUILDER,
@@ -63,7 +64,11 @@ const SLOTS = {
   'client.tab.travel_requirement': CLIENT_TRAVEL_REQUIREMENT,
   'opportunity.tab.trip': OPPORTUNITY_TRIP,
   'page.portal_bookings': PORTAL_BOOKINGS,
-  'page.trip': TRIP_PAGE
+  'page.trip': TRIP_PAGE,
+  // 2.36.0: the travel steps of CRM Invoices → Create Invoice from Scratch.
+  'guided.travel_info': GUIDED_SALE,
+  'guided.travellers': GUIDED_SALE,
+  'guided.requirements': GUIDED_SALE
 };
 
 export function mount(element, ctx) {

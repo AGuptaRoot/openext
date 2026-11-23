@@ -19,7 +19,10 @@ const PersonContactSchema = new Schema(
       enum: ['', 'Male', 'Female', 'Other', 'Prefer not to say'],
       default: ''
     },
-    pan: { type: String, trim: true, uppercase: true, maxlength: 10, default: '' },
+    /** CRM 3.64.0: PAN is encrypted at rest (data-protection TEXT_PREFIX); panHash finds duplicates, panLast4 masks. */
+    pan: { type: String, trim: true, maxlength: 512, default: '' },
+    panHash: { type: String, default: '' },
+    panLast4: { type: String, default: '' },
     jobTitle: { type: String, trim: true, maxlength: 120, default: '' },
     companyName: { type: String, trim: true, maxlength: 120, default: '' },
     leadIds: { type: [String], default: [] },
@@ -44,7 +47,7 @@ const PersonContactSchema = new Schema(
 
 PersonContactSchema.index({ tenantId: 1, email: 1 }, { name: 'person_contacts_tenant_email' });
 PersonContactSchema.index({ tenantId: 1, phone: 1 }, { name: 'person_contacts_tenant_phone' });
-PersonContactSchema.index({ tenantId: 1, pan: 1 }, { name: 'person_contacts_tenant_pan' });
+PersonContactSchema.index({ tenantId: 1, panHash: 1 }, { name: 'person_contacts_tenant_pan_hash' });
 PersonContactSchema.index({ tenantId: 1, name: 1 }, { name: 'person_contacts_tenant_name' });
 PersonContactSchema.index({ tenantId: 1, companyName: 1 }, { name: 'person_contacts_tenant_company' });
 PersonContactSchema.index({ tenantId: 1, createdAt: -1 }, { name: 'person_contacts_tenant_created' });

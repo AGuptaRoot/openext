@@ -462,6 +462,9 @@ async function openTrip(sdk, clientId) {
   return { leadId: lead.id, lead: { _id: lead.id, title: lead.title, stage: lead.stage }, created: true };
 }
 
+// 2.36.0: reused by Create Invoice from Scratch (services/guided-sale.js).
+exports._guided = { TRAVEL_KEYS, loadClient, currentOf, openTrip, saveOnLead, checkTravelInfo, selectedOf, requirementsOf };
+
 exports.startTrip = async (req, sdk) => {
   const clientId = clientIdOf(req, sdk);
   const { leadId, created } = await openTrip(sdk, clientId);
@@ -575,6 +578,10 @@ exports.quotationTravellers = async (req, sdk) => {
 
 exports.quotationStart = async (req, sdk) => {
   const clientId = clientIdOf(req, sdk);
+  // 2.36.0: Create Invoice from Scratch saves its whole draft here (trip + travellers) → { leadId }.
+  if (req.body && typeof req.body === 'object' && req.body.draft && typeof req.body.draft === 'object') {
+    return require('../services/guided-sale.js').commit(sdk, clientId, req.body.draft);
+  }
   await loadClient(sdk, clientId);
   const current = await readyCurrent(sdk, clientId);
   if (!current) throw sdk.error(409, 'Fill and save this client’s Travel Requirement first.', 'REQUIREMENT_NOT_READY');
