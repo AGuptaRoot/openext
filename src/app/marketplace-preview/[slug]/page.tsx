@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { buildMarketplacePreviewInput } from '@/modules/themeEngine/buildRenderInput';
 import { previewBlocksFromLoadedTheme } from '@/modules/themeEngine/previewBlocksFromLoadedTheme';
 import { themeLoader } from '@/modules/themeEngine/ThemeLoader';
+import { themeManager } from '@/modules/themeEngine/ThemeManager';
 import { templateResolver } from '@/modules/themeEngine/TemplateResolver';
 import { assetManager } from '@/modules/themeEngine/AssetManager';
 import { ThemeApiImpl } from '@/modules/themeEngine/ThemeAPI';
@@ -28,6 +29,7 @@ export default async function MarketplaceThemePreviewPage({
   const query = (await searchParams) || {};
   const compose = query.compose === '1' || query.compose === 'true';
 
+  await themeManager.ensureDefaultThemeFilesFor(slug);
   const diskManifest = await readDiskManifest(slug);
   if (!diskManifest) notFound();
 

@@ -4,6 +4,7 @@ import { ApiError } from '@/lib/api/errors';
 import { getAuthUser } from '@/lib/api/auth';
 import { themeRegistry } from '@/modules/themeEngine/ThemeRegistry';
 import { themeLoader } from '@/modules/themeEngine/ThemeLoader';
+import { themeManager } from '@/modules/themeEngine/ThemeManager';
 import { readDiskManifest } from '@/modules/themeEngine/readDiskManifest';
 import { normalizeSectionSchema } from '@/modules/themeEngine/sectionSchema';
 
@@ -19,6 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
       throw new ApiError('Theme not found', 404);
     }
 
+    await themeManager.ensureDefaultThemeFilesFor(slug);
     const manifest = (await readDiskManifest(slug)) || theme.manifest;
     const editableSections = manifest.editableSections || [];
     let loadedSchemas: Record<string, unknown> = {};

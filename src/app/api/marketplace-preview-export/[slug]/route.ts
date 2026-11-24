@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { buildMarketplacePreviewInput } from '@/modules/themeEngine/buildRenderInput';
 import { previewBlocksFromLoadedTheme } from '@/modules/themeEngine/previewBlocksFromLoadedTheme';
 import { themeLoader } from '@/modules/themeEngine/ThemeLoader';
+import { themeManager } from '@/modules/themeEngine/ThemeManager';
 import { templateResolver } from '@/modules/themeEngine/TemplateResolver';
 import { assetManager } from '@/modules/themeEngine/AssetManager';
 import { ThemeApiImpl } from '@/modules/themeEngine/ThemeAPI';
@@ -35,6 +36,7 @@ export async function GET(
   const { slug } = await context.params;
 
   try {
+    await themeManager.ensureDefaultThemeFilesFor(slug);
     const diskManifest = await readDiskManifest(slug);
     if (!diskManifest) {
       return NextResponse.json({ error: 'Theme not found' }, { status: 404 });

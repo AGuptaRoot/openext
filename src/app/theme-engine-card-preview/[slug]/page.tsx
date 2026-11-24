@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/api/auth';
 import { buildCardPreviewInput } from '@/modules/themeEngine/buildRenderInput';
 import { previewBlocksFromLoadedTheme } from '@/modules/themeEngine/previewBlocksFromLoadedTheme';
 import { themeLoader } from '@/modules/themeEngine/ThemeLoader';
+import { themeManager } from '@/modules/themeEngine/ThemeManager';
 import { templateResolver } from '@/modules/themeEngine/TemplateResolver';
 import { assetManager } from '@/modules/themeEngine/AssetManager';
 import { ThemeApiImpl } from '@/modules/themeEngine/ThemeAPI';
@@ -42,6 +43,7 @@ export default async function ThemeEngineCardPreviewPage({
   const templateMeta = templatesMeta.find((t) => t.key === templateKey);
 
   try {
+    await themeManager.ensureDefaultThemeFilesFor(slug);
     const loaded = await themeLoader.loadTheme(slug);
     const input = {
       ...(await buildCardPreviewInput(slug, {

@@ -151,13 +151,43 @@ export class ThemeManager {
     }
   }
 
-  /** Ensures the built-in default theme exists on disk (safe to call from instrumentation). */
+  /**
+   * Ensures the built-in default theme exists on disk. Called on first need (page render, theme
+   * previews, sections API), not at server startup, so cold starts of pages that render no
+   * theme (dashboard, login, plugin APIs) skip it.
+   */
   async ensureDefaultThemeReady(): Promise<void> {
     await this.ensureDefaultThemeInstalled();
   }
 
+  /**
+   * For code that reads a theme's files from disk directly (previews, sections API): when that
+   * theme is the built-in default, make sure it is installed first. A failure is logged and the
+   * caller carries on, as it did when this ran at startup.
+   */
+  async ensureDefaultThemeFilesFor(slug: string | null | undefined): Promise<void> {
+    if (slug !== DEFAULT_THEME_SLUG) return;
+    await this.ensureDefaultThemeInstalled().catch((err) => {
+      console.error('[themeEngine] Failed to install the default theme:', err);
+    });
+  }
+
+  /** Settled once per server process; concurrent first requests share the same check/install. */
+  private defaultThemeReady: Promise<void> | null = null;
+
+  private ensureDefaultThemeInstalled(): Promise<void> {
+    if (!this.defaultThemeReady) {
+      this.defaultThemeReady = this.installDefaultThemeIfNeeded().catch((err) => {
+        // Retry on the next request instead of remembering the failure.
+        this.defaultThemeReady = null;
+        throw err;
+      });
+    }
+    return this.defaultThemeReady;
+  }
+
   /** Idempotent — installs the shipped-in-repo default theme on first need, via the real install pipeline (spec §4.3), not a shortcut. Replaces when the shipped source version is newer. */
-  private async ensureDefaultThemeInstalled(): Promise<void> {
+  private async installDefaultThemeIfNeeded(): Promise<void> {
     const existing = await this.registry.getBySlug(DEFAULT_THEME_SLUG);
     const onDisk = await this.defaultThemeFilesPresent();
     const sourceVersion = await this.readDefaultThemeSourceVersion();

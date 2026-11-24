@@ -7,9 +7,7 @@ export async function register() {
     // requests still wait until their plugin is loaded. Errors are logged inside.
     void bootstrapBackendPlugins();
 
-    const { themeManager } = await import('@/modules/themeEngine/ThemeManager');
-    await themeManager.ensureDefaultThemeReady().catch((err) => {
-      console.error('[themeEngine] Failed to seed default theme on startup:', err);
-    });
+    // The built-in default theme is no longer installed here: ThemeManager.renderPage() and
+    // the theme preview/sections routes install it on first need (once per process).
   }
 }
