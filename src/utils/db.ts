@@ -86,7 +86,9 @@ function envInt(name: string, fallback: number): number {
 function mongoPoolOptions(): mongoose.ConnectOptions {
   // Serverless (Vercel) runs many instances at once; keep each one's footprint
   // small and don't hold idle sockets. Atlas M0 allows 500 connections total.
-  const maxPoolSize = envInt('MONGODB_MAX_POOL_SIZE', 5);
+  // A single long-running server (Railway, `npm start`) serves every request from one
+  // pool, and a CRM page sends ~10 API calls at once: give it more room.
+  const maxPoolSize = envInt('MONGODB_MAX_POOL_SIZE', process.env.VERCEL ? 5 : 20);
   const minPoolSize = envInt('MONGODB_MIN_POOL_SIZE', 0);
   return {
     maxPoolSize: Math.max(1, maxPoolSize),

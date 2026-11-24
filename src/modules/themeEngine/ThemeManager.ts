@@ -172,18 +172,21 @@ export class ThemeManager {
     });
   }
 
-  /** Settled once per server process; concurrent first requests share the same check/install. */
-  private defaultThemeReady: Promise<void> | null = null;
-
+  /**
+   * Settled once per server process; concurrent first requests share the same check/install.
+   * Kept on globalThis because Next.js compiles instrumentation (which may start it in the
+   * background) separately from the routes: two installs must never write the files at once.
+   */
   private ensureDefaultThemeInstalled(): Promise<void> {
-    if (!this.defaultThemeReady) {
-      this.defaultThemeReady = this.installDefaultThemeIfNeeded().catch((err) => {
+    const shared = globalThis as typeof globalThis & { __openextDefaultThemeReady?: Promise<void> | null };
+    if (!shared.__openextDefaultThemeReady) {
+      shared.__openextDefaultThemeReady = this.installDefaultThemeIfNeeded().catch((err) => {
         // Retry on the next request instead of remembering the failure.
-        this.defaultThemeReady = null;
+        shared.__openextDefaultThemeReady = null;
         throw err;
       });
     }
-    return this.defaultThemeReady;
+    return shared.__openextDefaultThemeReady;
   }
 
   /** Idempotent — installs the shipped-in-repo default theme on first need, via the real install pipeline (spec §4.3), not a shortcut. Replaces when the shipped source version is newer. */

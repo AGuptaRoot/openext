@@ -11,11 +11,34 @@ type RouteContext = {
   params: Promise<{ pluginId: string; path?: string[] }>;
 };
 
-async function ensurePluginBackendReady(pluginId: string) {
-  await bootstrapBackendPlugins();
+/**
+ * A CRM page sends ~10 API calls at once and each needs the plugin's row (active, permissions).
+ * Reuse it for a few seconds instead of a database round trip per call; enabling, disabling or
+ * updating a plugin shows within that time.
+ */
+const PLUGIN_ROW_TTL_MS = 5_000;
+type PluginRow = Awaited<ReturnType<typeof readPluginRow>>;
+const pluginRowCache = new Map<string, { at: number; row: Promise<PluginRow> }>();
+
+async function readPluginRow(pluginId: string) {
   await getUserDbConnection();
   const PluginModel = getPluginModel();
-  const plugin = await PluginModel.findOne({ pluginId }).lean();
+  return PluginModel.findOne({ pluginId }).lean();
+}
+
+function getPluginRow(pluginId: string): Promise<PluginRow> {
+  const cached = pluginRowCache.get(pluginId);
+  if (cached && Date.now() - cached.at < PLUGIN_ROW_TTL_MS) return cached.row;
+  const row = readPluginRow(pluginId);
+  pluginRowCache.set(pluginId, { at: Date.now(), row });
+  // A failed read is not reused.
+  row.catch(() => pluginRowCache.delete(pluginId));
+  return row;
+}
+
+async function ensurePluginBackendReady(pluginId: string) {
+  await bootstrapBackendPlugins();
+  const plugin = await getPluginRow(pluginId);
 
   if (!plugin) {
     return { error: NextResponse.json({ message: 'Plugin not found' }, { status: 404 }) };

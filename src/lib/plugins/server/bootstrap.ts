@@ -3,12 +3,18 @@ import { activateBackendPlugin } from '@/lib/plugins/server/lifecycle';
 import { backendPluginDirectoryExists } from '@/lib/plugins/server/storage';
 import { syncPluginUserTypesFromStore } from '@/lib/rbac/pluginUserTypes';
 
-let bootstrapPromise: Promise<void> | null = null;
+/**
+ * Shared by the whole server process (see registry.ts): the load started by instrumentation at
+ * startup is the same one the plugin route awaits, instead of each running its own.
+ */
+const bootstrapGlobal = globalThis as typeof globalThis & {
+  __openextPluginBootstrap?: Promise<void>;
+};
 
 export async function bootstrapBackendPlugins(): Promise<void> {
-  if (bootstrapPromise) return bootstrapPromise;
+  if (bootstrapGlobal.__openextPluginBootstrap) return bootstrapGlobal.__openextPluginBootstrap;
 
-  bootstrapPromise = (async () => {
+  const bootstrapPromise = (bootstrapGlobal.__openextPluginBootstrap = (async () => {
     try {
       await syncPluginUserTypesFromStore();
       await getUserDbConnection();
@@ -53,7 +59,7 @@ export async function bootstrapBackendPlugins(): Promise<void> {
     } catch (error) {
       console.error('[plugins] Bootstrap failed:', error);
     }
-  })();
+  })());
 
   return bootstrapPromise;
 }

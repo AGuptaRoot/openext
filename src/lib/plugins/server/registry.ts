@@ -1,6 +1,15 @@
 import type { LoadedPlugin } from '@/lib/plugins/server/types';
 
-const loadedPlugins = new Map<string, LoadedPlugin>();
+/**
+ * One registry per server process. Next.js compiles instrumentation (which loads the plugins
+ * at startup) separately from the API routes, so a plain module-level Map would give each its
+ * own copy: plugins loaded at startup would be invisible to the plugin route, which then loaded
+ * them all again on the first request.
+ */
+const registryGlobal = globalThis as typeof globalThis & {
+  __openextLoadedPlugins?: Map<string, LoadedPlugin>;
+};
+const loadedPlugins = (registryGlobal.__openextLoadedPlugins ??= new Map<string, LoadedPlugin>());
 
 export function getLoadedPlugin(pluginId: string): LoadedPlugin | undefined {
   return loadedPlugins.get(pluginId);
