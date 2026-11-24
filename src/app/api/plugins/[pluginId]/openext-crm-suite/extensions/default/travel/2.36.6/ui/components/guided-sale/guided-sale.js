@@ -27,7 +27,7 @@ const isEmpty = (v) => v === undefined || v === null || v === '' || (Array.isArr
 const list = (v) => (Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : []);
 
 function noWizard(root) {
-  root.replaceChildren(h('p', { class: 'tvx-msg tvx-msg-warn', text: 'This step opens from Invoices → Create Invoice from Scratch (CRM 3.64.0 or later).' }));
+  root.replaceChildren(h('p', { class: 'tvx-msg tvx-msg-warn', text: 'This step opens from Invoices → Create Direct Invoice or Quotations → Create Direct Quotation (CRM 3.64.0 or later).' }));
 }
 
 /** Server check of one step → error text or null. Matches (existing travellers) go to `onMatches`. */

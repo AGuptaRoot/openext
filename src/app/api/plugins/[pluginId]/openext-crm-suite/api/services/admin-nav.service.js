@@ -99,6 +99,8 @@ async function buildAdminNav(req) {
     await ensureRequestContext(req);
     const client = isClientUser(req);
     if (client) hide.add('dashboard');
+    // CRM 3.64.6: "My Alerts" (alerts list + browser alerts switch) is for staff.
+    if (client) hide.add('alerts');
     if (isEmployeeRole(req)) hide.add('expenses');
 
     const SettingService = require('./setting.service');

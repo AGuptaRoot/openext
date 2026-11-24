@@ -1,6 +1,6 @@
 # crm-travel — Workflow
 
-Travel extension `travel` **2.36.4**, needs CRM `openext-crm-suite` **>= 3.64.0 < 4.0.0** (GST suite).
+Travel extension `travel` **2.36.6**, needs CRM `openext-crm-suite` **>= 3.64.0 < 4.0.0** (GST suite).
 
 This file explains, in simple English, how a travel enquiry moves through the CRM: from the first lead to
 the trip, the booking, vouchers and the client portal.
@@ -249,9 +249,9 @@ stateDiagram-v2
 - The invoice is made **from the quotation** (`invoiceFromQuotation`), with travel lines and the "Travel Summary" print layout.
 - Recurring invoices, invoice templates and write-off are hidden for travel.
 
-### Create Invoice from Scratch (2.36.0, CRM 3.64.0)
+### Create Direct Invoice / Create Direct Quotation (2.36.0, CRM 3.64.0; renamed in 2.36.6 from "Create Invoice from Scratch")
 
-Invoices → **Create Invoice from Scratch** (admin, manager, finance; not sales reps). Six steps, **nothing is saved until Create**:
+Invoices → **Create Direct Invoice** (Quotations → **Create Direct Quotation**: the same steps, stops at a Draft quotation, CRM 3.64.10) (admin, manager, finance; not sales reps). Six steps, **nothing is saved until Create**:
 
 1. **Client**: company name, mobile (country code), email (optional), state, GSTIN (optional, checked). A mobile or email another client already has shows a warning under the field and the existing client is offered ("Use this client"); a client is never duplicated (CRM 3.64.3). A similar name is only a hint.
 2. **Contact Person**: salutation, name, gender, email, mobile, PAN (optional, encrypted), job title. Company name = the client's (locked). An existing contact is reused.
@@ -259,6 +259,8 @@ Invoices → **Create Invoice from Scratch** (admin, manager, finance; not sales
 4. **Travellers**: at least one. **The same form as Travellers → Add traveller** (2.36.2: the lead Travellers component on the draft) — same fields, rules, OCR, "Existing Traveller Found" card and "Add existing traveller". Each save is checked by the server; nothing is stored until Create. A document photo is only read (OCR) here, not stored: add it on the trip's Travellers tab afterwards.
 5. **Travel Requirements**: one form per service chosen in step 3.
 6. **Invoice**: the lines are built from steps 3–5; only the prices are entered. Payment term: **full payment only**.
+
+After the invoice, a **draft itinerary** is made from its quotation (2.36.5, CRM 3.64.9 `afterRoute`; staff check it and make it Final once services are confirmed). The booking still waits for full payment.
 
 On Create, in order: client → contact (added to the client) → the trip is saved (Travel Requirement, trip enquiry opened, travellers added) → quotation (full payment) → **staff confirms the sale** (salesFlow.staffConfirmedSale, audited) → **tax invoice** (unpaid until a payment is recorded). If a step fails, **Retry** goes on from it; nothing is made twice. A client that already has another open trip is refused (finish that trip first).
 

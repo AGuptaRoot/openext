@@ -30,6 +30,7 @@ const SLUG_RE = /^[a-z][a-z0-9_]{1,39}$/;
 /** The alert types a user can switch off (extensions may send their own slug, e.g. "booking_confirmed"). */
 const PUSH_TYPES = Object.freeze([
   { type: 'lead_assigned', label: 'A lead is assigned to me' },
+  { type: 'task_assigned', label: 'A task or subtask is assigned to me (Projects)' },
   { type: 'followup_due', label: 'A follow-up is due soon' },
   { type: 'followup_missed', label: 'A follow-up was missed' },
   { type: 'quotation_accepted', label: 'A quotation is accepted' },
@@ -39,6 +40,7 @@ const PUSH_TYPES = Object.freeze([
   { type: 'passport_expiry', label: 'A traveller passport expires soon (Travel)' },
   { type: 'timer_reminder', label: 'My shift started and no timer is running (Projects)' },
   { type: 'shift_over', label: 'My hourly shift is over (Projects)' },
+  { type: 'team_timer_alert', label: 'A team member has not started the timer (Projects, for project leads, managers and admins)' },
   { type: 'other', label: 'Other alerts' }
 ]);
 
@@ -367,6 +369,21 @@ async function registerDevice(req, input = {}) {
   return presentDevice(row || { ...values, _id: existing && existing._id });
 }
 
+/**
+ * CRM 3.64.8 — POST /devices/status { token } → { registered, deviceName?, lastSeenAt? }: is this browser's token
+ * saved on the server for the signed-in user (this workspace)? The My Alerts switch asks this, so it never says
+ * "On" while the server has nothing to send to. The token is only hashed here, never stored or returned.
+ */
+async function deviceStatus(req, input = {}) {
+  const userId = assertStaff(req);
+  const token = String((input && input.token) || '').trim();
+  if (!token || token.length < 20 || token.length > MAX_TOKEN_LENGTH || /\s/.test(token)) return { registered: false };
+  const Device = model(req, 'CrmPushDevice');
+  const row = await settle(Device.findOne({ tenantId: resolveTenantId(req), tokenHash: hashToken(token) }));
+  if (!row || String(row.userId) !== String(userId)) return { registered: false };
+  return { registered: true, deviceName: text(row.deviceName, 80), lastSeenAt: row.lastSeenAt ? new Date(row.lastSeenAt).toISOString() : null };
+}
+
 /** POST /devices/unregister { token } — on logout. Only the signed-in user's own token. */
 async function unregisterDevice(req, input = {}) {
   const userId = assertStaff(req);
@@ -542,12 +559,26 @@ async function sendAlerts(req, alerts = []) {
 async function sendTest(req) {
   const userId = assertStaff(req);
   const sa = await readServiceAccount(req);
-  if (!sa) throw appError('Push notifications are not set up: add the Firebase service account in Settings → Integrations', 503, 'FCM_NOT_CONFIGURED');
+  if (!sa) throw appError('Push notifications are not set up yet: an admin adds the Firebase service account in Settings → Integrations.', 503, 'FCM_NOT_CONFIGURED');
   await accessToken(req, sa); // 502 FCM_AUTH_FAILED when Firebase refuses the key
   const devices = await listDevices(req);
-  if (!devices.length) return { keyOk: true, devices: 0, sent: 0, message: 'The Firebase key works. No device is registered for you yet: sign in on the CRM mobile app, or turn on Settings → Integrations → My browser alerts, then send the test again.' };
+  // 3.64.8: the right place to turn alerts on (My Alerts, every staff user) and the names of the devices.
+  if (!devices.length) {
+    return {
+      keyOk: true,
+      devices: 0,
+      sent: 0,
+      message: 'The Firebase key works, but no device is registered for you. Open My Alerts → Turn on in this browser (or sign in on the CRM mobile app), then send the test again.'
+    };
+  }
   const result = await sendAlerts(req, [{ userId, title: 'Test notification', message: 'Push notifications work on this device.', type: 'other', link: '' }]);
-  return { keyOk: true, devices: devices.length, ...result, message: result.sent ? `Sent to ${result.sent} device(s).` : 'The key works, but no device accepted the message.' };
+  const names = [...new Set(devices.map((d) => d.deviceName || (d.platform === 'web' ? 'Browser' : 'Phone')))].slice(0, 5).join(', ');
+  const message = result.sent
+    ? `Sent to ${result.sent} device${result.sent === 1 ? '' : 's'}: ${names}.`
+    : result.removed
+      ? 'Firebase no longer knows your saved device, so it was removed. Open My Alerts → Turn on in this browser again, then send the test.'
+      : 'The key works, but no device accepted the message. Open My Alerts → Turn off, then Turn on, and test again.';
+  return { keyOk: true, devices: devices.length, ...result, message };
 }
 
 module.exports = {
@@ -562,6 +593,7 @@ module.exports = {
   updateIntegration,
   registerDevice,
   unregisterDevice,
+  deviceStatus,
   listDevices,
   removeDevice,
   getPreferences,

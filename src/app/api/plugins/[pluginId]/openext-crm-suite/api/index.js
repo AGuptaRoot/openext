@@ -223,7 +223,7 @@ module.exports = {
     CronScheduler.scheduleJob('shift-alerts', '*/5 * * * *', async () => {
       try {
         const r = await require('./services/shift-alerts.service').shiftSweep(cms);
-        if (r.reminders || r.over) cms.logger?.info?.(`[CRM Cron] Shift alerts: ${r.reminders} timer reminders, ${r.over} shift over (${r.tenants} tenants)`);
+        if (r.reminders || r.over || r.team) cms.logger?.info?.(`[CRM Cron] Shift alerts: ${r.reminders} timer reminders, ${r.team || 0} team alerts, ${r.over} shift over (${r.tenants} tenants)`);
       } catch (err) {
         cms.logger?.warn?.('[CRM Cron] Shift alerts error:', err?.message || err);
       }

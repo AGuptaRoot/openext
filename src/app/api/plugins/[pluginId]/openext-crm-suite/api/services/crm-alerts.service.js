@@ -75,6 +75,36 @@ async function leadAssigned(req, lead, previousAssignee = '') {
   }
 }
 
+/**
+ * CRM 3.64.7: a task (or subtask) is assigned to someone → "New task assigned to you" in their alerts and on
+ * their phones / browsers (type task_assigned, switchable on My Alerts). Not when the assignee is unchanged,
+ * nor to the person who made the change (assigning yourself sends nothing).
+ */
+function dueText(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : `due ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
+}
+
+async function taskAssigned(req, task, previousAssignee = '', { project = null, subtask = null } = {}) {
+  try {
+    const to = String((subtask ? subtask.assignedTo : task && task.assignedTo) || '').trim();
+    if (!task || !task._id || !to || to === String(previousAssignee || '').trim()) return { sent: 0 };
+    const taskTitle = text(task.title, 100) || 'Task';
+    const projectName = text(project && project.name, 80);
+    return await send(req, [to], {
+      type: 'task_assigned',
+      title: subtask ? 'New subtask assigned to you' : 'New task assigned to you',
+      message: [subtask ? `${text(subtask.title, 100)} (in ${taskTitle})` : taskTitle, projectName, dueText(task.dueDate)].filter(Boolean).join(' – '),
+      link: `/tasks/${task._id}`,
+      linkLabel: 'Open task',
+      key: `task_assigned:${task._id}:${subtask ? `${subtask._id}:` : ''}${to}:${Date.now()}`
+    });
+  } catch {
+    return { sent: 0 };
+  }
+}
+
 async function leadsAssigned(req, leadIds, assignedTo) {
   try {
     const ids = (leadIds || []).map(String).filter((id) => ID_RE.test(id));
@@ -238,6 +268,7 @@ async function followUpSweep(cms) {
 }
 
 module.exports = {
+  taskAssigned,
   leadAssigned,
   leadsAssigned,
   quotationAccepted,

@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.36.4",
-  "checksum": "4206167110163d653f5491a0a8aab19f9133708d0fac42a407e317fb7e5e04ce",
-  "writtenAt": "2026-11-23T10:23:21.987Z",
+  "version": "2.36.6",
+  "checksum": "3022ca210712c1a0fd34ac912332b9b35cf3d061f1fed291379371d0a1bbb660",
+  "writtenAt": "2026-11-24T09:13:32.086Z",
   "files": [
     {
       "path": "README.md",
@@ -11,13 +11,13 @@
     },
     {
       "path": "WORKFLOW.md",
-      "sha256": "c2d2a23d9d65ca6e3b6d4eb1d9fce370928b19e70921edfcbc8491a1b8a4003c",
-      "size": 20000
+      "sha256": "fefe7636105c87de7760f9ba87109dfec7d51211b2b24f9e96ed71121356fe0d",
+      "size": 20378
     },
     {
       "path": "crm-extension.json",
-      "sha256": "1c1f8045a9498c73b55e43a9cb0e92e399015ebcf7be6370dd668118f62d02c9",
-      "size": 14274
+      "sha256": "bf48f29608ce3781c08454004cac4fa4b5a35d04eb9793f5825269269e389fe3",
+      "size": 14319
     },
     {
       "path": "request-type.json",
@@ -241,8 +241,8 @@
     },
     {
       "path": "api/services/guided-sale.js",
-      "sha256": "d8b4c55164a75b5687b97cc263ceb867af9f904c6a14e8e0ba3c147ae03998e8",
-      "size": 20301
+      "sha256": "2e3044c8283c246453c961227c06f8acf83518f330bacba4814b088cd39a77ce",
+      "size": 20307
     },
     {
       "path": "api/services/itinerary.js",
@@ -446,8 +446,8 @@
     },
     {
       "path": "ui/components/guided-sale/guided-sale.js",
-      "sha256": "34c3a9ea1fc038976927e4511db6516014c260c723f8a030a399fa89ecee54d5",
-      "size": 19953
+      "sha256": "9f4d58db0dad13c6a147394119d3579c754a952768d484e7d5def9518a249f44",
+      "size": 19989
     },
     {
       "path": "ui/components/itinerary-page/itinerary-page.css",

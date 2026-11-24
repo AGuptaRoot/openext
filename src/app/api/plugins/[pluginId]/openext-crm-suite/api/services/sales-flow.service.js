@@ -1072,7 +1072,7 @@ function guidedInvoiceOf(flow) {
   const gi = flow && flow.guidedInvoice;
   if (!isPlainObject(gi) || !gi.commitRoute || !Array.isArray(gi.steps) || !gi.steps.length) return null;
   return {
-    label: text(gi.label, 60) || 'Create Invoice from Scratch',
+    label: text(gi.label, 60) || 'Create Direct Invoice',
     title: text(gi.title, 80),
     steps: gi.steps
       .filter((s) => isPlainObject(s) && /^[a-z][a-z0-9_]{1,40}$/.test(String(s.id || '')) && /^guided\.[a-z][a-z0-9_]{1,40}$/.test(String(s.slot || '')))
@@ -1085,7 +1085,7 @@ async function guidedContract(req) {
   const flow = await contract(req);
   const gi = flow && flow.guidedInvoice;
   if (!isPlainObject(gi) || !gi.commitRoute) {
-    const error = new Error('The active extension does not offer Create Invoice from Scratch');
+    const error = new Error('The active extension does not offer Create Direct Invoice');
     error.status = 404;
     error.code = 'GUIDED_INVOICE_UNAVAILABLE';
     throw error;
@@ -1145,6 +1145,49 @@ async function guidedInvoiceCommit(req, body = {}) {
   }
   await require('./extension-records.service').markEnquiryForClient(req, leadId, clientId).catch(() => false);
   return { leadId };
+}
+
+/**
+ * CRM 3.64.9 — POST /sales-flow/guided-invoice/after { quotationId, invoiceId, leadId }: once Create Invoice from
+ * Scratch has made the tax invoice, the active extension may do its follow-up work (salesFlow.guidedInvoice.afterRoute,
+ * e.g. Travel makes a draft itinerary). Called with the user's own rights and the extension's route permission.
+ * Never throws: the invoice stands; the answer says what was done → { ok, skipped?, message }.
+ */
+async function guidedInvoiceAfter(req, body = {}) {
+  let gi;
+  try {
+    gi = await guidedContract(req);
+  } catch {
+    return { ok: true, skipped: true, message: '' };
+  }
+  const route = text(gi.afterRoute, 200);
+  if (!route) return { ok: true, skipped: true, message: '' };
+  const quotationId = text(body.quotationId, 24);
+  const invoiceId = text(body.invoiceId, 24);
+  const leadId = text(body.leadId, 24);
+  if (!ID_RE.test(quotationId)) return { ok: false, message: 'quotationId is not valid' };
+  try {
+    // Only an accepted / converted quotation of this workspace (the wizard's own).
+    const Estimate = req.cms?.models?.get?.('Estimate');
+    const { resolveTenantId } = require('../utils/tenant.util');
+    if (Estimate) {
+      let q = Estimate.findOne({ _id: quotationId, tenantId: resolveTenantId(req), isDeleted: { $ne: true } });
+      if (q && typeof q.lean === 'function') q = q.lean();
+      const quote = await q;
+      if (!quote || !['Accepted', 'Converted'].includes(String(quote.status))) return { ok: false, message: 'The quotation is not accepted yet.' };
+    }
+    const data = await callRoute(req, 'POST', route, {
+      recordId: quotationId,
+      recordType: 'quotation',
+      quotationId,
+      invoiceId: ID_RE.test(invoiceId) ? invoiceId : '',
+      leadId: ID_RE.test(leadId) ? leadId : '',
+      source: 'guided-invoice'
+    });
+    return { ok: true, message: text(data && data.message, 200) };
+  } catch (error) {
+    return { ok: false, message: text(error && error.message, 200) || 'The follow-up step did not run.' };
+  }
 }
 
 /**
@@ -1444,4 +1487,4 @@ async function clientQuotationStart(req, clientId, body = {}) {
   return { leadId: ID_RE.test(leadId) ? leadId : '', opportunityId: ID_RE.test(opportunityId) ? opportunityId : '' };
 }
 
-module.exports = { sameDayValidityAllowed, guidedInvoiceOf, guidedInvoiceCheck, guidedInvoicePreview, guidedInvoiceCommit, paymentPreference, paymentPreferenceOf, clientLeadFormSyncStatus, clientLeadFormSync, clientQuotationWithoutOpportunity, assertClientQuotationEligible, clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };
+module.exports = { sameDayValidityAllowed, guidedInvoiceAfter, guidedInvoiceOf, guidedInvoiceCheck, guidedInvoicePreview, guidedInvoiceCommit, paymentPreference, paymentPreferenceOf, clientLeadFormSyncStatus, clientLeadFormSync, clientQuotationWithoutOpportunity, assertClientQuotationEligible, clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };

@@ -6,7 +6,7 @@
   "description": "Turns Root CRM into a travel-agency CRM: travel enquiries with traveller counts, route and dates on every lead, a configurable Travel Requirement form per service (hotel, flights, transport, excursion, package…), a Services & Forms module with a form builder, and travel locations in Settings → Travel.",
   "icon": "plane",
   "accent": "blue",
-  "version": "2.36.4",
+  "version": "2.36.6",
   "publisher": {
     "name": "OpenNext",
     "contact": "support@opennext.example"
@@ -365,11 +365,12 @@
     "oneAcceptedQuotationPerLead": true,
     "staffConfirmedSale": true,
     "guidedInvoice": {
-      "label": "Create Invoice from Scratch",
+      "label": "Create Direct Invoice",
       "title": "New travel invoice",
       "checkRoute": "/quotation-prefill",
       "previewRoute": "/quotation-prefill",
       "commitRoute": "/clients/:client_id/quotation-start",
+      "afterRoute": "/itineraries/from-quotation",
       "steps": [
         { "id": "travel_info", "title": "Travel Information", "slot": "guided.travel_info" },
         { "id": "travellers", "title": "Travellers", "slot": "guided.travellers" },

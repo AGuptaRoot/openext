@@ -360,7 +360,7 @@ exports.commit = async (sdk, clientId, draft) => {
     people.push(v);
     added += 1;
   }
-  await sdk.audit('created', `Trip saved from Create Invoice from Scratch (enquiry ${leadId}, ${added} traveller${added === 1 ? '' : 's'} added)`, { clientId, leadId });
+  await sdk.audit('created', `Trip saved from Create Direct Invoice / Quotation (enquiry ${leadId}, ${added} traveller${added === 1 ? '' : 's'} added)`, { clientId, leadId });
   return { leadId };
 };
 

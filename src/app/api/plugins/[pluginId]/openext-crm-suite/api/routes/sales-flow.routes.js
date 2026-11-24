@@ -22,6 +22,7 @@
  * POST /sales-flow/guided-invoice/check   { draft, step }      the extension checks one of its steps → { errors }
  * POST /sales-flow/guided-invoice/preview { draft }            the lines to price (nothing saved)
  * POST /sales-flow/guided-invoice/commit  { clientId, draft }  the extension saves its steps → { leadId }
+ * POST /sales-flow/guided-invoice/after   { quotationId, invoiceId, leadId }  3.64.9: the extension's follow-up (never fails)
  *
  * All answer { available: false } when no active extension offers it.
  */
@@ -32,7 +33,7 @@ const { requireAnyPermission, requirePermission } = require('../middleware/permi
 function guidedAccess(req) {
   const { isSalesRepresentative, isAdmin, isSalesManager } = require('../utils/sales-access.util');
   if (isSalesRepresentative(req) && !isAdmin(req) && !isSalesManager(req)) {
-    const error = new Error('Sales representatives cannot create invoices from scratch');
+    const error = new Error('Sales representatives cannot create direct invoices or quotations');
     error.status = 403;
     throw error;
   }
@@ -173,6 +174,15 @@ module.exports = function registerSalesFlowRoutes(app) {
       }
     }
   );
+
+  app.post('/sales-flow/guided-invoice/after', requirePermission('crm.finance.write'), async (req, res) => {
+    try {
+      guidedAccess(req);
+      res.json({ success: true, data: await SalesFlowService.guidedInvoiceAfter(req, req.body || {}) });
+    } catch (error) {
+      fail(res, error, 'The follow-up step did not run');
+    }
+  });
 
   app.post('/sales-flow/quotation-prefill', requireAnyPermission(['crm.finance.write']), async (req, res) => {
     try {

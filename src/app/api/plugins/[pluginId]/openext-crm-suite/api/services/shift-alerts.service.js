@@ -16,7 +16,13 @@
  *     The timer is never stopped by the CRM.
  * Times are the tenant's time zone (Settings → timezone, default Asia/Kolkata). Each alert goes to the bell and
  * the user's phones / browsers (types timer_reminder and shift_over, which the user can switch off).
+ * CRM 3.64.6: with each "Start your timer", the people who oversee the work get one information alert (type
+ * team_timer_alert, once per member, project and shift): the project's leads (the project's assignees and members
+ * with role "lead") and the workspace's admins / managers (CRM roles crm-manager, tenant-admin, admin,
+ * project-manager). Never the member themself; at most 20 people.
  */
+const OVERSEER_ROLES = Object.freeze(['crm-manager', 'tenant-admin', 'admin', 'project-manager']);
+const OVERSEER_LIMIT = 20;
 
 const ID_RE = /^[a-f0-9]{24}$/i;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -119,7 +125,7 @@ async function shiftAlertsForTenant(cms, tenantId, now = new Date()) {
   if (!Project || !Member || !Task) return out;
 
   let pq = Project.find({ tenantId, status: 'In Progress', isDeleted: { $ne: true } });
-  if (pq && typeof pq.select === 'function') pq = pq.select('_id name');
+  if (pq && typeof pq.select === 'function') pq = pq.select('_id name assignedTo');
   if (pq && typeof pq.limit === 'function') pq = pq.limit(PROJECT_LIMIT);
   const projects = (await settle(pq)) || [];
   if (!projects.length) return out;
@@ -153,6 +159,40 @@ async function shiftAlertsForTenant(cms, tenantId, now = new Date()) {
   const nameOf = new Map(projects.map((p) => [String(p._id), text(p.name, 80) || 'Project']));
   const notify = require('./notification.service').notify;
 
+  // 3.64.6: who is told when a member has not started the timer (loaded once, only when needed).
+  let overseers = null;
+  const overseersOf = async (projectId) => {
+    if (!overseers) {
+      const leads = ((await settle(Member.find({ tenantId, projectId: { $in: projectIds }, role: 'lead', isDeleted: { $ne: true } })).catch(() => [])) || []);
+      const Membership = model(req, 'TenantMembership');
+      const staff = Membership
+        ? ((await settle(Membership.find({ tenantId, role: { $in: [...OVERSEER_ROLES] }, status: { $ne: 'inactive' } })).catch(() => [])) || [])
+        : [];
+      overseers = {
+        leads,
+        staff: staff.map((r) => String(r.userId || '')).filter((id) => ID_RE.test(id))
+      };
+    }
+    const project = projects.find((p) => String(p._id) === projectId) || {};
+    const fromProject = [].concat(project.assignedTo || []).map(String);
+    const fromLeads = overseers.leads.filter((l) => String(l.projectId) === projectId).map((l) => String(l.userId || ''));
+    return [...new Set([...fromProject, ...fromLeads, ...overseers.staff])].filter((id) => ID_RE.test(id));
+  };
+  const nameCache = new Map();
+  const personName = async (userId) => {
+    if (!nameCache.has(userId)) {
+      let name = '';
+      try {
+        const u = await require('../utils/user.util').findCmsUserById(req, userId);
+        name = text((u && (u.displayName || u.username)) || '', 80);
+      } catch {
+        /* the alert still goes out with a neutral name */
+      }
+      nameCache.set(userId, name || 'A team member');
+    }
+    return nameCache.get(userId);
+  };
+
   for (const m of members) {
     if (!hasOpenTask(m)) continue;
     const userId = String(m.userId);
@@ -185,19 +225,38 @@ async function shiftAlertsForTenant(cms, tenantId, now = new Date()) {
     } catch {
       /* one member never stops the others */
     }
+    if (due.kind !== 'remind') continue;
+    try {
+      const to = (await overseersOf(projectId)).filter((id) => id !== userId).slice(0, OVERSEER_LIMIT);
+      if (!to.length) continue;
+      const who = await personName(userId);
+      const r = await notify(req, {
+        type: 'team_timer_alert',
+        title: 'Timer not started',
+        message: `For information: ${who} has not started a timer on ${project}. The shift started at ${m.shiftStart} (${window}).`,
+        link: `/projects/${projectId}`,
+        linkLabel: 'Open project',
+        key: `team_timer_alert:${projectId}:${userId}:${due.shift.dateKey}`,
+        userIds: to
+      });
+      if (r && r.sent) out.team = (out.team || 0) + r.sent;
+    } catch {
+      /* the member's own reminder is already sent */
+    }
   }
   return out;
 }
 
 async function shiftSweep(cms, now = new Date()) {
   const { tenantIds } = require('./extension-schedule.service');
-  const total = { tenants: 0, reminders: 0, over: 0 };
+  const total = { tenants: 0, reminders: 0, over: 0, team: 0 };
   for (const tenantId of await tenantIds(cms)) {
     try {
       const r = await shiftAlertsForTenant(cms, tenantId, now);
       total.tenants += 1;
       total.reminders += r.reminders;
       total.over += r.over;
+      total.team += r.team || 0;
     } catch {
       /* one tenant never stops the others */
     }
@@ -210,5 +269,5 @@ module.exports = {
   shiftEnd,
   shiftAlertsForTenant,
   shiftSweep,
-  _internal: { wallMinutes, shiftsAround, dueAlert, DEFAULT_DAYS }
+  _internal: { wallMinutes, shiftsAround, dueAlert, DEFAULT_DAYS, OVERSEER_ROLES }
 };

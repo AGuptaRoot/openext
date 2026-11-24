@@ -12,6 +12,7 @@
  * CRM 3.59.0 — push notifications to the mobile app (services/push.service.js), staff only:
  * POST   /devices/register      { token, platform: android|ios, appVersion?, deviceName? }  after login / token refresh
  * POST   /devices/unregister    { token }                                                  on logout
+ * POST   /devices/status        { token } → { registered }: is this browser saved for me (3.64.8, My Alerts)
  * GET    /devices               my phones (never the tokens)
  * DELETE /devices/:id           remove one of my phones
  * GET    /devices/preferences   my push on/off per alert type
@@ -60,6 +61,7 @@ module.exports = function registerNotificationRoutes(app) {
 
   app.post('/devices/register', (req, res) => sendPush(res, () => PushService.registerDevice(req, req.body || {}), 201));
   app.post('/devices/unregister', (req, res) => sendPush(res, () => PushService.unregisterDevice(req, req.body || {})));
+  app.post('/devices/status', (req, res) => sendPush(res, () => PushService.deviceStatus(req, req.body || {})));
   app.get('/devices/preferences', (req, res) => sendPush(res, () => PushService.getPreferences(req)));
   app.put('/devices/preferences', (req, res) => sendPush(res, () => PushService.setPreferences(req, req.body || {})));
   app.post('/devices/test', (req, res) => sendPush(res, () => PushService.sendTest(req)));

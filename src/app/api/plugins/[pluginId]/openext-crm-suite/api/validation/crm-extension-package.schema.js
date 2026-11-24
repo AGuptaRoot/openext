@@ -1188,6 +1188,8 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
             if (!has('POST', checkRoute)) errors.push(`salesFlow.guidedInvoice.checkRoute "${checkRoute}" must be a POST route declared in api/routes.json`);
             if (!has('POST', previewRoute)) errors.push(`salesFlow.guidedInvoice.previewRoute "${previewRoute}" must be a POST route declared in api/routes.json`);
             if (!has('POST', commitRoute) || !oneParam(commitRoute)) errors.push(`salesFlow.guidedInvoice.commitRoute "${commitRoute}" must be a POST route with one ":param" (the client id)`);
+            // CRM 3.64.9: optional follow-up after the tax invoice is made (e.g. a draft itinerary).
+            if (gi.afterRoute !== undefined && !has('POST', str(gi.afterRoute))) errors.push(`salesFlow.guidedInvoice.afterRoute "${str(gi.afterRoute)}" must be a POST route declared in api/routes.json`);
             const steps = [];
             if (!Array.isArray(gi.steps) || !gi.steps.length || gi.steps.length > 6) errors.push('salesFlow.guidedInvoice.steps must list 1 to 6 steps');
             else {

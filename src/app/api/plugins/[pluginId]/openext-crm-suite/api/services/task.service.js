@@ -1245,6 +1245,8 @@ async function create(req, input) {
   if (doc.status === 'Completed' && doc.notifyClientOnCompletion) {
     sendTaskCompletionNotification(req, doc, project);
   }
+  // CRM 3.64.7: the assignee gets "New task assigned to you" (never blocks the save).
+  void require('./crm-alerts.service').taskAssigned(req, doc, '', { project }).catch(() => null);
 
   return enrichTask(req, doc);
 }
@@ -1464,6 +1466,10 @@ async function update(req, id, input) {
   const shouldNotify = task.notifyClientOnCompletion && (isNowCompleted || (existing.status === 'Completed' && updates.notifyClientOnCompletion));
   if (shouldNotify) {
     sendTaskCompletionNotification(req, task, project);
+  }
+  // CRM 3.64.7: a new assignee gets "New task assigned to you".
+  if (updates.assignedTo !== undefined && task && String(task.assignedTo || '') !== String(existing.assignedTo || '')) {
+    void require('./crm-alerts.service').taskAssigned(req, task, existing.assignedTo, { project }).catch(() => null);
   }
 
   return enrichTask(req, task);
@@ -1703,6 +1709,10 @@ async function addSubtask(req, taskId, input) {
     recordId: String(taskId),
     description: `Subtask added: "${newSubtask.title}" to task "${task.title}"`
   });
+  // CRM 3.64.7: the subtask's assignee is told (not when it simply follows the task's own assignee).
+  if (newSubtask.assignedTo && newSubtask.assignedTo !== String(task.assignedTo || '').trim()) {
+    void require('./crm-alerts.service').taskAssigned(req, updated || task, '', { project, subtask: newSubtask }).catch(() => null);
+  }
 
   const enriched = await enrichTask(req, updated);
   return enriched.subtasks.find((st) => String(st._id) === subtaskId) || newSubtask;
@@ -1762,6 +1772,12 @@ async function updateSubtask(req, taskId, subtaskId, input) {
     recordId: String(taskId),
     description: `Subtask updated in task: ${task.title}`
   });
+  // CRM 3.64.7: a subtask given to someone new → they are told.
+  if (updateFields['subtasks.$.assignedTo'] !== undefined && updated) {
+    const before = (Array.isArray(task.subtasks) ? task.subtasks : []).find((st) => String(st._id) === stId);
+    const after = (Array.isArray(updated.subtasks) ? updated.subtasks : []).find((st) => String(st._id) === stId);
+    if (after) void require('./crm-alerts.service').taskAssigned(req, updated, before ? before.assignedTo : '', { project, subtask: after }).catch(() => null);
+  }
 
   const enriched = await enrichTask(req, updated);
   return enriched.subtasks.find((st) => String(st._id) === stId) || null;
