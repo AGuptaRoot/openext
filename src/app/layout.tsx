@@ -10,6 +10,7 @@ import GoogleFontsLoader from '@/components/GoogleFontsLoader';
 import { getSiteUrl } from '@/lib/seo/url';
 import { resolveRequestLocale } from '@/lib/i18n/siteLocale';
 import { isRtlLocale } from '@/lib/i18n/siteLanguages';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
@@ -32,6 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </PluginProvider>
           </ThemeProvider>
         </ReduxProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
