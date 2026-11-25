@@ -287,6 +287,18 @@ async function enrichQuotationsWithDeals(req, items) {
   }
 }
 
+/**
+ * CRM 3.65.2 — ?view=list (Quotations page table): only what the table shows, its row actions (open, edit,
+ * archive, restore, delete) and this list's own enrichment read (effective status from expiryDate, customer
+ * label, opportunity title). No line items, sections, notes or terms.
+ */
+const LIST_VIEW_FIELDS = [
+  '_id', 'quotationNo', 'quotationNumber', 'number', 'title', 'recipientName',
+  'issueDate', 'validTill', 'expiryDate', 'grandTotal', 'currency', 'status',
+  'clientId', 'leadId', 'clientName', 'customerName', 'customerLabel', 'customerSnapshot', 'customerAvatarUrl', 'clientAvatarUrl', 'customerEmail', 'opportunityId', 'dealId',
+  'isArchived', 'version', 'revisionOf', 'isLatestVersion', 'createdBy', 'createdAt', 'updatedAt'
+];
+
 async function list(req) {
   const Estimate = getEstimateModel(req);
   const { page, limit, skip, sort } = parsePagination(req.query);
@@ -379,8 +391,9 @@ async function list(req) {
   const { applySalesAgentFinanceReadScope, mergeScopeIntoFilter } = require('../utils/sales-access.util');
   const finalFilter = await applySalesAgentFinanceReadScope(req, portalClause ? mergeScopeIntoFilter(filter, portalClause) : filter);
 
+  const { applyListView } = require('../utils/list-view.util');
   const [items, total] = await Promise.all([
-    Estimate.find(finalFilter).sort(sort).skip(skip).limit(limit).lean(),
+    applyListView(req, Estimate.find(finalFilter), LIST_VIEW_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     Estimate.countDocuments(finalFilter)
   ]);
 

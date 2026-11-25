@@ -86,6 +86,7 @@
     "status": {
       "type": "select",
       "label": "Status",
+      "index": true,
       "options": [
         "Pending",
         "Partially Confirmed",

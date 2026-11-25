@@ -242,7 +242,19 @@ async function enrichSamples(req, items) {
  * @param {Object} req Express request object containing query parameters
  * @returns {Promise<Object>} Enriched sample request items and pagination
  */
+/**
+ * CRM 3.65.2 — ?view=list (Samples page table and its approve / dispatch / deliver / feedback dialogs): only
+ * the fields they show or prefill, plus what enrichSamples reads (lead, client, opportunity, creator). Other
+ * callers get the full sample request.
+ */
+const SAMPLE_LIST_FIELDS = [
+  '_id', 'sampleNumber', 'status', 'urgency', 'productName', 'quantity', 'unit', 'recipientName', 'trackingNumber',
+  'courierName', 'rejectionReason', 'estimatedDeliveryDate', 'dispatchDate', 'feedback', 'createdBy', 'leadId',
+  'clientId', 'opportunityId', 'linkType', 'createdAt', 'updatedAt'
+];
+
 async function list(req) {
+  const { applyListView } = require('../utils/list-view.util');
   const Sample = getSampleModel(req);
   const { page, limit, skip } = parsePagination(req.query);
   const filter = baseFilter(req);
@@ -305,7 +317,7 @@ async function list(req) {
 
   const sort = { createdAt: -1, _id: -1 };
   const [items, total] = await Promise.all([
-    Sample.find(finalFilter).sort(sort).skip(skip).limit(limit).lean(),
+    applyListView(req, Sample.find(finalFilter), SAMPLE_LIST_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     Sample.countDocuments(finalFilter)
   ]);
 

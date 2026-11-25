@@ -6,7 +6,7 @@
   "description": "Turns Root CRM into a travel-agency CRM: travel enquiries with traveller counts, route and dates on every lead, a configurable Travel Requirement form per service (hotel, flights, transport, excursion, package…), a Services & Forms module with a form builder, and travel locations in Settings → Travel.",
   "icon": "plane",
   "accent": "blue",
-  "version": "2.36.6",
+  "version": "2.38.1",
   "publisher": {
     "name": "OpenNext",
     "contact": "support@opennext.example"

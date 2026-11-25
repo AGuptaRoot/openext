@@ -354,6 +354,18 @@ async function enrichOpportunities(req, items) {
  * @param {Object} req Express request object
  * @returns {Promise<Object>} Enriched opportunities and pagination
  */
+/**
+ * CRM 3.65.2 — ?view=list (Opportunities page table): the table's fields, the stage / lock / amount rules of the
+ * row actions, and what enrichOpportunities reads. No product lines, notes or requirements.
+ */
+const OPPORTUNITY_LIST_FIELDS = [
+  '_id', 'title', 'opportunityNumber', 'clientId', 'leadId', 'pipelineId', 'stage', 'stageType', 'probability',
+  'currency', 'expectedCloseDate', 'salesOwner', 'createdBy', 'acceptedQuotationId', 'generatedQuotationId',
+  'generatedSalesOrderId', 'generatedSalesOrderNo', 'generatedSalesOrderStatus', 'generatedSalesOrderDate',
+  'generatedSalesOrderAmount', 'generatedSalesOrderCurrency', 'estimatedDealValue', 'expectedRevenue', 'value',
+  'lostReason', 'customerSnapshot', 'contactPerson', 'isPortal', 'leadName', 'createdAt', 'updatedAt'
+];
+
 async function list(req) {
   const Opportunity = getOpportunityModel(req);
   const { page, limit, skip } = parsePagination(req.query);
@@ -435,7 +447,7 @@ async function list(req) {
 
   const sort = { createdAt: -1, _id: -1 };
   const [items, total] = await Promise.all([
-    Opportunity.find(finalFilter).sort(sort).skip(skip).limit(limit).lean(),
+    require('../utils/list-view.util').applyListView(req, Opportunity.find(finalFilter), OPPORTUNITY_LIST_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     Opportunity.countDocuments(finalFilter)
   ]);
 

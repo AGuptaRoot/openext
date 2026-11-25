@@ -250,6 +250,18 @@ async function enrichLeadsWithAgeingAndFollowUps(req, leads) {
 }
 
 /** Paginated list — optional ?stage=, ?source=, ?status=, ?tag= & ?search= */
+/**
+ * CRM 3.65.1 — ?view=list (the Leads page table): only the fields the table shows, sorts by and the row actions
+ * need (open, convert, delete, select). Filtering and search still run on the whole record in MongoDB; only the
+ * answer is smaller (no notes, addresses, requirements, PAN …). Every other caller gets the full lead.
+ */
+const LIST_VIEW_FIELDS = [
+  '_id', 'name', 'title', 'company', 'email', 'phone', 'jobTitle', 'photoUrl', 'avatarUrl',
+  'stage', 'status', 'source', 'assignedTo', 'assignedUsername', 'assignedToName', 'convertedClientId',
+  'createdAt', 'updatedAt', 'stageUpdatedAt',
+  'commercialRequirement.score', 'commercialRequirement.needsSampleRequest', 'qualification.sampleRequired'
+].join(' ');
+
 async function list(req) {
   const Lead = getLeadModel(req);
   const view = String(req.query?.view || '').trim();
@@ -371,8 +383,10 @@ async function list(req) {
 
   const scopedFilter = applySalesAgentLeadListScope(req, filter);
 
+  let query = Lead.find(scopedFilter);
+  if (view === 'list' && typeof query.select === 'function') query = query.select(LIST_VIEW_FIELDS);
   const [items, total] = await Promise.all([
-    Lead.find(scopedFilter).sort(sort).skip(skip).limit(limit).lean(),
+    query.sort(sort).skip(skip).limit(limit).lean(),
     Lead.countDocuments(scopedFilter)
   ]);
 

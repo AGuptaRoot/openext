@@ -3,7 +3,9 @@
 /**
  * Travel Dashboard (2.11.0, CRM 3.31.0 json/dashboard.json) — a quick overview, not a report:
  * 4 KPI cards, up to 5 actions, the next 5 trips, a 4-step pipeline, payments, booking problems and
- * the last 5 business events. The same records and rules as Travel Reports (services/report-data.js).
+ * the last 5 business events. The same rules as Travel Reports (services/report-data.js).
+ * 2.38.0: the data comes from services/dashboard-data.js — MongoDB counts and filters, and only the records a
+ * box shows are read (not every lead, quotation, booking and traveller).
  *
  * GET /dashboard/overview?scope=mine|team   (mine = the current user's leads)
  *
@@ -12,13 +14,14 @@
  */
 
 const data = require('../services/report-data.js');
+const dashboardData = require('../services/dashboard-data.js');
 const passportAlerts = require('../services/passport-alerts.js');
 const store = require('../services/booking-store.js');
 
 const { str } = store;
 const { ACCEPTED, SENT, sentDay, acceptedDay, day } = data;
 
-const ACTIVE = ['Pending', 'Partially Confirmed', 'Confirmed'];
+const { ACTIVE } = dashboardData;
 const BOOKINGS = '/ext/travel/bookings';
 const bookingLink = (b) => `${BOOKINGS}?id=${b._id}`;
 const money = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -43,16 +46,16 @@ const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400
 exports.overview = async (req, sdk) => {
   const scope = str(req.query && req.query.scope) === 'mine' ? 'mine' : 'team';
   const me = str(sdk.user && sdk.user.id);
-  const ctx = await data.load(sdk, scope === 'mine' && me && me !== 'system' ? { owner: me } : {});
+  const ctx = await dashboardData.overviewData(sdk, { owner: scope === 'mine' && me && me !== 'system' ? me : '' });
   const { today, canFinance, finance } = ctx;
   const trip = (b) => str(b.destination) || str(b.title) || 'Trip';
 
   /* ---------------------------------------------------------------- records */
-  const isOpenLead = (l) => !l.convertedClientId && !/(^|\b)(won|lost)(\b|$)/i.test(str(l.stage));
-  const openLeads = ctx.leads.filter(isOpenLead);
+  // Open enquiries (not converted, stage not won / lost): counted by MongoDB.
+  const openCount = ctx.counts.open;
   // Quotations sent and still waiting for the client's answer (latest revision of each; needs crm.finance.read).
-  const awaiting = canFinance ? [...data.latestByRoot(ctx.quotations.filter(SENT)).values()].filter((q) => str(q.status) === 'Sent') : [];
-  const active = ctx.bookings.filter((b) => ACTIVE.includes(str(b.status)));
+  const awaiting = canFinance ? ctx.awaiting : [];
+  const active = ctx.active;
   const upcoming = active.filter((b) => str(b.travel_start_date) >= today).sort((a, b) => (str(a.travel_start_date) < str(b.travel_start_date) ? -1 : 1));
   const monthEnd = `${today.slice(0, 7)}-31`;
 
@@ -86,14 +89,12 @@ exports.overview = async (req, sdk) => {
   };
 
   /* ------------------------------------------------------------------ KPIs */
-  const needAttention = openLeads.filter((l) => {
-    const updated = day(l.updatedAt || l.createdAt);
-    return !updated || daysBetween(updated, today) >= 3;
-  }).length;
+  // Open enquiries last updated 3 or more days ago (counted by MongoDB).
+  const needAttention = ctx.counts.attention;
   const awaitingValue = money(awaiting.reduce((s, q) => s + (Number(q.grandTotal) || 0), 0));
   const kpis = {
     items: [
-      { key: 'enquiries', label: 'Open Enquiries', value: openLeads.length, hint: needAttention ? `${needAttention} need attention` : 'All followed up', tone: needAttention ? 'warning' : 'neutral', link: '/leads' },
+      { key: 'enquiries', label: 'Open Enquiries', value: openCount, hint: needAttention ? `${needAttention} need attention` : 'All followed up', tone: needAttention ? 'warning' : 'neutral', link: '/leads' },
       ...(canFinance
         ? [{ key: 'quotations_sent', label: 'Quotations sent (awaiting answer)', value: awaiting.length, hint: `${short(awaitingValue)} quoted`, link: '/quotations?status=Sent' }]
         : []),
@@ -120,8 +121,7 @@ exports.overview = async (req, sdk) => {
   }
   // Quotations sent 3+ days ago and still waiting (latest revision only).
   if (canFinance) {
-    for (const q of data.latestByRoot(ctx.quotations.filter(SENT)).values()) {
-      if (str(q.status) !== 'Sent') continue;
+    for (const q of awaiting) {
       const age = daysBetween(sentDay(q), today);
       if (age < 3) continue;
       actions.push({ u: 30 + Math.max(0, 14 - age), key: `qt-${q._id}`, title: 'Quotation Follow-up', detail: `${str(q.quotationNo) || 'Quotation'} · Sent ${age} days ago`, tone: 'info', actionLabel: 'View', link: `/quotations/${q._id}` });
@@ -161,7 +161,7 @@ exports.overview = async (req, sdk) => {
   /* --------------------------------------------------------------- Pipeline */
   const openQuotes = awaiting.length;
   // Ready / Qualified enquiries (the step before a quotation; opportunities are hidden in Travel).
-  const qualified = openLeads.filter((l) => /qualif/i.test(str(l.stage))).length;
+  const qualified = ctx.counts.qualified;
 
   /* ----------------------------------------------------------- Attention */
   const all = active.map(facts);
@@ -174,15 +174,16 @@ exports.overview = async (req, sdk) => {
 
   /* --------------------------------------------------------- Recent activity */
   const events = [];
-  for (const b of ctx.bookings) events.push({ at: str(b.createdAt), title: `Booking ${str(b.number)} created`, detail: trip(b), link: bookingLink(b) });
-  for (const s of ctx.bookingServices) {
+  // The newest few of each kind (dashboard-data.js); the newest 5 of all of them are shown.
+  for (const b of ctx.recent.bookings) events.push({ at: str(b.createdAt), title: `Booking ${str(b.number)} created`, detail: trip(b), link: bookingLink(b) });
+  for (const s of ctx.recent.services) {
     if (str(s.status) === 'Confirmed' && s.confirmed_at) events.push({ at: str(s.confirmed_at), title: `${str(s.name) || 'Service'} confirmed`, detail: '', link: `${BOOKINGS}?id=${s.booking_id}` });
   }
-  for (const v of ctx.vouchers) {
+  for (const v of ctx.recent.vouchers) {
     if (v.issued_at && str(v.status) !== 'Draft') events.push({ at: str(v.issued_at), title: `Voucher ${str(v.number)} issued`, detail: '', link: `${BOOKINGS}?id=${v.booking_id}` });
   }
   if (canFinance) {
-    for (const q of data.conversions(ctx.quotations)) events.push({ at: acceptedDay(q), title: `Quotation ${str(q.quotationNo)} accepted`, detail: '', link: `/quotations/${q._id}` });
+    for (const q of ctx.recent.conversions) events.push({ at: acceptedDay(q), title: `Quotation ${str(q.quotationNo)} accepted`, detail: '', link: `/quotations/${q._id}` });
   }
   const recent = events
     .filter((e) => e.at)
@@ -193,11 +194,11 @@ exports.overview = async (req, sdk) => {
   /* --------------------------------------------------------- Passport alerts */
   // Travellers of the leads in scope: expired passports and those expiring within 6 months (one per
   // person), most urgent first. Never a passport number.
-  const { expired: ppExpired, expiring: ppExpiring } = passportAlerts.alertsOf(ctx.travellers, today);
-  const leadById = new Map(ctx.leads.map((l) => [str(l._id), l]));
+  // Only travellers whose passport ends within 6 months are read (dashboard-data.js).
+  const { expired: ppExpired, expiring: ppExpiring } = passportAlerts.alertsOf(ctx.passportTravellers, today);
   const alertRow = ({ row, status }) => {
-    const lead = leadById.get(str(row.lead_id));
-    const v = ctx.values[str(row.lead_id)] || {};
+    const lead = ctx.lead(str(row.lead_id));
+    const v = valuesFor(str(row.lead_id));
     const expiry = str(row.passport_expiry_date).slice(0, 10);
     return {
       key: `pp-${row._id}`,
@@ -211,6 +212,10 @@ exports.overview = async (req, sdk) => {
     };
   };
   const passportRows = [...ppExpired, ...ppExpiring];
+  // Trip details are read only for the active bookings' leads: read the ones of the rows shown (at most 5).
+  const shownLeads = passportRows.slice(0, 5).map(({ row }) => str(row.lead_id)).filter((id) => id && !ctx.values[id]);
+  const extraValues = shownLeads.length ? await data.valuesOf(sdk, shownLeads) : {};
+  const valuesFor = (leadId) => ctx.values[leadId] || extraValues[leadId] || {};
 
   const out = {
     kpis,
@@ -229,7 +234,7 @@ exports.overview = async (req, sdk) => {
     'upcoming-trips': { items: trips, more: { label: 'View All Bookings', link: BOOKINGS }, empty: 'No upcoming trips.' },
     pipeline: {
       stages: [
-        { key: 'enquiries', label: 'Enquiries', count: openLeads.length, link: '/leads' },
+        { key: 'enquiries', label: 'Enquiries', count: openCount, link: '/leads' },
         { key: 'qualified', label: 'Qualified', count: qualified, link: '/leads' },
         ...(canFinance ? [{ key: 'quotations', label: 'Quotations', count: openQuotes, link: '/quotations?status=Sent' }] : []),
         { key: 'bookings', label: 'Bookings', count: active.length, link: BOOKINGS }

@@ -424,7 +424,19 @@ async function enrichProject(req, item) {
   return enriched;
 }
 
+/**
+ * CRM 3.65.2 — ?view=list (Projects page table, Kanban and KPI cards): only the fields they show, sort by and
+ * their row actions need, plus what enrichProjects reads (client, assignees, progress method). Search and
+ * filters still run on the whole record; other callers get the full project.
+ */
+const PROJECT_LIST_FIELDS = [
+  '_id', 'name', 'status', 'priority', 'category', 'label', 'tags', 'deadline', 'budget', 'currency',
+  'isArchived', 'isDropped', 'droppedReason', 'liveUrl', 'clientId', 'assignedTo', 'createdBy', 'memberCount',
+  'progressCalculationMethod', 'hoursEstimate', 'createdAt', 'updatedAt'
+];
+
 async function list(req) {
+  const { applyListView } = require('../utils/list-view.util');
   const Project = getProjectModel(req);
   const { page, limit, skip, sort } = parsePagination(req.query);
   const filter = baseFilter(req);
@@ -517,7 +529,7 @@ async function list(req) {
 
   const scopedFilter = await applyEmployeeProjectListScope(req, filter);
   const [items, total] = await Promise.all([
-    Project.find(scopedFilter).sort(sort).skip(skip).limit(limit).lean(),
+    applyListView(req, Project.find(scopedFilter), PROJECT_LIST_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     Project.countDocuments(scopedFilter)
   ]);
 

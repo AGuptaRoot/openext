@@ -28,25 +28,31 @@
  *   page.trip                      Trip page (?lead= / ?client_trip=, from Reports → Trips) → <x-travel-trip-page-v1>
  *
  * Plain ES modules, no build step. Every class is prefixed "tvx-".
+ * 2.37.0: views are loaded on demand (dynamic import) when their slot is mounted, and reused after that.
  */
 
 import { h, errorText } from './shared/dom.js';
-import { TAG as SERVICE_BUILDER } from './components/service-form-builder/service-form-builder.js';
-import { TAG as LEAD_REQUIREMENTS } from './components/lead-requirements/lead-requirements.js';
-import { TAG as LEAD_TRAVELLERS } from './components/lead-travellers/lead-travellers.js';
-import { TAG as TRAVELLERS_PAGE } from './components/travellers-page/travellers-page.js';
-import { TAG as CONTACT_TRAVELLERS } from './components/contact-travellers/contact-travellers.js';
-import { TAG as SETTINGS_ADMIN } from './components/settings-admin/settings-admin.js';
-import { TAG as BOOKINGS_PAGE } from './components/bookings-page/bookings-page.js';
-import { TAG as ITINERARY_PAGE } from './components/itinerary-page/itinerary-page.js';
-import { TAG as QUOTATION_TRAVEL } from './components/quotation-travel/quotation-travel.js';
-import { TAG as LEAD_BOOKINGS } from './components/lead-bookings/lead-bookings.js';
-import { TAG as OPPORTUNITY_TRIP } from './components/opportunity-trip/opportunity-trip.js';
-import { TAG as PORTAL_BOOKINGS } from './components/portal-bookings/portal-bookings.js';
-import { TAG as CLIENT_TRAVELLERS } from './components/client-travellers/client-travellers.js';
-import { TAG as TRIP_PAGE } from './components/trip-page/trip-page.js';
-import { TAG as CLIENT_TRAVEL_REQUIREMENT } from './components/client-travel-requirement/client-travel-requirement.js';
-import { TAG as GUIDED_SALE } from './components/guided-sale/guided-sale.js';
+
+/*
+ * 2.37.0 — each view's code (and its own .css) is loaded only when its slot opens, then kept by the browser:
+ * opening Bookings loads the Bookings view, not all 16. Each entry gives the module; its TAG is the element.
+ */
+const SERVICE_BUILDER = () => import('./components/service-form-builder/service-form-builder.js');
+const LEAD_REQUIREMENTS = () => import('./components/lead-requirements/lead-requirements.js');
+const LEAD_TRAVELLERS = () => import('./components/lead-travellers/lead-travellers.js');
+const TRAVELLERS_PAGE = () => import('./components/travellers-page/travellers-page.js');
+const CONTACT_TRAVELLERS = () => import('./components/contact-travellers/contact-travellers.js');
+const SETTINGS_ADMIN = () => import('./components/settings-admin/settings-admin.js');
+const BOOKINGS_PAGE = () => import('./components/bookings-page/bookings-page.js');
+const ITINERARY_PAGE = () => import('./components/itinerary-page/itinerary-page.js');
+const QUOTATION_TRAVEL = () => import('./components/quotation-travel/quotation-travel.js');
+const LEAD_BOOKINGS = () => import('./components/lead-bookings/lead-bookings.js');
+const OPPORTUNITY_TRIP = () => import('./components/opportunity-trip/opportunity-trip.js');
+const PORTAL_BOOKINGS = () => import('./components/portal-bookings/portal-bookings.js');
+const CLIENT_TRAVELLERS = () => import('./components/client-travellers/client-travellers.js');
+const TRIP_PAGE = () => import('./components/trip-page/trip-page.js');
+const CLIENT_TRAVEL_REQUIREMENT = () => import('./components/client-travel-requirement/client-travel-requirement.js');
+const GUIDED_SALE = () => import('./components/guided-sale/guided-sale.js');
 
 const SLOTS = {
   'page.travel_services': SERVICE_BUILDER,
@@ -71,22 +77,39 @@ const SLOTS = {
   'guided.requirements': GUIDED_SALE
 };
 
-export function mount(element, ctx) {
-  const tag = SLOTS[ctx.slot];
-  if (!tag) {
+/** The loaded views (slot loader → module promise): a view is downloaded once per page load. */
+const loaded = new Map();
+const MOUNT_TOKEN = Symbol('tvx-mount');
+
+export async function mount(element, ctx) {
+  const load = SLOTS[ctx.slot];
+  if (!load) {
     element.replaceChildren(h('div', { class: 'tvx-root' }, [h('p', { class: 'tvx-muted', text: `Travel Agency has no view for "${ctx.slot}".` })]));
     return;
   }
+  // A newer mount on the same element (fast tab switches) wins over this one.
+  const token = {};
+  element[MOUNT_TOKEN] = token;
   try {
-    const view = document.createElement(tag);
+    let pending = loaded.get(load);
+    if (!pending) {
+      pending = load();
+      loaded.set(load, pending);
+      pending.catch(() => loaded.delete(load)); // a failed download is tried again next time
+    }
+    const { TAG } = await pending;
+    if (element[MOUNT_TOKEN] !== token) return;
+    const view = document.createElement(TAG);
     view.className = 'tvx-root';
     view.ctx = ctx;
     element.replaceChildren(view);
   } catch (err) {
+    if (element[MOUNT_TOKEN] !== token) return;
     element.replaceChildren(h('div', { class: 'tvx-msg tvx-msg-error', text: errorText(err) }));
   }
 }
 
 export function unmount(element) {
+  element[MOUNT_TOKEN] = null;
   element.replaceChildren();
 }

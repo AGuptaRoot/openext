@@ -1,9 +1,17 @@
 # crm-travel — Workflow
 
-Travel extension `travel` **2.36.6**, needs CRM `openext-crm-suite` **>= 3.64.0 < 4.0.0** (GST suite).
+Travel extension `travel` **2.38.1**, needs CRM `openext-crm-suite` **>= 3.64.0 < 4.0.0** (GST suite).
 
 This file explains, in simple English, how a travel enquiry moves through the CRM: from the first lead to
 the trip, the booking, vouchers and the client portal.
+
+**Speed (2.37.0 / 2.38.0, best with CRM 3.65.0):** the Dashboard lets MongoDB count the enquiries and reads only
+what its boxes show (active bookings, quotations waiting for an answer, accepted quotations for the money,
+passports ending within 6 months, the newest activity); a user with few leads (up to 500) searches only those.
+If more than 5 trips start on the same day, the earliest-booked come first. 2.38.1: database indexes on the booking
+status and the passport expiry date (MongoDB builds them once after the upload). Reports read the data once for their 3 parts, not 3 times; every lead is read
+(no 5,000-lead limit) with CRM 3.65.0; each screen's code is downloaded only when that screen opens. The figures
+are the same as before.
 
 > The CRM plugin stays generic. All travel logic lives in this extension. The CRM only calls the routes and
 > hooks that `crm-extension.json` declares.

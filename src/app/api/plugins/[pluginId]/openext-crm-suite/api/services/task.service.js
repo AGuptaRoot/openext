@@ -949,7 +949,20 @@ async function enrichTask(req, item) {
   return enriched;
 }
 
+/**
+ * CRM 3.65.2 — ?view=list (Tasks page table, Kanban and its CSV export): only the fields they show, sort by
+ * and their row actions need, plus what enrichTasks reads (assignee, followers, project, milestone,
+ * dependency). Subtasks are read only for their counts. Other callers get the full task.
+ */
+const TASK_LIST_FIELDS = [
+  '_id', 'title', 'description', 'status', 'priority', 'dueDate', 'projectId', 'milestoneId', 'assignedTo',
+  'assigneeName', 'createdBy', 'followers', 'subtasks._id', 'subtasks.isCompleted', 'dependsOnTaskId',
+  'isRecurring', 'recurringInterval', 'interval', 'isArchived', 'clientFeedbackStatus', 'clientSatisfied',
+  'clientFeedbackNotes', 'notifyClientOnCompletion', 'clientNotifiedAt', 'clientNotifiedEmail', 'createdAt', 'updatedAt'
+];
+
 async function list(req) {
+  const { applyListView } = require('../utils/list-view.util');
   const Task = getTaskModel(req);
   const { page, limit, skip, sort } = parsePagination(req.query);
   const filter = baseFilter(req);
@@ -1116,7 +1129,7 @@ async function list(req) {
 
   const scopedFilter = await applyEmployeeTaskListScope(req, filter);
   const [items, total] = await Promise.all([
-    Task.find(scopedFilter).sort(sort).skip(skip).limit(limit).lean(),
+    applyListView(req, Task.find(scopedFilter), TASK_LIST_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     Task.countDocuments(scopedFilter)
   ]);
 

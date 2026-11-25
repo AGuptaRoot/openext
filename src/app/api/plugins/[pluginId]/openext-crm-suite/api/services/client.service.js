@@ -333,6 +333,16 @@ async function enrichClientsWithPrimaryContacts(req, items) {
 }
 
 /** Paginated client list */
+/**
+ * CRM 3.65.2 — ?view=list (Clients page table): only the fields the table shows (name, contact, address line,
+ * tax id, category, tags, status, avatar) and what the list enrichment reads (leadId: the source lead).
+ * No GST card, notes, portal or bank details. Every other caller gets the full client.
+ */
+const CLIENT_LIST_FIELDS = [
+  '_id', 'name', 'email', 'phone', 'status', 'category', 'tags', 'taxId', 'avatarColor', 'avatarUrl', 'leadId',
+  'address', 'city', 'state', 'country', 'billingAddress', 'shippingAddress', 'addresses', 'createdAt', 'updatedAt'
+];
+
 async function list(req) {
   const Company = getCompanyModel(req);
   const { page, limit, skip, sort } = parsePagination(req.query);
@@ -433,7 +443,7 @@ async function list(req) {
   const scopedFilter = await applySalesAgentClientListScope(req, filter, getLeadModel);
 
   const [items, total] = await Promise.all([
-    Company.find(scopedFilter).sort(sort).skip(skip).limit(limit).lean(),
+    require('../utils/list-view.util').applyListView(req, Company.find(scopedFilter), CLIENT_LIST_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     Company.countDocuments(scopedFilter)
   ]);
 

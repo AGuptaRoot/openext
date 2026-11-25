@@ -312,6 +312,19 @@ async function recordPaymentAgainstInvoice(req, input, invoiceId, amount) {
   return result;
 }
 
+/**
+ * CRM 3.65.2 — ?view=list (Payments page table, KPI cards and the Refund dialog): only what they read
+ * (refunds: their status, for the "pending approval" count; allocations: the invoice numbers) and the
+ * customer label. No notes, gateway payloads or full refund history.
+ */
+const LIST_VIEW_FIELDS = [
+  '_id', 'paymentNumber', 'paymentNo', 'receiptNumber', 'transactionId',
+  'invoiceId', 'invoiceNo', 'invoiceNumber', 'allocations.invoiceId', 'allocations.invoiceNumber',
+  'salesOrderId', 'salesOrderNo', 'paymentDate', 'displayMode', 'paymentGateway', 'mode',
+  'amount', 'currency', 'status', 'refundedAmount', 'refunds._id', 'refunds.status',
+  'clientId', 'leadId', 'clientName', 'customerName', 'customerLabel', 'customerSnapshot', 'customerAvatarUrl', 'clientAvatarUrl', 'customerEmail', 'createdBy', 'createdAt', 'updatedAt'
+];
+
 async function list(req) {
   const Payment = getPaymentModel(req);
   const { page, limit, skip, sort } = parsePagination(req.query, { sortField: 'paymentDate' });
@@ -361,8 +374,9 @@ async function list(req) {
   }
 
   const scopedFilter = await withStaffPaymentScope(req, filter);
+  const { applyListView } = require('../utils/list-view.util');
   const [items, total] = await Promise.all([
-    Payment.find(scopedFilter).sort(sort).skip(skip).limit(limit).lean(),
+    applyListView(req, Payment.find(scopedFilter), LIST_VIEW_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     Payment.countDocuments(scopedFilter)
   ]);
 

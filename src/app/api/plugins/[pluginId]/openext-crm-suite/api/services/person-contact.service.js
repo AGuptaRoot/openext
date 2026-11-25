@@ -118,6 +118,15 @@ async function findDuplicates(req, { email, phone, pan, excludeId } = {}) {
   return items.map(serialize);
 }
 
+/**
+ * CRM 3.65.2 — ?view=list (Contacts page table): only the fields the table shows; leadIds / clientIds give the
+ * Leads / Clients counts. No PAN (it reads as empty in the list), no address or documents.
+ */
+const CONTACT_LIST_FIELDS = [
+  '_id', 'salutation', 'name', 'companyName', 'jobTitle', 'email', 'phone', 'photoUrl',
+  'leadIds', 'clientIds', 'leadsCount', 'clientsCount', 'IsportalAssigned', 'createdAt', 'updatedAt'
+];
+
 async function list(req) {
   const PersonContact = getModel(req);
   const { page, limit, skip } = parsePagination(req.query);
@@ -232,7 +241,7 @@ async function list(req) {
   }
 
   const [items, total] = await Promise.all([
-    PersonContact.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
+    require('../utils/list-view.util').applyListView(req, PersonContact.find(filter), CONTACT_LIST_FIELDS).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
     PersonContact.countDocuments(filter)
   ]);
   const withClients = await attachClientLinksForList(req, items);

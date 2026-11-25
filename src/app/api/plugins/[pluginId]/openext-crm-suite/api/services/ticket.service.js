@@ -226,9 +226,22 @@ async function enrichTickets(req, items) {
 }
 
 /**
+ * CRM 3.65.2 — ?view=list (Tickets page table and Kanban): only the fields they show and the SLA badge needs,
+ * plus what enrichTickets reads (requester, client, project, assignee). Messages are read only for their
+ * counts (isInternal), never their text. Other callers get the full ticket.
+ */
+const TICKET_LIST_FIELDS = [
+  '_id', 'ticketNumber', 'subject', 'status', 'priority', 'type', 'assignGroup', 'channelName', 'escalationLevel',
+  'assignedTo', 'requesterType', 'requesterName', 'requesterId', 'requesterCompany', 'contactPerson', 'clientId',
+  'projectId', 'createdBy', 'slaDueDate', 'slaBreached', 'resolvedAt', 'isArchived', 'tags', 'messages.isInternal',
+  'createdAt', 'updatedAt'
+];
+
+/**
  * Lists tickets matching query parameters with pagination.
  */
 async function list(req) {
+  const { applyListView } = require('../utils/list-view.util');
   const Ticket = getTicketModel(req);
   const { page, limit, skip } = parsePagination(req.query);
   let filter = baseFilter(req);
@@ -281,7 +294,7 @@ async function list(req) {
 
   const sort = { createdAt: -1, _id: -1 };
   const [items, total] = await Promise.all([
-    Ticket.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+    applyListView(req, Ticket.find(filter), TICKET_LIST_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     Ticket.countDocuments(filter)
   ]);
 

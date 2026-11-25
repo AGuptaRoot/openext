@@ -119,6 +119,16 @@ async function linkOpportunitySalesOrder(req, opportunityId, salesOrderId, order
  * @param {Object} req Express request object
  * @returns {Promise<Object>} Paginated list of sales orders
  */
+/**
+ * CRM 3.65.2 — ?view=list (Sales Orders page table and its KPI cards): only the table's fields and what the
+ * customer label reads (client / lead / snapshot). No line items, addresses, notes or tracking.
+ */
+const SALES_ORDER_LIST_FIELDS = [
+  '_id', 'orderNumber', 'status', 'deliveryStatus', 'deliveryTargetDate', 'issueDate', 'grandTotal', 'currency',
+  'clientId', 'leadId', 'opportunityId', 'customerSnapshot', 'customerAvatarUrl', 'clientAvatarUrl', 'customerEmail',
+  'createdAt', 'updatedAt'
+];
+
 async function list(req) {
   const SalesOrder = getSalesOrderModel(req);
   const { page, limit, skip, sort } = parsePagination(req.query);
@@ -169,7 +179,7 @@ async function list(req) {
   const finalFilter = applySalesAgentCreatorScope(req, filter);
 
   const [items, total] = await Promise.all([
-    SalesOrder.find(finalFilter).sort(sort).skip(skip).limit(limit).lean(),
+    require('../utils/list-view.util').applyListView(req, SalesOrder.find(finalFilter), SALES_ORDER_LIST_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     SalesOrder.countDocuments(finalFilter)
   ]);
 

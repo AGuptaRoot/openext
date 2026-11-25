@@ -18,6 +18,19 @@ const {
   isEmployeeScoped
 } = require('../utils/project-access.util');
 const { isAdmin } = require('../utils/sales-access.util');
+const { applyListView } = require('../utils/list-view.util');
+
+/**
+ * CRM 3.65.3 — ?view=list (the Time Logs page): the table, timer, edit and approve fields, and the ids the
+ * names are looked up by (task, project, client, people). Left out: the deletion bookkeeping and the tenant.
+ * Older entries may still hold date / note / billable / checkInAt / checkOutAt / user names: kept as well.
+ */
+const TIME_LOG_LIST_FIELDS = [
+  '_id', 'taskId', 'projectId', 'clientId', 'workDate', 'date', 'hours', 'description', 'note', 'title',
+  'isBillable', 'billable', 'hourlyRate', 'billableAmount', 'checkInTime', 'checkOutTime', 'checkInAt', 'checkOutAt',
+  'status', 'entryType', 'approvalStatus', 'approvedBy', 'approvedAt', 'rejectionReason', 'isLocked', 'isProjectDropped',
+  'invoiceId', 'createdBy', 'updatedBy', 'userId', 'userName', 'username', 'memberUsername', 'createdAt', 'updatedAt'
+];
 
 function getMongoose(req) {
   try {
@@ -712,7 +725,7 @@ async function list(req) {
   if (wantsTitleSort) {
     // Title sorts need enriched fields — load a bounded set, enrich, sort, then page.
     const maxSortScan = Math.min(500, Math.max(limit * 20, 100));
-    const allItems = await TimeLog.find(scopedFilter)
+    const allItems = await applyListView(req, TimeLog.find(scopedFilter), TIME_LOG_LIST_FIELDS)
       .sort({ workDate: -1, _id: -1 })
       .limit(maxSortScan)
       .lean();
@@ -745,7 +758,7 @@ async function list(req) {
   const sortField = sortableFields.has(sortKeyRaw) ? sortKeyRaw : 'workDate';
   const sort = { [sortField]: sortDir, _id: -1 };
   const [items, total] = await Promise.all([
-    TimeLog.find(scopedFilter).sort(sort).skip(skip).limit(limit).lean(),
+    applyListView(req, TimeLog.find(scopedFilter), TIME_LOG_LIST_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     TimeLog.countDocuments(scopedFilter)
   ]);
 
@@ -1651,6 +1664,7 @@ async function exportTimeLogs(req, query = {}) {
 }
 
 module.exports = {
+  TIME_LOG_LIST_FIELDS,
   list,
   listByTask,
   getById,

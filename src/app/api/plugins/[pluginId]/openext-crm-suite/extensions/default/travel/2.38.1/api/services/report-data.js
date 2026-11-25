@@ -17,6 +17,15 @@
  *  - cancelled bookings never count as bookings or value
  *  - no passport / Aadhaar numbers, file ids or document images are read into reports (only expiry dates and
  *    whether the last 4 digits exist)
+ *
+ * Speed (2.37.0):
+ *  - leads are paged by record id (CRM 3.65.0 find { after }): no 5,000-lead limit, and page 50 costs the same
+ *    as page 1. An older CRM keeps the old paging (and its limit).
+ *  - extension records are paged by id as well, and independent reads run side by side (a few at a time).
+ *  - calls of the same user + filters that arrive while a load is running share it (and for 2 s after): the
+ *    Reports page asks 3 routes at once, they now read the data once. Nothing older is ever reused.
+ *  - load(sdk, query, { light: true }) (the Dashboard): no Travel Requirements, and travel values only for the
+ *    leads that have bookings (the Dashboard reads no others; it fetches the few more it shows itself).
  */
 
 const { readServices } = require('./catalog.js');
@@ -24,8 +33,12 @@ const { todayIn } = require('./availability.js');
 const store = require('./booking-store.js');
 
 const { str, ID_RE } = store;
-const MAX_LEADS = 5000;
+const MAX_LEADS = 5000; // only with an older CRM (skip paging)
+const MAX_ROWS = 100000; // safety stop for id paging
 const IN = 500;
+const PARALLEL = 4; // reads at the same time
+const GRACE_MS = 2000; // a finished load is reused this long, no more
+const CACHE_MAX = 30;
 
 const day = (v) => {
   if (!v) return '';
@@ -39,10 +52,43 @@ const chunks = (list, size = IN) => {
   return out;
 };
 
-/** Every row of a core reader (pages of 100), up to max. */
+/** Oldest first (as before 2.37.0, when pages were read by createdAt): equal dates keep their id order. */
+const oldestFirst = (rows) => rows.map((row, i) => [row, i]).sort((a, b) => {
+  const x = str(a[0].createdAt);
+  const y = str(b[0].createdAt);
+  return x < y ? -1 : x > y ? 1 : a[1] - b[1];
+}).map(([row]) => row);
+
+/** Run fn over items, at most `limit` at a time; results in the items' order. */
+async function eachLimited(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+/** Every row of a core reader (pages of 100). By id with CRM 3.65.0; else oldest first with skip, up to max. */
 async function scanCore(reader, filter, max = MAX_LEADS) {
-  // Paged oldest first (sdk.crm sorts on record fields only, not _id); a row seen twice is kept once.
   const rows = new Map();
+  if (reader && reader.paging === 'after') {
+    let after = '';
+    while (rows.size < MAX_ROWS) {
+      const page = await reader.find(filter, { limit: 100, after });
+      for (const row of page) rows.set(str(row._id), row);
+      if (page.length < 100) break;
+      const last = str(page[page.length - 1]._id);
+      if (!last || last === after) break;
+      after = last;
+    }
+    return oldestFirst([...rows.values()]);
+  }
+  // An older CRM: sdk.crm sorts on record fields only, not _id; a row seen twice is kept once.
   for (let skip = 0; skip < max; skip += 100) {
     const page = await reader.find(filter, { limit: 100, skip, sort: { createdAt: 1 } });
     for (const row of page) rows.set(str(row._id), row);
@@ -51,30 +97,43 @@ async function scanCore(reader, filter, max = MAX_LEADS) {
   return [...rows.values()];
 }
 
-/** Rows of a core reader whose field is in a list of ids (chunks of 500). */
+/** Rows of a core reader whose field is in a list of ids (chunks of 500, a few chunks at a time). */
 async function coreIn(reader, field, ids, extra = {}) {
-  const rows = [];
-  for (const part of chunks([...new Set(ids)].filter(Boolean))) rows.push(...(await scanCore(reader, { ...extra, [field]: { $in: part } }, 20000)));
-  return rows;
+  const parts = await eachLimited(chunks([...new Set(ids)].filter(Boolean)), PARALLEL, (part) => scanCore(reader, { ...extra, [field]: { $in: part } }, 20000));
+  return parts.flat();
 }
 
-/** Rows of an extension model whose field is in a list of ids (chunks of 500, pages of 500). */
+/** Rows of an extension model whose field is in a list of ids (chunks of 500, pages of 500 by id). */
 async function modelIn(Model, field, ids, extra = {}) {
-  const rows = [];
-  if (!Model) return rows;
-  const seen = new Set();
-  for (const part of chunks([...new Set(ids)].filter(Boolean))) {
-    for (let skip = 0; skip < 50000; skip += 500) {
-      const page = await Model.find({ ...extra, [field]: { $in: part } }, { limit: 500, skip, sort: { createdAt: 1 } });
-      for (const row of page) {
-        if (seen.has(str(row._id))) continue;
-        seen.add(str(row._id));
-        rows.push(row);
-      }
+  if (!Model) return [];
+  const parts = await eachLimited(chunks([...new Set(ids)].filter(Boolean)), PARALLEL, async (part) => {
+    const rows = [];
+    let after = '';
+    for (let n = 0; n < 100; n += 1) {
+      const where = { ...extra, [field]: { $in: part }, ...(after ? { _id: { $gt: after } } : {}) };
+      const page = await Model.find(where, { limit: 500, sort: { _id: 1 } });
+      rows.push(...page);
       if (page.length < 500) break;
+      after = str(page[page.length - 1]._id);
+      if (!after) break;
     }
-  }
-  return rows;
+    return oldestFirst(rows);
+  });
+  const seen = new Set();
+  return parts.flat().filter((row) => {
+    const id = str(row._id);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+/** Travel values of leads, 100 per read, a few reads at a time. */
+async function valuesOf(sdk, ids) {
+  const out = {};
+  const parts = await eachLimited(chunks([...new Set(ids)].filter(Boolean), 100), PARALLEL, (part) => sdk.values.getMany('lead', part));
+  for (const part of parts) Object.assign(out, part || {});
+  return out;
 }
 
 /** The query → a clean filter set. */
@@ -100,12 +159,43 @@ const ACCEPTED = (q) => ['Accepted', 'Converted'].includes(str(q.status));
 const sentDay = (q) => day(q.sentAt || q.issueDate || q.createdAt);
 const acceptedDay = (q) => day((q.acceptedMetadata && q.acceptedMetadata.acceptedAt) || q.updatedAt);
 
+/* 2.37.0: one running load shared by the same user + filters (the Reports page asks 3 routes at once). */
+const recent = new Map();
+
+function cacheKey(sdk, f, light) {
+  const userId = str(sdk.user && sdk.user.id);
+  const finance = Boolean(sdk.permissions && sdk.permissions.has('crm.finance.read'));
+  const bookingsRead = Boolean(sdk.permissions && sdk.permissions.has('x.travel.bookings.read'));
+  return JSON.stringify([userId, finance, bookingsRead, light, f]);
+}
+
 /**
- * Load and filter everything the report sections need.
+ * Load and filter everything the report sections need. The answer is shared: callers must not change it.
+ * @param {object} [options] { light } — the Dashboard's smaller load (see the top of this file)
  * @returns {Promise<object>} ctx
  */
-async function load(sdk, query) {
+function load(sdk, query, options = {}) {
   const f = readFilters(query);
+  const light = Boolean(options && options.light) && !f.destination && !f.service;
+  const key = cacheKey(sdk, f, light);
+  const now = Date.now();
+  for (const [k, v] of recent) if (v.doneAt && now - v.doneAt > GRACE_MS) recent.delete(k);
+  const hit = recent.get(key);
+  if (hit) return hit.pending;
+  const pending = loadFresh(sdk, f, light);
+  const entry = { pending, doneAt: 0 };
+  recent.set(key, entry);
+  pending.then(
+    () => {
+      entry.doneAt = Date.now();
+    },
+    () => recent.delete(key)
+  );
+  while (recent.size > CACHE_MAX) recent.delete(recent.keys().next().value);
+  return pending;
+}
+
+async function loadFresh(sdk, f, light) {
   const canFinance = Boolean(sdk.permissions && sdk.permissions.has('crm.finance.read'));
   // No range: everything counts; with one, a record needs its date inside it.
   const inRange = (d) => (!f.from && !f.to) || (Boolean(d) && (!f.from || d >= f.from) && (!f.to || d <= f.to));
@@ -118,10 +208,22 @@ async function load(sdk, query) {
   if (f.source) leadFilter.source = f.source;
   let leads = (await scanCore(sdk.crm.leads, leadFilter)).filter((l) => !l.mergedIntoId);
 
-  // Travel values of the leads (destination, dates, travellers, required services), 100 at a time.
-  const values = {};
-  for (const part of chunks(leads.map((l) => str(l._id)), 100)) Object.assign(values, await sdk.values.getMany('lead', part));
-  const [services, destinationList] = await Promise.all([readServices(sdk), sdk.settings.get('destinations')]);
+  // Without a destination / service filter the lead list is final now: the next reads run side by side.
+  const early = !f.destination && !f.service;
+  const earlyIds = leads.map((l) => str(l._id));
+  const earlyQuotes = early && canFinance ? coreIn(sdk.crm.quotations, 'leadId', earlyIds) : null;
+  const earlyBookings = early ? modelIn(sdk.models.Booking, 'lead_id', earlyIds) : null;
+  const earlyReqs = early && !light ? modelIn(sdk.models.TravelRequirement, 'lead_id', earlyIds) : null;
+  // Keep the side reads from being unhandled while the values load (they are awaited below).
+  for (const p of [earlyQuotes, earlyBookings, earlyReqs]) if (p) p.catch(() => undefined);
+
+  // Travel values of the leads (destination, dates, travellers, required services). The Dashboard (light)
+  // reads only those of the leads with bookings, below.
+  const [values, services, destinationList] = await Promise.all([
+    light ? Promise.resolve({}) : valuesOf(sdk, leads.map((l) => str(l._id))),
+    readServices(sdk),
+    sdk.settings.get('destinations')
+  ]);
   const destinationLabel = new Map((Array.isArray(destinationList) ? destinationList : []).map((d) => [keyOf(d), str(d)]));
   const destOf = (leadId) => {
     const v = values[leadId] || {};
@@ -130,7 +232,7 @@ async function load(sdk, query) {
   if (f.destination) leads = leads.filter((l) => keyOf(destOf(str(l._id))) === f.destination);
 
   let leadIds = leads.map((l) => str(l._id));
-  const requirements = (await modelIn(sdk.models.TravelRequirement, 'lead_id', leadIds)).filter((r) => r.removed !== true);
+  const requirements = light ? [] : (await (earlyReqs || modelIn(sdk.models.TravelRequirement, 'lead_id', leadIds))).filter((r) => r.removed !== true);
   if (f.service) {
     const withService = new Set(requirements.filter((r) => str(r.service_key) === f.service).map((r) => str(r.lead_id)));
     for (const l of leads) {
@@ -145,10 +247,11 @@ async function load(sdk, query) {
   let quotations = [];
   if (canFinance) {
     const seen = new Map();
-    for (const q of await coreIn(sdk.crm.quotations, 'leadId', leadIds)) seen.set(str(q._id), q);
+    for (const q of await (earlyQuotes || coreIn(sdk.crm.quotations, 'leadId', leadIds))) seen.set(str(q._id), q);
     quotations = [...seen.values()].filter((q) => !q.isArchived);
   }
-  let bookings = await modelIn(sdk.models.Booking, 'lead_id', leadIds);
+  let bookings = await (earlyBookings || modelIn(sdk.models.Booking, 'lead_id', leadIds));
+  if (light) Object.assign(values, await valuesOf(sdk, bookings.map((b) => str(b.lead_id))));
 
   // Money of the accepted quotations (the CRM's rules), and each one's payment group.
   let finance = null;
@@ -235,4 +338,4 @@ function conversions(quotations) {
   return [...out.values()];
 }
 
-module.exports = { load, readFilters, expectedTravellers, latestByRoot, conversions, keyOf, day, ROOT, SENT, ACCEPTED, sentDay, acceptedDay };
+module.exports = { load, valuesOf, scanCore, modelIn, eachLimited, chunks, oldestFirst, readFilters, expectedTravellers, latestByRoot, conversions, keyOf, day, ROOT, SENT, ACCEPTED, sentDay, acceptedDay };

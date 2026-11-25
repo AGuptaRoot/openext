@@ -95,7 +95,8 @@
     },
     "passport_expiry_date": {
       "type": "date",
-      "label": "Passport expiry date"
+      "label": "Passport expiry date",
+      "index": true
     },
     "passport_country": {
       "type": "text",

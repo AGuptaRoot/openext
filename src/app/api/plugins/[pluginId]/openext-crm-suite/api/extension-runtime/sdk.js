@@ -10,6 +10,8 @@
  *   sdk.models.<Name>      tenant-locked repository (find, findOne, findById, count, create, updateById, deleteById)
  *   sdk.settings           getAll(), get(key), set(patch)  → the extension's own settings
  *   sdk.crm.<records>      read-only, tenant-scoped, permission-checked: leads, clients, contacts, opportunities, tickets
+ *                          find(filter, { after }) (CRM 3.65.0, reader.paging === 'after'): pages in record-id order
+ *                          without skip — pass '' for the first page, then the last row's _id (fast on big lists)
  *   sdk.crm.notes.list(recordType, id) / sdk.crm.activities.list(recordType, id)   notes and activities of a
  *                          lead or client (CRM 3.61.0; read-only, the CRM screens' access rules, no location data)
  *   sdk.values.get(recordType, id)  this extension's declared field values on a core record
@@ -165,13 +167,21 @@ function coreReader(req, key, tenantId) {
     async find(filter = {}, options = {}) {
       const Model = ensure();
       const where = sanitizeFilter(filter, visible);
-      let q = Model.find(await scoped(where));
-      const sort = sanitizeSort(options.sort, visible);
+      // CRM 3.65.0: options.after ('' = the first page, then the last row's _id) pages in id order with no
+      // skip, so reading page 50 costs the same as page 1. Without it: the old sort / skip paging.
+      const byId = Object.prototype.hasOwnProperty.call(options || {}, 'after');
+      const after = byId ? String(options.after || '') : '';
+      if (after && !OBJECT_ID_RE.test(after)) throw runtimeError(400, `${key}.find: after must be a record id`, 'INVALID_INPUT');
+      const base = await scoped(where);
+      let q = Model.find(after ? { $and: [base, { _id: { $gt: after } }] } : base);
+      const sort = byId ? { _id: 1 } : sanitizeSort(options.sort, visible);
       if (sort && typeof q.sort === 'function') q = q.sort(sort);
-      if (typeof q.skip === 'function') q = q.skip(clampSkip(options.skip));
+      if (!byId && typeof q.skip === 'function') q = q.skip(clampSkip(options.skip));
       if (typeof q.limit === 'function') q = q.limit(clampLimit(options.limit, 50, 100));
       return ((await lean(q)) || []).map(clean);
     },
+    /** CRM 3.65.0: find(filter, { after }) is supported (extensions check this before using it). */
+    paging: 'after',
     async count(filter = {}) {
       const Model = ensure();
       const where = sanitizeFilter(filter, visible);

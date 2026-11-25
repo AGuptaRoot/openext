@@ -158,6 +158,18 @@ async function repairInvoiceClientIdIfNeeded(req, invoice) {
   }
 }
 
+/**
+ * CRM 3.65.2 — ?view=list (Invoices page table and its KPI cards): only what they show and what this list's own
+ * steps read (client repair from quotationId, effective / payment status from the money fields, customer label).
+ * No line items, addresses, notes or terms.
+ */
+const LIST_VIEW_FIELDS = [
+  '_id', 'invoiceNo', 'documentType', 'isRecurring', 'recurringProfileId', 'recurringCycle',
+  'issueDate', 'dueDate', 'grandTotal', 'balanceDue', 'amountPaid', 'creditAmount', 'currency', 'status',
+  'clientId', 'leadId', 'clientName', 'customerName', 'customerLabel', 'customerSnapshot', 'customerAvatarUrl', 'clientAvatarUrl', 'customerEmail', 'quotationId',
+  'isArchived', 'createdBy', 'createdAt', 'updatedAt'
+];
+
 async function list(req) {
   const Invoice = getInvoiceModel(req);
   const requestedLimit = parseInt(req.query?.limit, 10);
@@ -245,8 +257,9 @@ async function list(req) {
   const { applySalesAgentFinanceReadScope } = require('../utils/sales-access.util');
   const finalFilter = await applySalesAgentFinanceReadScope(req, filter);
 
+  const { applyListView } = require('../utils/list-view.util');
   const [items, total] = await Promise.all([
-    Invoice.find(finalFilter).sort(sort).skip(skip).limit(limit).lean(),
+    applyListView(req, Invoice.find(finalFilter), LIST_VIEW_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     Invoice.countDocuments(finalFilter)
   ]);
 

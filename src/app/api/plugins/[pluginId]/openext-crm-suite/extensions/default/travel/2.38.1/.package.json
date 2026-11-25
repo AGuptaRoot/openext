@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.36.6",
-  "checksum": "3022ca210712c1a0fd34ac912332b9b35cf3d061f1fed291379371d0a1bbb660",
-  "writtenAt": "2026-11-24T09:13:32.086Z",
+  "version": "2.38.1",
+  "checksum": "91509fe4dfaa3fe5a131ed903f606d7c2d85a0271b678fdd7d3ed7c21b322acb",
+  "writtenAt": "2026-11-25T08:45:00.483Z",
   "files": [
     {
       "path": "README.md",
@@ -11,12 +11,12 @@
     },
     {
       "path": "WORKFLOW.md",
-      "sha256": "fefe7636105c87de7760f9ba87109dfec7d51211b2b24f9e96ed71121356fe0d",
-      "size": 20378
+      "sha256": "dc8259dc4f650471c42732636b4bb09d22dcbef82c3432f1a9af0a049720b471",
+      "size": 21122
     },
     {
       "path": "crm-extension.json",
-      "sha256": "bf48f29608ce3781c08454004cac4fa4b5a35d04eb9793f5825269269e389fe3",
+      "sha256": "856b7213c155dd5f29ab8c6f85b6cf1d75da541cdfc5115fdaac051a786c1a1c",
       "size": 14319
     },
     {
@@ -36,8 +36,8 @@
     },
     {
       "path": "api/models/Booking.json",
-      "sha256": "0fcc50304116bdf11487b99385f811186ad06d66fe52fc03a7e04f4f435e0044",
-      "size": 2664
+      "sha256": "4bcecfd6f39f1c1937235d26d4606bbac82c45a4fa9a5606e3d481f0d1aa3d70",
+      "size": 2686
     },
     {
       "path": "api/models/BookingService.json",
@@ -86,8 +86,8 @@
     },
     {
       "path": "api/models/Traveller.json",
-      "sha256": "d3d5fd481090c82b6556638b98f4f599cf73b681cb77881d70cb628e83cef3fb",
-      "size": 3061
+      "sha256": "16e67d5a4e02c367b95fbe11efa61026d152144c1e0818e61fd5c89ed59e2fa5",
+      "size": 3082
     },
     {
       "path": "api/models/TripPlan.json",
@@ -126,8 +126,8 @@
     },
     {
       "path": "api/routes/dashboard.js",
-      "sha256": "501511881cd85e572733d04af277805a7b508b8b63e0118ee8036a5282dc8d1a",
-      "size": 14557
+      "sha256": "e08f9bf7177857f8e7f842500dd9f35d613eb299bdd3e455820647f5dd669a60",
+      "size": 14923
     },
     {
       "path": "api/routes/dates.js",
@@ -230,6 +230,11 @@
       "size": 13407
     },
     {
+      "path": "api/services/dashboard-data.js",
+      "sha256": "1f705b9e1b2c8e1de05b6afcb8d3897cd3d8e15726658ecf128e385de038b673",
+      "size": 10857
+    },
+    {
       "path": "api/services/document-ocr.js",
       "sha256": "465201c00c503650b48bbd3ae7f2a64db63ad24f3f4253e8842aa8d86da593fc",
       "size": 18898
@@ -266,8 +271,8 @@
     },
     {
       "path": "api/services/report-data.js",
-      "sha256": "081f7d3344729401b567e9642c6d8a1ee7c28cfd85584172c4733d8d57cddc30",
-      "size": 10229
+      "sha256": "39fe7d15fd79a7c727785c38925f867620464498fd5a0bb96f200629aa4d4592",
+      "size": 15209
     },
     {
       "path": "api/services/requirement-form.js",
@@ -381,8 +386,8 @@
     },
     {
       "path": "ui/mount.js",
-      "sha256": "58f1632b305e88cb61fea02b02d3e973eec11f77e48374834c169c314a1e975d",
-      "size": 5256
+      "sha256": "ae06cae848bc0fb6fd6b3cbc81ca1be14fd7013f3dd9f569fd93cba20b1855f7",
+      "size": 6257
     },
     {
       "path": "ui/style.css",

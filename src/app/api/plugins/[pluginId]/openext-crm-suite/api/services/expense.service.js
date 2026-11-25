@@ -128,6 +128,17 @@ async function enrichExpenses(req, items) {
   }));
 }
 
+/**
+ * CRM 3.65.2 — ?view=list (Expenses page table, its total and row actions): only what they read, plus the
+ * client / project ids this list's enrichment names. Opening or editing an expense loads the full record.
+ */
+const LIST_VIEW_FIELDS = [
+  '_id', 'expenseNo', 'itemName', 'title', 'status', 'rejectionReason', 'category',
+  'purchaseDate', 'expenseDate', 'employeeId', 'employeeName', 'purchasedFrom', 'vendorName',
+  'price', 'amount', 'currency', 'exchangeRate', 'isBilled', 'isBillable', 'isArchived',
+  'clientId', 'projectId', 'createdBy', 'createdAt', 'updatedAt'
+];
+
 async function list(req) {
   const Expense = getExpenseModel(req);
   const { page, limit, skip, sort } = parsePagination(req.query, { sortField: 'expenseDate' });
@@ -190,8 +201,9 @@ async function list(req) {
 
   filter = await applyExpenseListScope(req, filter);
 
+  const { applyListView } = require('../utils/list-view.util');
   const [items, total] = await Promise.all([
-    Expense.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+    applyListView(req, Expense.find(filter), LIST_VIEW_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
     Expense.countDocuments(filter)
   ]);
 
