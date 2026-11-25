@@ -74,7 +74,7 @@ const personName = (t) => [str(t.firstName), str(t.lastName)].filter(Boolean).jo
  * Each traveller as the lead's Travellers tab would check it (no lead yet: the company list of relations).
  * → { errors, matches: [{ index, match }] } — a match is an existing traveller the user may pick instead.
  */
-async function checkTravellers(sdk, values, travellers, selected, trip) {
+async function checkTravellers(sdk, values, travellers, selected, trip, lead = { isPersonLead: false }) {
   const errors = [];
   const matches = [];
   if (!travellers.length) return { errors: ['Add at least one traveller.'], matches };
@@ -106,7 +106,8 @@ async function checkTravellers(sdk, values, travellers, selected, trip) {
     for (const e of inputErrors) if (e !== 'OCR_NOT_CONFIRMED') errors.push(`${label} (${name}): ${e}`);
     if (inputErrors.length) continue;
     try {
-      await store.checkRelation(sdk, { isPersonLead: false }, v.relation);
+      // 2.39.0: Lead Create passes the lead kind (a family lead has the family list of relations).
+      await store.checkRelation(sdk, lead, v.relation);
       const patch = store.toPatch(sdk, v, {}, storage, referenceDate);
       store.checkPassport(sdk, patch, rule, referenceDate, { timeZone });
       store.checkIdDocuments(sdk, patch, rule, referenceDate);
@@ -154,7 +155,7 @@ async function travellersSetup(sdk, parts) {
   const [rule, storage, options] = await Promise.all([
     store.passportRule(sdk, ref.selected),
     store.aadhaarStorage(sdk),
-    store.fieldOptions(sdk, { isPersonLead: false })
+    store.fieldOptions(sdk, { isPersonLead: Boolean(parts.lead && parts.lead.isPersonLead) })
   ]);
   const travellers = [];
   for (const t of parts.travellers.slice(0, MAX_TRAVELLERS)) {

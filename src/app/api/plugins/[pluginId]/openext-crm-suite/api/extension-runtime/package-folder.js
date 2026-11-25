@@ -249,17 +249,38 @@ function removePackage(tenantId, extensionId, logger) {
  * Check the folder copy against the definition's recorded file hashes.
  * @returns {{ ok: boolean, reason?: string }}
  */
+/** CRM 3.66.0 — size + modified time of the folder's files: a cheap "nothing changed" test (null: a file is missing). */
+function statsOf(dir, def) {
+  const out = [];
+  for (const rel of [META_FILE, ...(def.fileIndex || []).map((e) => e.path)]) {
+    const target = rel === META_FILE ? path.join(dir, META_FILE) : inside(dir, rel);
+    if (!target) return null;
+    try {
+      const st = fs.statSync(target);
+      out.push(`${st.size}:${st.mtimeMs}`);
+    } catch {
+      return null;
+    }
+  }
+  return out.join('|');
+}
+
 function verifyPackage(tenantId, def) {
   const key = `${tenantId}|${def.id}|${def.checksum || ''}`;
   const hit = verified.get(key);
   if (hit && hit.ok && Date.now() - hit.at < VERIFY_TTL_MS) return { ok: true, dir: hit.dir };
+  // After a minute: the same sizes and times as at the full check → still verified (no file is read).
+  if (hit && hit.ok && hit.stats && statsOf(hit.dir, def) === hit.stats) {
+    hit.at = Date.now();
+    return { ok: true, dir: hit.dir };
+  }
 
   let first = null;
   for (const root of READ_ROOTS) {
     const dir = versionDirIn(root, tenantId, def.id, def.version);
     const result = verifyDir(dir, def);
     if (result.ok) {
-      verified.set(key, { ok: true, at: Date.now(), dir });
+      verified.set(key, { ok: true, at: Date.now(), dir, stats: statsOf(dir, def) });
       return { ok: true, dir };
     }
     if (!first) first = result;

@@ -1,6 +1,17 @@
 # crm-travel — Workflow
 
-Travel extension `travel` **2.38.1**, needs CRM `openext-crm-suite` **>= 3.64.0 < 4.0.0** (GST suite).
+Travel extension `travel` **2.40.0**, needs CRM `openext-crm-suite` **>= 3.67.0 < 4.0.0** (GST suite; best with 3.67.1).
+
+**Lead Create (2.39.0 / 2.40.0, CRM 3.67.0):** at the end of the page (just above Create; CRM 3.67.1), once Traveller
+Details (at least one adult, child or infant) and Travel Information (From, To, Travel Start Date, Travel End Date) are
+filled in, the page shows **Travellers** (one form per person, all open at once: "Traveller 1 of 3", "Traveller 2 of 3"…,
+the same form as Lead → Travellers; a saved traveller becomes a short card with Edit / Remove; changing the counts adds
+or removes empty forms) and **Travel Requirements** (one form per ticked service; ticking or unticking
+a service adds or hides its form at once; an unticked form keeps its values until Create and is not saved). Both are
+optional. Create checks every added traveller and every form with values with the rules of the lead tabs. When all
+travellers are added, their ages on the Travel Start Date (Infant under 2, Child 2–11, Adult 12+; no date of birth =
+adult) are compared with the counts; a difference, or more travellers than the counts, shows a warning with
+"Create anyway" / "Go back and fix". After the lead is made, the travellers and forms are saved on it.
 
 This file explains, in simple English, how a travel enquiry moves through the CRM: from the first lead to
 the trip, the booking, vouchers and the client portal.

@@ -1208,6 +1208,28 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
             salesFlow.guidedInvoice = { label, ...(title ? { title } : {}), checkRoute, previewRoute, commitRoute, steps };
           }
         }
+        // CRM 3.67.0: the extension's own sections on Lead Create — { slot: "lead.create.<name>", requestTypeKey?,
+        // title?, checkRoute (POST), commitRoute (POST with one ":param", the new lead's id) }.
+        if (source.salesFlow.leadCreateExtras !== undefined) {
+          const lx = source.salesFlow.leadCreateExtras;
+          const routes = (backend && backend.routes) || [];
+          const has = (method, path) => routes.some((r) => r.method === method && r.path === path);
+          const oneParam = (p) => (p.match(/:[a-z][a-z0-9_]*/gi) || []).length === 1;
+          if (!isObject(lx)) errors.push('salesFlow.leadCreateExtras must be an object');
+          else {
+            const slot = str(lx.slot);
+            const requestTypeKey = str(lx.requestTypeKey).toLowerCase();
+            const title = str(lx.title);
+            const checkRoute = str(lx.checkRoute);
+            const commitRoute = str(lx.commitRoute);
+            if (!/^lead\.create\.[a-z][a-z0-9_]{1,40}$/.test(slot)) errors.push('salesFlow.leadCreateExtras.slot must look like "lead.create.<name>"');
+            if (requestTypeKey && !/^[a-z][a-z0-9_]{1,59}$/.test(requestTypeKey)) errors.push('salesFlow.leadCreateExtras.requestTypeKey must be a request type key');
+            if (title.length > 80) errors.push('salesFlow.leadCreateExtras.title is too long (80 characters at most)');
+            if (!has('POST', checkRoute)) errors.push(`salesFlow.leadCreateExtras.checkRoute "${checkRoute}" must be a POST route declared in api/routes.json`);
+            if (!has('POST', commitRoute) || !oneParam(commitRoute)) errors.push(`salesFlow.leadCreateExtras.commitRoute "${commitRoute}" must be a POST route with one ":param" (the lead id)`);
+            salesFlow.leadCreateExtras = { slot, ...(requestTypeKey ? { requestTypeKey } : {}), ...(title ? { title } : {}), checkRoute, commitRoute };
+          }
+        }
         // Service invoice PDF: { layout: 'service', title?, summaryTitle?, linesTitle?, footer? }. The
         // invoice PDF prints services (Rate / Tax / Amount, no quantity, unit, product code or shipping), the
         // extension's invoice summary (invoicePrefillRoute) and the payments (advance, paid, balance, status).

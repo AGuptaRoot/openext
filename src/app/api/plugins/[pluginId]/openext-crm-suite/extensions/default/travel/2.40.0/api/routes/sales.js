@@ -26,6 +26,12 @@ const opportunityIdOf = (req) => (req.body && typeof req.body.opportunityId === 
 exports.opportunity = async (req, sdk) => opportunityPrefill(sdk, leadIdOf(req, sdk));
 exports.quotation = async (req, sdk) => {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
+  // 2.39.0 (CRM 3.67.0 salesFlow.leadCreateExtras): Lead Create's Travellers / Travel Requirement sections —
+  // { leadCreate: true, draft, check? } → { errors, warnings } (or the Travellers form's list). Nothing saved.
+  if (body.leadCreate === true && body.draft && typeof body.draft === 'object') {
+    const extras = require('../services/lead-create-extras.js');
+    return extras.check(sdk, body.draft, typeof body.check === 'string' && body.check ? body.check : 'all');
+  }
   // 2.36.0: Create Invoice from Scratch — check one step ({ draft, check }) or price the unsaved trip ({ draft }).
   if (body.draft && typeof body.draft === 'object' && !body.leadId) {
     const guided = require('../services/guided-sale.js');

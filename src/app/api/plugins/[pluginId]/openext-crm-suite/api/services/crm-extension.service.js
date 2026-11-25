@@ -97,22 +97,49 @@ function fromUploadRow(row) {
   };
 }
 
+/**
+ * CRM 3.66.0 — the uploaded extensions of a workspace, kept 15 s in this server process: every extension
+ * request used to read them all (with their file lists) from MongoDB. Install, uninstall, approve, revoke and
+ * a backend status change forget them at once (forgetUploads).
+ */
+const UPLOADS_TTL_MS = 15000;
+const uploadsCache = new Map();
+
+function forgetUploads(tenantId) {
+  if (tenantId) uploadsCache.delete(String(tenantId));
+  else uploadsCache.clear();
+}
+
 /** Packages this tenant uploaded, newest first. Never throws. */
 async function listUploadedDefinitions(req) {
   const Model = getUploadModel(req);
   if (!Model || typeof Model.find !== 'function') return [];
+  const tenantId = String(resolveTenantId(req) || '');
+  const hit = uploadsCache.get(tenantId);
+  let pending = hit && Date.now() - hit.at < UPLOADS_TTL_MS ? hit.pending : null;
+  if (!pending) {
+    pending = readUploadedDefinitions(req, Model, tenantId);
+    uploadsCache.set(tenantId, { at: Date.now(), pending });
+  }
+  const defs = await pending;
+  if (!defs) {
+    if (uploadsCache.get(tenantId) && uploadsCache.get(tenantId).pending === pending) uploadsCache.delete(tenantId);
+    return [];
+  }
+  const PackageFolder = require('../extension-runtime/package-folder');
+  // A copy per caller (nobody changes the kept one); the files check has its own short memory.
+  return defs.map((def) => ({ ...def, filesAvailable: PackageFolder.isAvailable(tenantId, def) }));
+}
+
+/** The rows from MongoDB (null on a failure: not kept). */
+async function readUploadedDefinitions(req, Model, tenantId) {
   try {
-    const tenantId = resolveTenantId(req);
     let query = Model.find({ tenantId, isDeleted: false });
     if (query && typeof query.sort === 'function') query = query.sort({ createdAt: 1 });
     const rows = (await leanResult(query)) || [];
-    const PackageFolder = require('../extension-runtime/package-folder');
-    return rows
-      .map(fromUploadRow)
-      .filter((def) => def.id)
-      .map((def) => ({ ...def, filesAvailable: PackageFolder.isAvailable(tenantId, def) }));
+    return rows.map(fromUploadRow).filter((def) => def.id);
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -833,6 +860,7 @@ async function installPackage(req, body) {
       });
       row = typeof created?.toObject === 'function' ? created.toObject() : created;
     }
+    forgetUploads(tenantId);
   } catch (error) {
     // Keep disk and database consistent: drop the folder of the version that was not recorded.
     if (!existing || existing.version !== def.version) {
@@ -936,6 +964,7 @@ async function uninstall(req, id) {
     { tenantId, extensionId: def.id, isDeleted: false },
     { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: userId, updatedBy: userId } }
   );
+  forgetUploads(tenantId);
   require('../extension-runtime/package-folder').removePackage(tenantId, def.id, req.cms?.logger);
 
   await audit(req, `CRM extension uninstalled: ${def.name} v${def.version}`, {
@@ -950,6 +979,7 @@ async function uninstall(req, id) {
 /* ---------------------------------------------------------------- trust gate */
 
 function invalidateBackend(tenantId, extensionId) {
+  forgetUploads(tenantId); // CRM 3.66.0: approve / revoke change the kept definitions too
   try {
     require('../extension-runtime/loader').invalidate(tenantId, extensionId);
   } catch {
@@ -1051,6 +1081,7 @@ async function revokeBackend(req, id) {
 }
 
 module.exports = {
+  forgetUploads,
   MAX_PACKAGE_BYTES,
   approveBackend,
   revokeBackend,

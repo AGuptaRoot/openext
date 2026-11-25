@@ -167,6 +167,7 @@ async function setValues(req, def, patch) {
     },
     { upsert: true, new: true }
   );
+  require('./setting.service').invalidateSettingsCache(req); // 3.66.0: and after the write
   return next;
 }
 

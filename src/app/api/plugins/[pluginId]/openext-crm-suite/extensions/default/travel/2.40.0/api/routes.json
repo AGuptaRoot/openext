@@ -40,7 +40,8 @@
       "path": "/leads/:lead_id/requirements",
       "permission": "crm.leads.write",
       "handler": "routes/requirements.js#createForLead",
-      "summary": "Add a requirement of a service to a lead (next instance, e.g. a second hotel)"
+      "summary": "Add a requirement of a service to a lead (next instance, e.g. a second hotel). 2.39.0: { leadCreate: true, draft } saves the travellers and requirement forms of Lead Create on the new lead",
+      "timeoutMs": 30000
     },
     {
       "method": "PUT",
@@ -281,7 +282,7 @@
       "path": "/quotation-prefill",
       "permission": "crm.leads.read",
       "handler": "routes/sales.js#quotation",
-      "summary": "Sales flow: priced lines, sections and warnings for a new quotation (2.36.0: also checks / prices the unsaved steps of Create Invoice from Scratch)",
+      "summary": "Sales flow: priced lines, sections and warnings for a new quotation (2.36.0: also checks / prices the unsaved steps of Create Invoice from Scratch); 2.39.0: { leadCreate: true, draft } checks the Travellers / Travel Requirement sections of Lead Create",
       "timeoutMs": 20000
     },
     {

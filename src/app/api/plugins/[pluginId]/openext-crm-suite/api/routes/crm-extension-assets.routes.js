@@ -71,7 +71,8 @@ function requestHeader(req, name) {
 async function handleAsset(req, res) {
   try {
     const extensionId = String(req.params?.extensionId || '').trim().toLowerCase();
-    const version = String(req.params?.version || '').trim();
+    // CRM 3.66.0: "<version>~<checksum start>" in the address (older pages ask "<version>" only).
+    const [version = '', tag = ''] = String(req.params?.version || '').trim().split('~');
 
     if (!extensionId || !version) {
       return res.status(400).json({
@@ -174,11 +175,16 @@ async function handleAsset(req, res) {
     };
     if (!def) def = await fresh();
     // A package uploaded in the last few seconds: never answer from the old definition.
-    else if (String(def.version) !== version || !(def.fileIndex || []).some((f) => f.path === path)) def = await fresh();
+    else if (String(def.version) !== version || !(def.fileIndex || []).some((f) => f.path === path) || (tag && String(def.checksum || '').slice(0, 16) !== tag)) def = await fresh();
     if (!def || def.isInternal !== false) {
       return res.status(404).json({ success: false, error: 'Asset not found', code: 'ASSET_NOT_FOUND' });
     }
     if (String(def.version) !== version) {
+      return res.status(404).json({ success: false, error: 'Asset version mismatch', code: 'ASSET_VERSION_MISMATCH' });
+    }
+    const tagged = Boolean(tag) && Boolean(def.checksum) && String(def.checksum).slice(0, 16) === tag;
+    if (tag && !tagged) {
+      // An address of an older upload of this version: never answered with the new files.
       return res.status(404).json({ success: false, error: 'Asset version mismatch', code: 'ASSET_VERSION_MISMATCH' });
     }
     const entry = (def.fileIndex || []).find((f) => f.path === path);
@@ -193,7 +199,8 @@ async function handleAsset(req, res) {
      * before the file is read from disk.
      */
     const etag = entry.sha256 ? `"${entry.sha256}"` : '';
-    setHeader(res, 'Cache-Control', 'private, no-cache');
+    // CRM 3.66.0: an address with the upload's checksum never changes → kept by the browser for a year.
+    setHeader(res, 'Cache-Control', tagged ? 'private, max-age=31536000, immutable' : 'private, no-cache');
     setHeader(res, 'X-Content-Type-Options', 'nosniff');
     if (etag) {
       setHeader(res, 'ETag', etag);

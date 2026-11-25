@@ -159,13 +159,43 @@ function apiError(status, message, code = '') {
   return Object.assign(new Error(message), { status, code });
 }
 
-function renderTravellers(root, ctx) {
+/** The Create Invoice / Quotation wizard as the place the draft travellers live. */
+function wizardSource(ctx) {
+  return {
+    getDraft: () => ctx.wizard.getDraft(),
+    save: (list) => ctx.wizard.setStepData(list),
+    checkPath: '/quotation-prefill',
+    contactsNote: 'No contact person (the trip is saved when the invoice is created)',
+    photoNote: 'In this step the photo is only used to read the details (OCR); it is not saved. Add the photo on the trip’s Travellers tab after the invoice is created.',
+    intro: 'Add everyone who travels (at least one) — the same form as Travellers → Add traveller. Nothing is saved until you click Create.',
+    onBeforeNext: (check) => ctx.wizard.onBeforeNext(check),
+    embed: {}
+  };
+}
+
+/**
+ * The lead's Travellers form on an unsaved list. `src` says where the list lives (2.39.0: also Lead Create):
+ * { getDraft, getList? (one list shared by several forms), save(list), checkPath, extra (more body fields), contactsNote, photoNote, intro, onBeforeNext?, embed: { startWith, onSaved, onDone } }.
+ * → { form } (the Travellers element: form.isDirty()).
+ */
+export function renderDraftTravellers(root, ctx, src) {
+  return renderTravellers(root, ctx, src);
+}
+
+function renderTravellers(root, ctx, src = wizardSource(ctx)) {
   const real = ctx.api;
-  const saved = ctx.wizard.getDraft().travellers;
-  let people = (Array.isArray(saved) ? saved : [])
+  const saved = src.getDraft().travellers;
+  const norm = (rows) => (Array.isArray(rows) ? rows : [])
     .filter((t) => t && typeof t === 'object')
     .map((t) => ({ ...t, draftId: clean(t.draftId) || newDraftId() }));
-  const save = () => ctx.wizard.setStepData(people.map((p) => ({ ...p })));
+  let people = norm(saved);
+  // 2.40.0: several forms may share one list (Lead Create shows one form per traveller): src.getList() is the
+  // shared list, read again before every change so one form never overwrites another form's traveller.
+  const sync = () => {
+    if (typeof src.getList === 'function') people = norm(src.getList());
+    return people;
+  };
+  const save = () => src.save(people.map((p) => ({ ...p })));
   const byId = (id) => people.find((p) => p.draftId === id);
   const inputOf = (body) => {
     const out = {};
@@ -187,7 +217,7 @@ function renderTravellers(root, ctx) {
 
   /** The server's check of this one traveller inside the whole list (the rules of the lead's Travellers tab). */
   const serverCheckOne = async (list, id) => {
-    const res = await real.post('/quotation-prefill', { draft: { ...ctx.wizard.getDraft(), travellers: list }, check: 'travellers' });
+    const res = await real.post(src.checkPath, { ...(src.extra || {}), draft: { ...src.getDraft(), travellers: list }, check: 'travellers' });
     const n = list.findIndex((p) => p.draftId === id) + 1;
     const prefix = new RegExp(`^Traveller ${n}(?![0-9])\\s*(\\([^)]*\\))?\\s*:?\\s*`);
     const all = (res && res.errors) || [];
@@ -230,12 +260,13 @@ function renderTravellers(root, ctx) {
   const api = {
     ...real,
     async get(path) {
+      sync();
       const [p] = String(path).split('?');
       if (p === `/leads/${DRAFT_LEAD}/travellers`) {
-        return real.post('/quotation-prefill', { draft: ctx.wizard.getDraft(), check: 'travellers_setup' });
+        return real.post(src.checkPath, { ...(src.extra || {}), draft: src.getDraft(), check: 'travellers_setup' });
       }
       if (p === `/leads/${DRAFT_LEAD}/contacts`) {
-        return { contacts: [], note: 'No contact person (the trip is saved when the invoice is created)' };
+        return { contacts: [], note: src.contactsNote };
       }
       const m = p.match(DRAFT_PATH);
       if (m) {
@@ -253,12 +284,13 @@ function renderTravellers(root, ctx) {
       return real.get(path);
     },
     async post(path, body = {}) {
+      sync();
       if (path === `/leads/${DRAFT_LEAD}/travellers`) {
         if (people.length >= MAX_TRAVELLERS) throw apiError(400, `At most ${MAX_TRAVELLERS} travellers.`);
         const t = { ...inputOf(body), draftId: newDraftId() };
         assertUniqueInList(t, t.draftId);
         await serverCheckOne([...people, t], t.draftId);
-        people = [...people, t];
+        people = [...sync(), t];
         save();
         return { traveller: { id: t.draftId } };
       }
@@ -269,7 +301,7 @@ function renderTravellers(root, ctx) {
         if (people.length >= MAX_TRAVELLERS) throw apiError(400, `At most ${MAX_TRAVELLERS} travellers.`);
         const t = { draftId: newDraftId(), existingTravellerId: id };
         await serverCheckOne([...people, t], t.draftId);
-        people = [...people, t];
+        people = [...sync(), t];
         save();
         return { traveller: { id: t.draftId } };
       }
@@ -280,6 +312,7 @@ function renderTravellers(root, ctx) {
       return real.post(path, body);
     },
     async put(path, body = {}) {
+      sync();
       const m = String(path).match(DRAFT_PATH);
       if (m && m[2]) return { kept: false }; // a document photo: read by OCR only, not stored (ctx.photoNote)
       if (m) {
@@ -291,13 +324,14 @@ function renderTravellers(root, ctx) {
         assertUniqueInList(next, t.draftId);
         const list = people.map((p) => (p.draftId === t.draftId ? next : p));
         await serverCheckOne(list, t.draftId);
-        people = list;
+        people = sync().map((p) => (p.draftId === t.draftId ? next : p));
         save();
         return { traveller: { id: t.draftId } };
       }
       return real.put(path, body);
     },
     async del(path) {
+      sync();
       const m = String(path).match(DRAFT_PATH);
       if (m && m[2]) return {};
       if (m && byId(m[1]) && byId(m[1]).onTrip) {
@@ -320,27 +354,32 @@ function renderTravellers(root, ctx) {
     api,
     slot: 'lead.tab.travellers',
     record: { id: DRAFT_LEAD, name: '' },
-    photoNote: 'In this step the photo is only used to read the details (OCR); it is not saved. Add the photo on the trip’s Travellers tab after the invoice is created.',
+    photoNote: src.photoNote,
     toast: (message, tone) => ctx.toast(String(message || '').replace(/to this lead/g, 'to the list'), tone),
     recordChanged: undefined,
-    onDone: undefined,
-    onSaved: undefined,
+    // 2.39.0: Lead Create opens the Add form at once and is told after each Save / Cancel.
+    startWith: src.embed && src.embed.startWith,
+    onDone: src.embed && src.embed.onDone,
+    onSaved: src.embed && src.embed.onSaved,
     onValuesChanged: () => () => {},
     onSettingsChanged: () => () => {}
   };
   root.replaceChildren(
     h('div', { class: 'tvx-gs' }, [
-      h('p', { class: 'tvx-muted', text: 'Add everyone who travels (at least one) — the same form as Travellers → Add traveller. Nothing is saved until you click Create.' }),
+      src.intro ? h('p', { class: 'tvx-muted', text: src.intro }) : null,
       form
     ])
   );
 
-  ctx.wizard.onBeforeNext(async () => {
-    if (typeof form.isDirty === 'function' && form.isDirty()) return 'Save the traveller (or Cancel the form) before Next.';
-    save();
-    if (!people.length) return 'Add at least one traveller.';
-    return serverCheck(ctx, 'travellers');
-  });
+  if (typeof src.onBeforeNext === 'function') {
+    src.onBeforeNext(async () => {
+      if (typeof form.isDirty === 'function' && form.isDirty()) return 'Save the traveller (or Cancel the form) before Next.';
+      save();
+      if (!people.length) return 'Add at least one traveller.';
+      return serverCheck(ctx, 'travellers');
+    });
+  }
+  return { form };
 }
 
 /* ---------------------------------------------------------- Travel Requirements */

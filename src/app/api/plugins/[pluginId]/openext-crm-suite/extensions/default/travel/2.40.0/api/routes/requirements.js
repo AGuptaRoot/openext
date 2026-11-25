@@ -211,8 +211,14 @@ async function softRemove(sdk, row) {
 /* ------------------------------------------------------------------ v2 */
 
 exports.createForLead = async (req, sdk) => {
+  const raw = req.body && typeof req.body === 'object' ? req.body : {};
+  // 2.39.0 (CRM 3.67.0 salesFlow.leadCreateExtras commitRoute): right after Lead Create, { leadCreate: true, draft }
+  // saves the travellers and the requirement forms of the create page on the new lead (lead-create-extras.js).
+  if (raw.leadCreate === true && raw.draft && typeof raw.draft === 'object') {
+    return require('../services/lead-create-extras.js').commit(sdk, String((req.params && req.params.lead_id) || ''), raw.draft);
+  }
   const { id } = await loadLead(sdk, req.params && req.params.lead_id);
-  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const body = raw;
   const service = await writableService(sdk, id, str(body.service_key));
   return createFor(sdk, id, service, body);
 };

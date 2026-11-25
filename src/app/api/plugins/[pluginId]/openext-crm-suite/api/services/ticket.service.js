@@ -910,6 +910,7 @@ async function createCannedResponse(req, input) {
       value: [newResponse]
     });
   }
+  require('./setting.service').invalidateSettingsCache({ tenantId, headers: {} }); // 3.66.0
 
   return newResponse;
 }

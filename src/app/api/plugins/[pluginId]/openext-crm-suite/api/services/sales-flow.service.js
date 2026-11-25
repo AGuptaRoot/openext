@@ -599,6 +599,8 @@ async function config(req) {
     staffConfirmedSale: Boolean(flow.staffConfirmedSale),
     // 3.64.0: "Create Invoice from Scratch" (routes stay on the server).
     guidedInvoice: guidedInvoiceOf(flow),
+    // 3.67.0: the extension's own sections on Lead Create (routes stay on the server).
+    leadCreateExtras: leadCreateExtrasOf(flow),
     // GST suite (CRM 3.53.0): the optional "preferred payment method" on proformas / invoices.
     paymentPreference: paymentPreferenceOf(flow),
     // 3.34.0: a quotation for a client goes through the extension (eligible clients, a picker, a start step).
@@ -1190,6 +1192,67 @@ async function guidedInvoiceAfter(req, body = {}) {
   }
 }
 
+/* ------------------------------------- 3.67.0: extra sections on Lead Create (salesFlow.leadCreateExtras) */
+
+/**
+ * salesFlow.leadCreateExtras for the Lead Create page ({ slot, requestTypeKey, title }), or null. The extension
+ * shows its own sections under the declared fields (e.g. Travel: one traveller form per traveller and one
+ * requirement form per selected service). Nothing is saved until Create; routes stay on the server.
+ */
+function leadCreateExtrasOf(flow) {
+  const lx = flow && flow.leadCreateExtras;
+  if (!isPlainObject(lx) || !lx.checkRoute || !lx.commitRoute) return null;
+  const slot = String(lx.slot || '');
+  if (!/^lead.create.[a-z][a-z0-9_]{1,40}$/.test(slot)) return null;
+  return { slot, requestTypeKey: text(lx.requestTypeKey, 60).toLowerCase(), title: text(lx.title, 80) };
+}
+
+async function leadCreateExtrasContract(req) {
+  const flow = await contract(req);
+  const lx = flow && flow.leadCreateExtras;
+  if (!leadCreateExtrasOf(flow)) {
+    const error = new Error('The active extension has no extra Lead Create sections');
+    error.status = 404;
+    error.code = 'LEAD_CREATE_EXTRAS_UNAVAILABLE';
+    throw error;
+  }
+  return lx;
+}
+
+const textList = (v, max = 30) => (Array.isArray(v) ? v.map((e) => text(e, 400)).filter(Boolean).slice(0, max) : []);
+
+/**
+ * POST /sales-flow/lead-create/check { draft } → { errors, warnings } (nothing is saved). Errors stop Create;
+ * warnings are shown to the user, who may create the lead anyway.
+ */
+async function leadCreateExtrasCheck(req, body = {}) {
+  const lx = await leadCreateExtrasContract(req);
+  const draft = guidedDraftOf(body);
+  // `leadCreate: true` tells the extension which page asks (its route may serve other callers too).
+  const data = await callRoute(req, 'POST', lx.checkRoute, { draft, leadCreate: true });
+  return { errors: textList(data && data.errors), warnings: textList(data && data.warnings, 10) };
+}
+
+/**
+ * POST /sales-flow/lead-create/commit { leadId, draft } → { ok, message }: after the lead is created, the
+ * extension saves its sections on it (with the user's own rights). Never throws for the extension's answer —
+ * the lead stands; the page says what was not saved.
+ */
+async function leadCreateExtrasCommit(req, body = {}) {
+  const lx = await leadCreateExtrasContract(req);
+  const leadId = text(body.leadId, 24);
+  if (!ID_RE.test(leadId)) throw badRequest('leadId is not valid');
+  // The user must be allowed to see the lead (sales-agent scope applies).
+  await require('./lead.service').getById(req, leadId);
+  const draft = guidedDraftOf(body);
+  try {
+    const data = await callRoute(req, 'POST', routeFor(lx.commitRoute, leadId), { draft, leadCreate: true });
+    return { ok: true, message: text(data && data.message, 300) };
+  } catch (error) {
+    return { ok: false, message: text(error && error.message, 300) || 'The extra details were not saved.' };
+  }
+}
+
 /**
  * After a verified payment on a quotation (its payment request or tax invoice): tell the active extension
  * (salesFlow.quotationForm.paidRoute), e.g. to start a booking once the payment rule allows it.
@@ -1487,4 +1550,4 @@ async function clientQuotationStart(req, clientId, body = {}) {
   return { leadId: ID_RE.test(leadId) ? leadId : '', opportunityId: ID_RE.test(opportunityId) ? opportunityId : '' };
 }
 
-module.exports = { sameDayValidityAllowed, guidedInvoiceAfter, guidedInvoiceOf, guidedInvoiceCheck, guidedInvoicePreview, guidedInvoiceCommit, paymentPreference, paymentPreferenceOf, clientLeadFormSyncStatus, clientLeadFormSync, clientQuotationWithoutOpportunity, assertClientQuotationEligible, clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };
+module.exports = { leadCreateExtrasOf, leadCreateExtrasCheck, leadCreateExtrasCommit, sameDayValidityAllowed, guidedInvoiceAfter, guidedInvoiceOf, guidedInvoiceCheck, guidedInvoicePreview, guidedInvoiceCommit, paymentPreference, paymentPreferenceOf, clientLeadFormSyncStatus, clientLeadFormSync, clientQuotationWithoutOpportunity, assertClientQuotationEligible, clientQuotationEligible, clientQuotationPicker, clientQuotationStart, quotationDateRules, quotationDateProblems, assertQuotationDates, draftQuotationDateErrors, quotationPaid, invoicePrefill, invoicePrintContext, invoicePrintOf, recordRules, cleanNotices, enforceFixedQuotationLines, enforceFixedOpportunityLines, cleanFacts, cleanValueConfirms, config, opportunityLinkTypes, opportunityStartStage, opportunitySaved, quotationSaved, quotationAccepted, copyQuotationValues, orderLinesByGroup, orderByGroup, cleanChecks, opportunityPrefill, quotationPrefill, cleanLineExtras, printNotes, publicQuotation, publicLines, cleanSummary, cleanLineOptions, cleanLines, cleanSections, cleanValues, cleanWarnings, cleanPanels, contract };

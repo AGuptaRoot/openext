@@ -53,6 +53,7 @@ const CLIENT_TRAVELLERS = () => import('./components/client-travellers/client-tr
 const TRIP_PAGE = () => import('./components/trip-page/trip-page.js');
 const CLIENT_TRAVEL_REQUIREMENT = () => import('./components/client-travel-requirement/client-travel-requirement.js');
 const GUIDED_SALE = () => import('./components/guided-sale/guided-sale.js');
+const LEAD_CREATE = () => import('./components/lead-create/lead-create.js');
 
 const SLOTS = {
   'page.travel_services': SERVICE_BUILDER,
@@ -74,7 +75,9 @@ const SLOTS = {
   // 2.36.0: the travel steps of CRM Invoices → Create Invoice from Scratch.
   'guided.travel_info': GUIDED_SALE,
   'guided.travellers': GUIDED_SALE,
-  'guided.requirements': GUIDED_SALE
+  'guided.requirements': GUIDED_SALE,
+  // 2.39.0: the Travellers and Travel Requirement sections of CRM Leads → Create.
+  'lead.create.travel': LEAD_CREATE
 };
 
 /** The loaded views (slot loader → module promise): a view is downloaded once per page load. */

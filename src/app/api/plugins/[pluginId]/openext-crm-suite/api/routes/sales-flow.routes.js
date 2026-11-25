@@ -184,6 +184,23 @@ module.exports = function registerSalesFlowRoutes(app) {
     }
   });
 
+  // CRM 3.67.0 — the active extension's own sections on Lead Create (salesFlow.leadCreateExtras).
+  app.post('/sales-flow/lead-create/check', requirePermission('crm.leads.write'), async (req, res) => {
+    try {
+      res.json({ success: true, data: await SalesFlowService.leadCreateExtrasCheck(req, req.body || {}) });
+    } catch (error) {
+      fail(res, error, 'Failed to check the extra lead details');
+    }
+  });
+
+  app.post('/sales-flow/lead-create/commit', requirePermission('crm.leads.write'), async (req, res) => {
+    try {
+      res.json({ success: true, data: await SalesFlowService.leadCreateExtrasCommit(req, req.body || {}) });
+    } catch (error) {
+      fail(res, error, 'Failed to save the extra lead details');
+    }
+  });
+
   app.post('/sales-flow/quotation-prefill', requireAnyPermission(['crm.finance.write']), async (req, res) => {
     try {
       res.json({ success: true, data: await SalesFlowService.quotationPrefill(req, req.body || {}) });

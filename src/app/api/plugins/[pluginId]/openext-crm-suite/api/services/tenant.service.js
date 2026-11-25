@@ -818,6 +818,7 @@ async function updateRolePermissions(req, input) {
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
+  require('./setting.service').invalidateSettingsCache(req); // 3.66.0: and after the write
 
   await AuditService.log(req, {
     action: 'updated',
@@ -872,6 +873,7 @@ async function createCustomRole(req, input) {
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
+  require('./setting.service').invalidateSettingsCache(req); // 3.66.0: and after the write
 
   const customMap = (await getCustomRolePermissionsMap(req)) || {};
   customMap[key] = permissions;
@@ -884,6 +886,7 @@ async function createCustomRole(req, input) {
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
+  require('./setting.service').invalidateSettingsCache(req); // 3.66.0: and after the write
 
   await AuditService.log(req, {
     action: 'created',
@@ -925,6 +928,7 @@ async function deleteCustomRole(req, roleKey) {
     { tenantId: req.tenantId, key: 'custom_created_roles' },
     { $set: { value: filtered, updatedBy: actor } }
   );
+  require('./setting.service').invalidateSettingsCache(req); // 3.66.0: and after the write
 
   const customMap = (await getCustomRolePermissionsMap(req)) || {};
   delete customMap[key];
@@ -933,6 +937,7 @@ async function deleteCustomRole(req, roleKey) {
     { tenantId: req.tenantId, key: 'role_permissions' },
     { $set: { value: customMap, updatedBy: actor } }
   );
+  require('./setting.service').invalidateSettingsCache(req); // 3.66.0: and after the write
 
   await AuditService.log(req, {
     action: 'deleted',

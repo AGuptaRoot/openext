@@ -310,7 +310,9 @@ function toFeaturePayload(def) {
       ? {
           entry: ui.entry,
           styles: ui.styles || '',
-          assetBase: `/x-assets/${ext.id}/${ext.version || '1.0.0'}`
+          // CRM 3.66.0: "<version>~<checksum>" — a new upload (even of the same version) has a new address, so the
+          // browser may keep these files (no "has it changed?" question on every load).
+          assetBase: `/x-assets/${ext.id}/${ext.version || '1.0.0'}${ext.checksum ? `~${String(ext.checksum).slice(0, 16)}` : ''}`
         }
       : null,
     permissionsDefined: ((ext.permissions && ext.permissions.defines) || []).map((p) => ({ key: p.key, label: p.label, grantedWith: p.grantedWith || '' })),

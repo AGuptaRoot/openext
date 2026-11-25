@@ -22,11 +22,40 @@ const READ_DEFAULT = 'crm.dashboard.view';
 const WRITE_DEFAULT = 'crm.settings.manage';
 const ANY_READ = ['crm.dashboard.view', 'crm.leads.read', 'crm.opportunities.read', 'crm.finance.read', 'crm.tickets.read', 'crm.projects.read'];
 
-function send(res, status, body) {
+/**
+ * CRM 3.66.0 — the stopwatch: every extension answer carries Server-Timing (browser → Network → Timing):
+ *   crm      finding the active extension and checking the route (the CRM's part)
+ *   load     getting the extension's code ready (fast once it is loaded)
+ *   ext      the extension's own route handler
+ * Durations only — no data.
+ */
+const TIMING = Symbol.for('crm.ext.timing');
+
+function serverTiming(req) {
+  const t = req && req[TIMING];
+  if (!t) return '';
+  const end = Date.now();
+  const ms = (a, z) => Math.max(0, (z || end) - a);
+  const parts = [`crm;dur=${ms(t.start, t.loadStart || t.handlerStart || end)}`];
+  if (t.loadStart && t.handlerStart) parts.push(`load;dur=${ms(t.loadStart, t.handlerStart)}`);
+  if (t.handlerStart) parts.push(`ext;dur=${ms(t.handlerStart, t.handlerEnd)}`);
+  parts.push(`total;dur=${ms(t.start)}`);
+  return parts.join(', ');
+}
+
+function send(res, status, body, req) {
+  const timing = serverTiming(req);
+  if (timing && res && typeof res.setHeader === 'function') {
+    try {
+      res.setHeader('Server-Timing', timing);
+    } catch {
+      /* headers already sent */
+    }
+  }
   res.status(status).json(body);
 }
 
-function fail(res, error, extensionId) {
+function fail(res, error, extensionId, req) {
   const status = Number(error && error.status) >= 400 && Number(error.status) < 600 ? Number(error.status) : 500;
   if (status >= 500 && !(error && error.code && String(error.code).startsWith('EXTENSION_'))) {
     console.error(`[crm-ext:${extensionId}] error:`, (error && error.stack) || error);
@@ -38,7 +67,7 @@ function fail(res, error, extensionId) {
       : String((error && error.message) || 'Extension error'),
     code: (error && error.code) || (status >= 500 ? 'EXTENSION_ERROR' : 'BAD_REQUEST'),
     details: Array.isArray(error && error.details) ? error.details.slice(0, 20) : undefined
-  });
+  }, req);
 }
 
 function restSegments(params) {
@@ -184,6 +213,8 @@ async function handlePackageRoute(req, def, segments) {
     throw error;
   }
 
+  const timing = req[TIMING];
+  if (timing) timing.loadStart = Date.now();
   const runtime = await loader.ensureLoaded(req, def);
   const mod = runtime.require(route.handlerFile);
   const handler = mod && mod[route.handlerExport];
@@ -206,14 +237,20 @@ async function handlePackageRoute(req, def, segments) {
     }
   });
 
-  const result = await withTimeout(Promise.resolve().then(() => handler(extReq, runtime.wrapHost(createSdk(req, def)))), route.timeoutMs || 10000);
-  return result === undefined ? null : cloneJson(result, 2 * 1024 * 1024, 'response');
+  if (timing) timing.handlerStart = Date.now();
+  try {
+    const result = await withTimeout(Promise.resolve().then(() => handler(extReq, runtime.wrapHost(createSdk(req, def)))), route.timeoutMs || 10000);
+    return result === undefined ? null : cloneJson(result, 2 * 1024 * 1024, 'response');
+  } finally {
+    if (timing) timing.handlerEnd = Date.now();
+  }
 }
 
 /* ------------------------------------------------------------------- entry */
 
 async function handle(req, res) {
   const extensionId = String((req.params && req.params.extensionId) || '').toLowerCase();
+  if (req && typeof req === 'object') req[TIMING] = { start: Date.now() };
   try {
     const segments = restSegments(req.params || {});
     if (!segments.length) throw runtimeError(404, 'Missing extension path', 'NOT_FOUND');
@@ -226,7 +263,7 @@ async function handle(req, res) {
     else if (segments[0].startsWith('_')) throw runtimeError(404, 'Unknown reserved path', 'NOT_FOUND');
     else data = await handlePackageRoute(req, def, segments);
 
-    send(res, String(req.method).toUpperCase() === 'POST' && segments[0] === '_models' ? 201 : 200, { success: true, data });
+    send(res, String(req.method).toUpperCase() === 'POST' && segments[0] === '_models' ? 201 : 200, { success: true, data }, req);
   } catch (error) {
     // Errors thrown inside the vm context are not `instanceof Error` here;
     // only status/message/code are read, never trusted beyond that.
@@ -240,7 +277,7 @@ async function handle(req, res) {
           stack: error.stack
         }
       : { status: 500, message: String(error) };
-    fail(res, safe, extensionId);
+    fail(res, safe, extensionId, req);
   }
 }
 

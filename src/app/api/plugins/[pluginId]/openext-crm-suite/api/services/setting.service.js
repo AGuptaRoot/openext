@@ -492,8 +492,36 @@ const seededTenants = new Set();
 const SETTINGS_MEMO = Symbol.for('crm.settings.memo');
 
 /** Forget this request's settings read (call after writing a setting outside this file). */
+/**
+ * CRM 3.66.0 — all settings of a workspace, kept 5 s in this server process: the few requests of one page
+ * (each extension call reads them) share one read. Every write here, and the other services that write
+ * settings, forget them (forgetTenantSettings).
+ */
+const TENANT_SETTINGS_TTL_MS = 5000;
+const tenantSettings = new Map();
+
+function forgetTenantSettings(tenantId) {
+  if (tenantId) tenantSettings.delete(String(tenantId));
+  else tenantSettings.clear();
+}
+
 function invalidateSettingsCache(req) {
   if (req && typeof req === 'object') req[SETTINGS_MEMO] = null;
+  try {
+    forgetTenantSettings(require('../utils/tenant.util').resolveTenantId(req));
+  } catch {
+    tenantSettings.clear();
+  }
+}
+
+/** A copy nobody shares (settings values may be objects). */
+function copySettings(all) {
+  const src = all || {};
+  try {
+    return typeof structuredClone === 'function' ? structuredClone(src) : JSON.parse(JSON.stringify(src));
+  } catch {
+    return { ...src };
+  }
 }
 
 /** Ensure defaults exist, then return all settings as a flat object */
@@ -517,7 +545,21 @@ async function getAll(req) {
   const memoable = Boolean(req && req.headers && typeof req.method === 'string');
   const memo = memoable ? req[SETTINGS_MEMO] : null;
   if (memo && Date.now() - memo.at < 5000) return { ...(await memo.pending) };
-  const pending = readAll(req);
+  let pending = null;
+  let tenantId = '';
+  if (memoable) {
+    tenantId = String(require('../utils/tenant.util').resolveTenantId(req) || '');
+    const hit = tenantSettings.get(tenantId);
+    if (hit && Date.now() - hit.at < TENANT_SETTINGS_TTL_MS) pending = hit.pending.then(copySettings);
+  }
+  if (!pending) {
+    const read = readAll(req);
+    if (memoable) {
+      tenantSettings.set(tenantId, { at: Date.now(), pending: read });
+      read.catch(() => forgetTenantSettings(tenantId));
+    }
+    pending = read.then(copySettings);
+  }
   if (memoable) {
     req[SETTINGS_MEMO] = { at: Date.now(), pending };
     pending.catch(() => invalidateSettingsCache(req));
@@ -1875,6 +1917,7 @@ async function isAutoConvertOnDeliveryEnabled(req) {
 }
 
 module.exports = {
+  forgetTenantSettings,
   DEFAULT_SETTINGS,
   KNOWN_KEYS,
   SECRET_SETTING_KEYS,

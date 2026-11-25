@@ -102,6 +102,7 @@ async function recordStatus(req, def, status, errorMessage) {
         }
       }
     );
+    require('../services/crm-extension.service').forgetUploads(resolveTenantId(req));
   } catch {
     /* status is informational */
   }
