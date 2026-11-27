@@ -1,6 +1,14 @@
 # crm-travel — Workflow
 
-Travel extension `travel` **2.40.0**, needs CRM `openext-crm-suite` **>= 3.67.0 < 4.0.0** (GST suite; best with 3.67.1).
+Travel extension `travel` **2.41.0**, needs CRM `openext-crm-suite` **>= 3.68.0 < 4.0.0** (GST suite).
+
+**Lead Create document photos (2.41.0, CRM 3.68.0):** a passport / Aadhaar / PAN photo chosen in a Lead Create traveller
+form is no longer only read by OCR: it is kept in the page's memory and, right after the lead is created, uploaded
+(encrypted, S3 only, audited) onto the traveller that form made. Removing the photo or the traveller drops it. A photo
+that could not be uploaded (traveller not saved, already on the lead, or an upload error) is listed in a warning — add
+it on the lead's Travellers tab. An existing traveller keeps their stored photos. The guided sale is unchanged (OCR only).
+A partly saved Lead Create now answers `{ ok: false, message, result }` instead of an error, so the saved travellers
+still get their photos.
 
 **Lead Create (2.39.0 / 2.40.0, CRM 3.67.0):** at the end of the page (just above Create; CRM 3.67.1), once Traveller
 Details (at least one adult, child or infant) and Travel Information (From, To, Travel Start Date, Travel End Date) are

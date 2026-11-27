@@ -17,6 +17,11 @@
  * CRM asks the server (POST /quotation-prefill { leadCreate: true }): wrong values stop Create; ages that do not match
  * the counts give a warning the user may accept. After the lead is made, POST /leads/:id/requirements
  * { leadCreate: true } saves it all. Document numbers stay in the page's memory only.
+ *
+ * 2.41.0 (CRM 3.68.0): document photos chosen in a traveller form are kept in this page's memory too (not in the
+ * draft, never browser storage). After the lead is created, ctx.createForm.onAfterSave uploads each one, one at a
+ * time, with PUT /travellers/:id/documents/:kind (encrypted, S3 only, audited) onto the traveller that form made;
+ * the ones that could not be uploaded are listed in a warning ("add on the lead's Travellers tab").
  */
 
 import { h, sortByOrder, errorText } from '../../shared/dom.js';
@@ -29,6 +34,9 @@ import { renderDraftTravellers } from '../guided-sale/guided-sale.js';
 // The Travellers form's checks go to POST /quotation-prefill { leadCreate: true, draft, check } (no new route).
 const CHECK = '/quotation-prefill';
 const MAX_TRAVELLERS = 30;
+// A document photo as the server takes it (5 MB) — as a base64 data URL.
+const MAX_PHOTO_CHARS = Math.ceil((5 * 1024 * 1024 * 4) / 3) + 200;
+const DOC_LABEL = { passport: 'Passport', aadhaar: 'Aadhaar', pan: 'PAN card' };
 const count = (v) => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
@@ -68,8 +76,38 @@ function renderLeadCreate(root, ctx) {
 
   /** What the server checks: the lead form's values, the lead kind, the list and the forms. */
   const draft = () => ({ values: cf.getValues(), context: cf.getContext(), travellers: people, requirements });
+  /**
+   * 2.41.0 (CRM 3.68.0 createForm.onAfterSave): the document photos chosen in the traveller forms, kept in this
+   * page's memory only (never browser storage, never the draft the server sees) and uploaded — encrypted, S3 only,
+   * audited — by the lead's own photo route once the traveller exists. draftId → Map(kind → { image, name }).
+   */
+  const photoStore = new Map();
+  const canUpload = typeof cf.onAfterSave === 'function';
+  const photos = canUpload
+    ? {
+        get: (id, kind) => {
+          const files = photoStore.get(text(id));
+          return (files && files.get(kind)) || null;
+        },
+        set: (id, kind, file) => {
+          if (String(file.image).length > MAX_PHOTO_CHARS) return false;
+          if (!photoStore.has(text(id))) photoStore.set(text(id), new Map());
+          photoStore.get(text(id)).set(kind, { image: String(file.image), name: text(file.name).slice(0, 120) });
+          return true;
+        },
+        remove: (id, kind) => {
+          const files = photoStore.get(text(id));
+          if (!files) return;
+          if (kind) files.delete(kind);
+          if (!kind || !files.size) photoStore.delete(text(id));
+        }
+      }
+    : null;
   const setPeople = (next) => {
     people = Array.isArray(next) ? next.map((p) => ({ ...p })) : [];
+    // A removed traveller's photos go with them.
+    const ids = new Set(people.map((p) => text(p.draftId)));
+    for (const id of [...photoStore.keys()]) if (!ids.has(id)) photoStore.delete(id);
     cf.setDraft({ travellers: people });
   };
 
@@ -132,7 +170,10 @@ function renderLeadCreate(root, ctx) {
       checkPath: CHECK,
       extra: { leadCreate: true },
       contactsNote: 'No contact person yet (the travellers are saved when the lead is created)',
-      photoNote: 'Here the photo is only used to read the details (OCR); it is not saved. Add the photo on the lead’s Travellers tab after the lead is created.',
+      photoNote: canUpload
+        ? 'The photo is uploaded (encrypted) as soon as the lead is created.'
+        : 'Here the photo is only used to read the details (OCR); it is not saved. Add the photo on the lead’s Travellers tab after the lead is created.',
+      photos: photos || undefined,
       intro: '',
       embed: {
         startWith,
@@ -360,6 +401,44 @@ function renderLeadCreate(root, ctx) {
     cf.setDraft({ travellers: people });
     return null;
   });
+
+  // 2.41.0: after the lead is created — each kept photo onto the traveller its form made, one at a time.
+  if (canUpload) {
+    cf.onAfterSave(async (saved) => {
+      if (!photoStore.size) return null;
+      const made = new Map(
+        (Array.isArray(saved && saved.result && saved.result.travellers) ? saved.result.travellers : [])
+          .filter((x) => x && text(x.draftId) && /^[a-f0-9]{24}$/i.test(text(x.travellerId)))
+          .map((x) => [text(x.draftId), text(x.travellerId)])
+      );
+      const failed = [];
+      let uploaded = 0;
+      for (const [draftId, files] of photoStore) {
+        const index = people.findIndex((p) => text(p.draftId) === draftId);
+        const who = index >= 0 ? `Traveller ${index + 1}` : 'a traveller';
+        const travellerId = made.get(draftId);
+        for (const [kind, file] of files) {
+          const what = `${DOC_LABEL[kind] || 'Document'} photo of ${who}`;
+          if (!travellerId) {
+            failed.push(`${what} (the traveller was not saved, or was already on the lead)`);
+            continue;
+          }
+          try {
+            await ctx.api.put(`/travellers/${encodeURIComponent(travellerId)}/documents/${kind}`, { image: file.image, name: file.name });
+            uploaded += 1;
+          } catch (err) {
+            failed.push(`${what} (${errorText(err)})`);
+          }
+        }
+      }
+      photoStore.clear();
+      if (!failed.length) return null;
+      return (
+        `${plural(uploaded, 'document photo', 'document photos')} uploaded. Not uploaded — add on the lead’s Travellers tab: ` +
+        `${failed.slice(0, 4).join(' · ')}${failed.length > 4 ? ' …' : ''}`
+      );
+    });
+  }
 
   applyValues();
   if (people.length) refreshShown();

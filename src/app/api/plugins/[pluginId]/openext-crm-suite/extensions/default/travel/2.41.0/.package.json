@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.40.0",
-  "checksum": "293fc90cfc2f0a1e631442c0b27dc898ded892ca94abfaf79dc6291c6a61934e",
-  "writtenAt": "2026-11-25T12:12:30.998Z",
+  "version": "2.41.0",
+  "checksum": "acf6e3126163bedc631fdddd0172cc2b7d03c268adb9d03ed69477329ed5d981",
+  "writtenAt": "2026-11-27T07:27:16.927Z",
   "files": [
     {
       "path": "README.md",
@@ -11,12 +11,12 @@
     },
     {
       "path": "WORKFLOW.md",
-      "sha256": "8cbcd24cab9a9fe6ff436c99b98a8001af1ba1dbbf437e2b2749fb79afefb105",
-      "size": 22290
+      "sha256": "d6de60ab3ede1156877a769a28068743b2effa359295d10bc8ac57f0afcc648e",
+      "size": 23013
     },
     {
       "path": "crm-extension.json",
-      "sha256": "072d68a4619ea00e0a0e0d2636fe307e824abd405c722c27a353b3166623757c",
+      "sha256": "6c262db579c7a94d48cfe742d476cb4ef783fcbef3d7f56a96a2b46c5785ff6d",
       "size": 14524
     },
     {
@@ -261,8 +261,8 @@
     },
     {
       "path": "api/services/lead-create-extras.js",
-      "sha256": "9e18080981850bffc73cc43d290d77b44a9cc9b5aab97bf3ba8423ba23d465b0",
-      "size": 13241
+      "sha256": "43dce1e62de68566ec2d77f3fccb79ce315600d7a2088ee5b892bf49382f4d0f",
+      "size": 14045
     },
     {
       "path": "api/services/passport-alerts.js",
@@ -456,8 +456,8 @@
     },
     {
       "path": "ui/components/guided-sale/guided-sale.js",
-      "sha256": "0e755a5b135afe99bf1c1da9d751281846ae4aa9beb0935760e695dd0151f55f",
-      "size": 21665
+      "sha256": "4f802143091408fe608a0ba12361714890c3be179a8999de7febac8307fa9f1b",
+      "size": 23329
     },
     {
       "path": "ui/components/itinerary-page/itinerary-page.css",
@@ -481,8 +481,8 @@
     },
     {
       "path": "ui/components/lead-create/lead-create.js",
-      "sha256": "c8013251a38dd6986c62a5d44ca549be1c25b4d6ee4b7aa7b829024a1e2b48fd",
-      "size": 16944
+      "sha256": "eab789ffd10320442e0ab98af14582404ebfd7472e2c6aa7c82ee830f06b2667",
+      "size": 20843
     },
     {
       "path": "ui/components/lead-requirements/lead-requirements.css",

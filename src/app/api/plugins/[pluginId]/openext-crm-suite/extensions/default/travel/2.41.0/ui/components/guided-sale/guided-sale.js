@@ -175,7 +175,9 @@ function wizardSource(ctx) {
 
 /**
  * The lead's Travellers form on an unsaved list. `src` says where the list lives (2.39.0: also Lead Create):
- * { getDraft, getList? (one list shared by several forms), save(list), checkPath, extra (more body fields), contactsNote, photoNote, intro, onBeforeNext?, embed: { startWith, onSaved, onDone } }.
+ * { getDraft, getList? (one list shared by several forms), save(list), checkPath, extra (more body fields), contactsNote, photoNote, intro, onBeforeNext?, embed: { startWith, onSaved, onDone },
+ *   photos? (2.41.0, Lead Create only — keep the document photos in memory: { get(draftId, kind), set(draftId, kind, { image, name }), remove(draftId, kind?) }) }.
+ * Without `photos` a photo is read by OCR only and not kept (the guided sale).
  * → { form } (the Travellers element: form.isDirty()).
  */
 export function renderDraftTravellers(root, ctx, src) {
@@ -184,6 +186,8 @@ export function renderDraftTravellers(root, ctx, src) {
 
 function renderTravellers(root, ctx, src = wizardSource(ctx)) {
   const real = ctx.api;
+  const photos = src.photos && typeof src.photos.set === 'function' ? src.photos : null;
+  const hasPhoto = (t, kind) => Boolean(photos && !t.existingTravellerId && photos.get(t.draftId, kind));
   const saved = src.getDraft().travellers;
   const norm = (rows) => (Array.isArray(rows) ? rows : [])
     .filter((t) => t && typeof t === 'object')
@@ -250,13 +254,14 @@ function renderTravellers(root, ctx, src = wizardSource(ctx)) {
       issueDate: clean(t.passportIssueDate),
       expiryDate: clean(t.passportExpiryDate),
       country: clean(t.passportCountry),
-      hasFile: false
+      hasFile: hasPhoto(t, 'passport')
     },
-    aadhaar: { number: clean(t.aadhaarNumber), last4: clean(t.aadhaarNumber).slice(-4), hasFile: false },
-    pan: { number: clean(t.panNumber), hasFile: false }
+    aadhaar: { number: clean(t.aadhaarNumber), last4: clean(t.aadhaarNumber).slice(-4), hasFile: hasPhoto(t, 'aadhaar') },
+    pan: { number: clean(t.panNumber), hasFile: hasPhoto(t, 'pan') }
   });
 
   const DRAFT_PATH = /^\/travellers\/(d-[a-z0-9]+)(\/[a-z]+(?:\/[a-z]+)?)?$/;
+  const DOC_PATH = /^\/documents\/(passport|aadhaar|pan)$/;
   const api = {
     ...real,
     async get(path) {
@@ -279,6 +284,9 @@ function renderTravellers(root, ctx, src = wizardSource(ctx)) {
         }
         if (!rest) return { traveller: asTraveller(t) };
         if (rest === '/trips') return { trips: [] };
+        const doc = rest.match(DOC_PATH);
+        const kept = doc && photos ? photos.get(t.draftId, doc[1]) : null;
+        if (kept) return { dataUrl: kept.image, name: kept.name, mimeType: (String(kept.image).match(/^data:([^;,]+)/) || [])[1] || '' };
         throw apiError(404, 'The photo is not kept in this step.');
       }
       return real.get(path);
@@ -314,7 +322,17 @@ function renderTravellers(root, ctx, src = wizardSource(ctx)) {
     async put(path, body = {}) {
       sync();
       const m = String(path).match(DRAFT_PATH);
-      if (m && m[2]) return { kept: false }; // a document photo: read by OCR only, not stored (ctx.photoNote)
+      if (m && m[2]) {
+        // A document photo. Lead Create (src.photos) keeps it in memory and uploads it once the traveller exists;
+        // otherwise it is read by OCR only, not stored (ctx.photoNote).
+        const t = byId(m[1]);
+        const doc = m[2].match(DOC_PATH);
+        if (!photos || !t || t.existingTravellerId || !doc || typeof (body && body.image) !== 'string' || !body.image) return { kept: false };
+        if (photos.set(t.draftId, doc[1], { image: body.image, name: clean(body.name) || `${doc[1]}.jpg` }) === false) {
+          throw apiError(400, 'The photo is larger than 5 MB. Choose a smaller photo.', 'INVALID_IMAGE');
+        }
+        return { kept: true };
+      }
       if (m) {
         const t = byId(m[1]);
         if (!t || t.existingTravellerId) throw apiError(404, 'This traveller is no longer in the list.');
@@ -333,12 +351,18 @@ function renderTravellers(root, ctx, src = wizardSource(ctx)) {
     async del(path) {
       sync();
       const m = String(path).match(DRAFT_PATH);
-      if (m && m[2]) return {};
+      if (m && m[2]) {
+        // The form removed the photo: the kept copy goes too (a stored photo always matches the saved details).
+        const doc = m[2].match(DOC_PATH);
+        if (photos && doc) photos.remove(m[1], doc[1]);
+        return {};
+      }
       if (m && byId(m[1]) && byId(m[1]).onTrip) {
         throw apiError(400, 'This traveller is already on the client’s open trip. Remove them from the trip’s Travellers tab.');
       }
       if (m) {
         people = people.filter((p) => p.draftId !== m[1]);
+        if (photos) photos.remove(m[1]);
         save();
         return { deleted: true };
       }

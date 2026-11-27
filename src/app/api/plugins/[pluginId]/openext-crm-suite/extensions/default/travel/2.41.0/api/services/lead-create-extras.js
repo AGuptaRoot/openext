@@ -20,7 +20,8 @@
  *    more travellers than the counts → a warning. The user may create the lead anyway.
  *
  *   check(sdk, draft, step)    POST /quotation-prefill { leadCreate: true, draft, check? } → { errors, warnings } | setup
- *   commit(sdk, leadId, draft) POST /leads/:lead_id/requirements { leadCreate: true, draft } → { message }
+ *   commit(sdk, leadId, draft) POST /leads/:lead_id/requirements { leadCreate: true, draft }
+ *                              → { ok, message, result: { travellers: [{ draftId, travellerId }] } } (ok false = partly saved)
  * (existing routes with a flag: Travel stays at the 100-route limit)
  *
  * Document numbers are never returned or logged.
@@ -35,6 +36,7 @@ const guided = require('./guided-sale.js')._internal;
 
 const { str, ID_RE } = store;
 const MAX_TRAVELLERS = 30;
+const DRAFT_ID_RE = /^d-[a-z0-9]{1,38}$/;
 const COUNT_KEYS = ['adults', 'children', 'infants'];
 const STEPS = ['all', 'travellers', 'travellers_setup'];
 const plain = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
@@ -206,6 +208,9 @@ exports.commit = async (sdk, leadId, draft) => {
   const profiles = new Set(onLead.map((r) => store.profileOf(r)));
   const people = onLead.map((r) => ({ firstName: str(r.first_name), lastName: str(r.last_name), dob: str(r.dob).slice(0, 10), phone: str(r.phone) }));
   let added = 0;
+  // 2.41.0: which new traveller each form made ({ draftId, travellerId }) — the page uploads the document
+  // photos kept for that form onto it. Only travellers created here (a skipped or copied one gets none).
+  const created = [];
   const list = parts.travellers.slice(0, MAX_TRAVELLERS);
   for (let i = 0; i < list.length; i += 1) {
     const t = list[i];
@@ -225,7 +230,10 @@ exports.commit = async (sdk, leadId, draft) => {
       if (people.some((p) => rules.samePerson(p, v))) continue;
       const body = { ...t };
       delete body.draftId;
-      await travellersRoute.create({ params: { lead_id: leadId }, body }, sdk);
+      const res = await travellersRoute.create({ params: { lead_id: leadId }, body }, sdk);
+      const draftId = str(t.draftId).slice(0, 40);
+      const travellerId = str(res && res.traveller && res.traveller.id);
+      if (DRAFT_ID_RE.test(draftId) && ID_RE.test(travellerId)) created.push({ draftId, travellerId });
       people.push(v);
       added += 1;
     } catch (error) {
@@ -240,19 +248,20 @@ exports.commit = async (sdk, leadId, draft) => {
     `Lead created with ${plural(added, 'traveller', 'travellers')} and ${plural(savedForms, 'requirement form', 'requirement forms')}`,
     { leadId, travellers: added, requirementForms: savedForms, notSaved: failed.length }
   );
+  const result = { travellers: created };
+  // 2.41.0 (CRM 3.68.0): a partial save is an answer, not an error — the CRM passes `result` to the page even
+  // then, so the photos of the travellers that were saved are still uploaded.
   if (failed.length) {
-    const error = sdk.error(
-      400,
-      `Saved ${plural(added, 'traveller', 'travellers')} and ${plural(savedForms, 'requirement form', 'requirement forms')}. Not saved — add on the lead: ${failed.slice(0, 4).join(' · ')}`,
-      'LEAD_CREATE_EXTRAS_PARTIAL'
-    );
-    error.details = failed.slice(0, 30);
-    throw error;
+    return {
+      ok: false,
+      message: `Saved ${plural(added, 'traveller', 'travellers')} and ${plural(savedForms, 'requirement form', 'requirement forms')}. Not saved — add on the lead: ${failed.slice(0, 4).join(' · ')}`,
+      result
+    };
   }
   const what = [added ? plural(added, 'traveller', 'travellers') : '', savedForms ? plural(savedForms, 'requirement form', 'requirement forms') : '']
     .filter(Boolean)
     .join(' and ');
-  return { message: what ? `Lead created with ${what}.` : '' };
+  return { ok: true, message: what ? `Lead created with ${what}.` : '', result };
 };
 
 exports._internal = { partsOf, countWarnings, checkForms, describe };

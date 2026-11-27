@@ -1233,10 +1233,23 @@ async function leadCreateExtrasCheck(req, body = {}) {
   return { errors: textList(data && data.errors), warnings: textList(data && data.warnings, 10) };
 }
 
+/** CRM 3.68.0: the extension's own `result` of a commit, passed to its page unread (a plain object, ≤ 20 KB). */
+const COMMIT_RESULT_MAX = 20000;
+function commitResultOf(value) {
+  if (!isPlainObject(value)) return null;
+  try {
+    const json = JSON.stringify(value);
+    return json && json.length <= COMMIT_RESULT_MAX ? JSON.parse(json) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * POST /sales-flow/lead-create/commit { leadId, draft } → { ok, message }: after the lead is created, the
- * extension saves its sections on it (with the user's own rights). Never throws for the extension's answer —
- * the lead stands; the page says what was not saved.
+ * POST /sales-flow/lead-create/commit { leadId, draft } → { ok, message, result? }: after the lead is created,
+ * the extension saves its sections on it (with the user's own rights). Never throws for the extension's answer —
+ * the lead stands; the page says what was not saved. CRM 3.68.0: the extension may answer { ok: false } (partly
+ * saved) and give a `result` for its own page (ctx.createForm.onAfterSave); the CRM does not read it.
  */
 async function leadCreateExtrasCommit(req, body = {}) {
   const lx = await leadCreateExtrasContract(req);
@@ -1247,7 +1260,10 @@ async function leadCreateExtrasCommit(req, body = {}) {
   const draft = guidedDraftOf(body);
   try {
     const data = await callRoute(req, 'POST', routeFor(lx.commitRoute, leadId), { draft, leadCreate: true });
-    return { ok: true, message: text(data && data.message, 300) };
+    const ok = !(data && data.ok === false);
+    const result = commitResultOf(data && data.result);
+    const message = text(data && data.message, 300) || (ok ? '' : 'Some extra details were not saved.');
+    return { ok, message, ...(result ? { result } : {}) };
   } catch (error) {
     return { ok: false, message: text(error && error.message, 300) || 'The extra details were not saved.' };
   }
