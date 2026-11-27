@@ -191,7 +191,10 @@ const itineraryView = (it) => ({
   link: `${ITINERARY}?id=${str(it._id)}`
 });
 
-/** Notes / activities through the CRM (older CRMs without the reader: none, with a note). */
+/**
+ * Notes through the CRM (older CRMs without the reader: none, with a note). 2.42.0: Travel hides the CRM's activities
+ * (manifest hiddenModules), so they are not read or shown here (activities: null).
+ */
 async function timelineOf(sdk, type, id) {
   const read = async (reader) => {
     if (!reader || typeof reader.list !== 'function') return null;
@@ -201,13 +204,12 @@ async function timelineOf(sdk, type, id) {
       return null;
     }
   };
-  const [notes, activities] = await Promise.all([read(sdk.crm.notes), read(sdk.crm.activities)]);
+  const notes = await read(sdk.crm.notes);
   const note = (n) => ({ id: str(n.id), title: str(n.title), text: str(n.content).slice(0, 600), author: str(n.createdByName), date: str(n.createdAt), private: n.isPrivate === true, pinned: n.isPinned === true });
-  const activity = (a) => ({ id: str(a.id), title: str(a.title), type: str(a.eventType), status: str(a.status), date: str(a.eventDate || a.createdAt), text: str(a.description).slice(0, 400), owner: str(a.assignedToName || a.createdByName) });
   return {
     notes: notes ? notes.map(note) : [],
-    activities: activities ? activities.map(activity) : [],
-    timelineAvailable: Boolean(notes || activities)
+    activities: null,
+    timelineAvailable: Boolean(notes)
   };
 }
 
@@ -216,7 +218,7 @@ function counts(out) {
     quotations: out.quotations ? out.quotations.length : null,
     invoices: out.invoices ? out.invoices.length : null,
     proformas: out.proformas ? out.proformas.length : null,
-    activities: out.activities.length,
+    activities: Array.isArray(out.activities) ? out.activities.length : null,
     notes: out.notes.length,
     requirements: out.requirements.length,
     bookings: out.bookings ? out.bookings.length : null,
@@ -285,7 +287,6 @@ exports.leadTrip = async (req, sdk) => {
       requirements: tab('ext__travel__travel-requirement'),
       travellers: tab('ext__travel__travellers'),
       bookings: tab('ext__travel__bookings'),
-      activities: tab('activities'),
       notes: tab('notes')
     }
   };
@@ -367,7 +368,6 @@ exports.clientTrip = async (req, sdk) => {
       requirements: clientTab('ext:travel_requirement'),
       travellers: clientTab('ext:travellers'),
       bookings: clientTab('ext:bookings'),
-      activities: clientTab('timeline'),
       notes: clientTab('notes'),
       quotations: clientTab('quotations'),
       invoices: clientTab('invoices')

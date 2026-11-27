@@ -3,6 +3,7 @@
 const clientController = require('../controllers/client.controller');
 const clientExtensionController = require('../controllers/client-extension.controller');
 const { requirePermission, requireAnyPermission } = require('../middleware/permission.middleware');
+const { refuseWhenHidden } = require('../middleware/module.middleware');
 const { validateBody } = require('../middleware/validation.middleware');
 const {
   validateClientCreate,
@@ -179,23 +180,27 @@ module.exports = function registerClientsRoutes(app) {
   app.post(
     '/clients/:id/events',
     requirePermission('crm.clients.write'),
+    refuseWhenHidden('activities'),
     validateBody(validateClientEventCreate),
     clientController.createEvent
   );
   app.put(
     '/clients/:id/events/:eventId',
     requirePermission('crm.clients.write'),
+    refuseWhenHidden('activities'),
     validateBody(validateClientEventUpdate),
     clientController.updateEvent
   );
   app.post(
     '/clients/:id/events/:eventId/complete',
     requirePermission('crm.clients.write'),
+    refuseWhenHidden('activities'),
     clientController.completeEvent
   );
   app.delete(
     '/clients/:id/events/:eventId',
     requirePermission('crm.clients.write'),
+    refuseWhenHidden('activities'),
     clientController.deleteEvent
   );
 

@@ -39,6 +39,9 @@ const ALL_CORE_MODULES = [
   'tasks',
   'time-logs',
   'tickets',
+  // CRM 3.69.0: lead / client activities (calls, meetings, follow-ups, reminders). Not a sidebar page; hiding it
+  // removes the Activities tab, the Leads Activity view, the reminders and refuses activity writes (409).
+  'activities',
   'audit',
   'settings'
 ];

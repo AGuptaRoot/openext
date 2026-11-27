@@ -315,11 +315,8 @@ exports.sales = async (req, sdk) => {
       { key: 'conversion', label: 'Conversion %', type: 'percent' }
     ],
     rows: people
-      .map((r) => ({
-        ...r,
-        owner: r.key || 'Unassigned',
-        ...(/^[\w.-]{1,80}$/.test(r.key) ? { _link: `/reports?tab=activity-location&rep=${encodeURIComponent(r.key)}` } : {})
-      }))
+      // 2.42.0: no link to the Activity Location report (Travel hides activities).
+      .map((r) => ({ ...r, owner: r.key || 'Unassigned' }))
       .sort((a, b) => b.bookings - a.bookings || b.enquiries - a.enquiries)
   };
 

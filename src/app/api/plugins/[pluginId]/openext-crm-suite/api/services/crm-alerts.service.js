@@ -224,6 +224,8 @@ async function followUpsForTenant(cms, tenantId, now = new Date()) {
   const req = { cms, tenantId, headers: {}, user: null };
   const LeadEvent = model(req, 'LeadEvent');
   if (!LeadEvent) return { due: 0, missed: 0 };
+  // CRM 3.69.0: the active extension hides activities → no follow-up alerts or push for them.
+  if (await require('./crm-extension.service').hidesModule(req, 'activities')) return { due: 0, missed: 0 };
   const soon = new Date(now.getTime() + 60 * 60 * 1000);
   const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   let q = LeadEvent.find({ tenantId, isDeleted: { $ne: true }, status: 'Open', eventDate: { $gte: since, $lte: soon } });

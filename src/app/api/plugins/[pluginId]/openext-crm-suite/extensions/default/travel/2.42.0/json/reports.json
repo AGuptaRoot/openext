@@ -2,7 +2,6 @@
   "title": "Travel Reports",
   "subtitle": "Sales, bookings, revenue and travel operations performance",
   "keepCoreTabs": [
-    "activity-location",
     "ageing",
     "payment-reconciliation",
     "income-expense"
@@ -136,7 +135,7 @@
       "id": "sales-people",
       "kind": "table",
       "title": "Sales Person Performance",
-      "subtitle": "Click a sales person to open their activities.",
+      "subtitle": "Enquiries, quotations, bookings and conversion per sales person.",
       "route": "/reports/sales",
       "permission": "crm.leads.read",
       "export": true,

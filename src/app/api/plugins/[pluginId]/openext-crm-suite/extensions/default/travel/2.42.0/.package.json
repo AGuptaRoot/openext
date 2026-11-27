@@ -1,8 +1,8 @@
 {
   "extensionId": "travel",
-  "version": "2.41.0",
-  "checksum": "acf6e3126163bedc631fdddd0172cc2b7d03c268adb9d03ed69477329ed5d981",
-  "writtenAt": "2026-11-27T07:27:16.927Z",
+  "version": "2.42.0",
+  "checksum": "88fb5ed62fcdbaaebb60d25f107d850de8bd4cffc40a17bc92c774b8ed73b800",
+  "writtenAt": "2026-11-27T09:17:15.924Z",
   "files": [
     {
       "path": "README.md",
@@ -11,13 +11,13 @@
     },
     {
       "path": "WORKFLOW.md",
-      "sha256": "d6de60ab3ede1156877a769a28068743b2effa359295d10bc8ac57f0afcc648e",
-      "size": 23013
+      "sha256": "28d1a45c245f43bc45673d090f27ee92434bc3c87fc19de6a1ec64bbc2f913e9",
+      "size": 23695
     },
     {
       "path": "crm-extension.json",
-      "sha256": "6c262db579c7a94d48cfe742d476cb4ef783fcbef3d7f56a96a2b46c5785ff6d",
-      "size": 14524
+      "sha256": "4f6ac18d70b8138d39d5d74a00da590d05b393566c5fffd3acfaf3de4d8a958c",
+      "size": 14542
     },
     {
       "path": "request-type.json",
@@ -161,8 +161,8 @@
     },
     {
       "path": "api/routes/reports.js",
-      "sha256": "fe3cf7616a7cc832a2889b16d85f1c67a781851d6761a760b8e99163c22fd82f",
-      "size": 30057
+      "sha256": "34716c445bd1c68a9a90b60e19d52d29477886a53ab0533ee3f6a63549ca5648",
+      "size": 29992
     },
     {
       "path": "api/routes/requirements.js",
@@ -191,8 +191,8 @@
     },
     {
       "path": "api/routes/trip-page.js",
-      "sha256": "9655cc238e3867a928eae107cfee1c22e7451247bed9d00aa22db8479f2070e1",
-      "size": 26281
+      "sha256": "4740343e9b1e371a857fc6a71d3e6edebe1fbfd98e627b173b62c7761ac779ce",
+      "size": 26009
     },
     {
       "path": "api/routes/trip-views.js",
@@ -376,8 +376,8 @@
     },
     {
       "path": "json/reports.json",
-      "sha256": "2b5212d2a5d7727426f86a1b255a047022147ca0f65c7e732a1947cf91aa665c",
-      "size": 4785
+      "sha256": "9239562522199598c85bce6e57cd5cdaf0951f2bb0d8429a1eb63fee3fc5637b",
+      "size": 4778
     },
     {
       "path": "json/settings.json",
@@ -576,8 +576,8 @@
     },
     {
       "path": "ui/components/trip-page/trip-page.js",
-      "sha256": "722e5990ee743be15e52e777ae2ba1c06c949f1bec9ac8c0cfd5224638160f89",
-      "size": 11260
+      "sha256": "f73d6850f302ec5472721aa8664a34ec39dc2e79ae6a456a33231219fff667c2",
+      "size": 11353
     },
     {
       "path": "ui/shared/booking-ui.css",

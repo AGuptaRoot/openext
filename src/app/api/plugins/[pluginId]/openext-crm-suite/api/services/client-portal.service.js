@@ -563,16 +563,31 @@ async function leadHasSentQuotation(req, leadId) {
   }
 }
 
+/**
+ * CRM 3.70.0: the active extension reports this lead as ready (its lead workflow readiness rule, e.g. every
+ * required form complete and enough people added). Extensions without a readiness rule: never. Never throws.
+ */
+async function leadIsReady(req, leadId) {
+  try {
+    const info = await require('./lead-workflow.service').forLead(req, String(leadId));
+    return Boolean(info && info.hasReadiness && info.ready && !info.converted);
+  } catch {
+    return false;
+  }
+}
+
 async function describeLeadPortalBlock(req, leadId) {
   // CRM 3.56.0: once a quotation is sent to the lead, it may get portal access to review it.
   if (await leadHasSentQuotation(req, leadId)) return '';
+  // CRM 3.70.0: a lead the active extension reports as ready may get portal access too.
+  if (await leadIsReady(req, leadId)) return '';
   let opportunitiesHidden = false;
   try {
     opportunitiesHidden = await require('./crm-extension.service').opportunitiesHidden(req);
   } catch {
     opportunitiesHidden = false;
   }
-  if (opportunitiesHidden) return 'Send a quotation to this lead before giving portal access.';
+  if (opportunitiesHidden) return 'Portal access opens once the lead is ready (everything it needs is complete) or a quotation is sent.';
   const Opportunity = req.cms?.models.get('Opportunity');
   // Without the model registered there is nothing to check against; allow it
   // rather than blocking the flow on a deployment detail.

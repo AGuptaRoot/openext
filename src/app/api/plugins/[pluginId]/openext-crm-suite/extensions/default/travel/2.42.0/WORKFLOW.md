@@ -1,6 +1,13 @@
 # crm-travel — Workflow
 
-Travel extension `travel` **2.41.0**, needs CRM `openext-crm-suite` **>= 3.68.0 < 4.0.0** (GST suite).
+Travel extension `travel` **2.42.0**, needs CRM `openext-crm-suite` **>= 3.69.0 < 4.0.0** (GST suite).
+
+**Activities hidden (2.42.0, CRM 3.69.0):** Travel lists `activities` in `hiddenModules`. The CRM then shows no lead
+Activities tab, no Leads "Activity" view or missed-activity badge, no activity reminders or follow-up alerts, no
+dashboard activity cards, no Activity Location report, no Activity Types setting and no "add activity" on the client
+timeline; every activity write answers 409 ACTIVITIES_HIDDEN. Old activities stay in the database. The Trip page no
+longer reads activities, and Sales Person Performance no longer links to the Activity Location report. "Recent
+Activity" (the audit feed) and the "Activities" service group of quotations are different things and stay.
 
 **Lead Create document photos (2.41.0, CRM 3.68.0):** a passport / Aadhaar / PAN photo chosen in a Lead Create traveller
 form is no longer only read by OCR: it is kept in the page's memory and, right after the lead is created, uploaded

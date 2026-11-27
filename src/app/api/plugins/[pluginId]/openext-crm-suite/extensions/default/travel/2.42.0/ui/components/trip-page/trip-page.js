@@ -131,9 +131,10 @@ function renderTripPage(root, ctx) {
         r.label ? `${r.service} – ${r.label}` : r.service, ui.statusPill(r.status), '', t.links.requirements
       ), { open: t.links.requirements, openLabel: 'Travel Requirement tab' }),
       t.timelineAvailable === false
-        ? h('section', { class: 'tvx-card tvx-tp-section' }, [h('p', { class: 'tvx-muted', text: 'Activities and notes need CRM 3.61.0 or later.' }), link('Open activities', t.links.activities)])
+        ? h('section', { class: 'tvx-card tvx-tp-section' }, [h('p', { class: 'tvx-muted', text: 'Notes need CRM 3.61.0 or later.' }), link('Open notes', t.links.notes)])
         : null,
-      t.timelineAvailable === false ? null : section('activities', t.notesScope === 'client' ? 'Client activities (all trips)' : 'Activities', t.activities, (a) => row(
+      // 2.42.0: activities are hidden in Travel (the server sends activities: null).
+      t.timelineAvailable === false || !Array.isArray(t.activities) ? null : section('activities', t.notesScope === 'client' ? 'Client activities (all trips)' : 'Activities', t.activities, (a) => row(
         a.title, a.status ? ui.statusPill(a.status) : null, [a.type, when(a.date), a.owner, a.text].filter(Boolean).join(' · '), t.links.activities
       ), { open: t.links.activities, openLabel: 'Activities tab', note: clientNote }),
       t.timelineAvailable === false ? null : section('notes', t.notesScope === 'client' ? 'Client notes (all trips)' : 'Notes', t.notes, (n) => row(

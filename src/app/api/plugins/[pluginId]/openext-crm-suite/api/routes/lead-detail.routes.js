@@ -6,6 +6,7 @@
  */
 const leadController = require('../controllers/lead.controller.js');
 const { requirePermission, requireAnyPermission } = require('../middleware/permission.middleware');
+const { refuseWhenHidden } = require('../middleware/module.middleware');
 const { validateBody } = require('../middleware/validation.middleware');
 const {
   validateLeadEventCreate,
@@ -65,48 +66,56 @@ module.exports = function registerLeadDetailRoutes(app) {
   app.post(
     '/leads/:id/events',
     requirePermission('crm.leads.write'),
+    refuseWhenHidden('activities'),
     validateBody(validateLeadEventCreate),
     leadController.createEvent
   );
   app.put(
     '/leads/:id/events/:eventId',
     requirePermission('crm.leads.write'),
+    refuseWhenHidden('activities'),
     validateBody(validateLeadEventUpdate),
     leadController.updateEvent
   );
   app.put(
     '/api/leads/:id/events/:eventId',
     requirePermission('crm.leads.write'),
+    refuseWhenHidden('activities'),
     validateBody(validateLeadEventUpdate),
     leadController.updateEvent
   );
   app.patch(
     '/leads/:id/events/:eventId',
     requirePermission('crm.leads.write'),
+    refuseWhenHidden('activities'),
     validateBody(validateLeadEventUpdate),
     leadController.updateEvent
   );
   app.patch(
     '/api/leads/:id/events/:eventId',
     requirePermission('crm.leads.write'),
+    refuseWhenHidden('activities'),
     validateBody(validateLeadEventUpdate),
     leadController.updateEvent
   );
   app.post(
     '/leads/:id/events/:eventId/complete',
     requirePermission('crm.leads.write'),
+    refuseWhenHidden('activities'),
     validateBody(validateLeadEventComplete),
     leadController.completeEvent
   );
   app.post(
     '/leads/:id/events/:eventId/accept',
     requirePermission('crm.leads.write'),
+    refuseWhenHidden('activities'),
     validateBody(validateLeadEventAccept),
     leadController.acceptLeadEvent
   );
   app.post(
     '/api/leads/:id/events/:eventId/accept',
     requirePermission('crm.leads.write'),
+    refuseWhenHidden('activities'),
     validateBody(validateLeadEventAccept),
     leadController.acceptLeadEvent
   );
@@ -118,12 +127,14 @@ module.exports = function registerLeadDetailRoutes(app) {
   app.post(
     '/leads/:id/events/:eventId/convert-opportunity',
     requireAnyPermission('crm.opportunities.write', 'crm.leads.write'),
+    refuseWhenHidden('activities'),
     validateBody(validateLeadEventConvert),
     leadController.convertEventToOpportunity
   );
   app.delete(
     '/leads/:id/events/:eventId',
     requirePermission('crm.leads.write'),
+    refuseWhenHidden('activities'),
     leadController.removeEvent
   );
 
