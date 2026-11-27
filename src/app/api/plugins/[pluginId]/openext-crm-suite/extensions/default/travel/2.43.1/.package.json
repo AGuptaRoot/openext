@@ -1,34 +1,9 @@
 {
   "extensionId": "travel",
-  "version": "2.42.0",
-  "checksum": "88fb5ed62fcdbaaebb60d25f107d850de8bd4cffc40a17bc92c774b8ed73b800",
-  "writtenAt": "2026-11-27T09:17:15.924Z",
+  "version": "2.43.1",
+  "checksum": "bffdc2569e9d9b9ead85cde2d57fde708824f5d232b63674d925d9561b13f2c4",
+  "writtenAt": "2026-11-27T10:36:05.511Z",
   "files": [
-    {
-      "path": "README.md",
-      "sha256": "74d0f527d5c9e89d73c0d6c2cc9cbc2535a82feeecc0661a1d3784e73ba0e0f3",
-      "size": 31806
-    },
-    {
-      "path": "WORKFLOW.md",
-      "sha256": "28d1a45c245f43bc45673d090f27ee92434bc3c87fc19de6a1ec64bbc2f913e9",
-      "size": 23695
-    },
-    {
-      "path": "crm-extension.json",
-      "sha256": "4f6ac18d70b8138d39d5d74a00da590d05b393566c5fffd3acfaf3de4d8a958c",
-      "size": 14542
-    },
-    {
-      "path": "request-type.json",
-      "sha256": "0e6ebae5e79e96d59c8d2cedf229bf491b6ac88a416a75a1ab0a2016c7950461",
-      "size": 1426
-    },
-    {
-      "path": "api/routes.json",
-      "sha256": "2c2dd9fcde3122324cf07a50f3538c75466f2fc4e93d311e1165940450936186",
-      "size": 27781
-    },
     {
       "path": "api/models/AvailabilityCheck.json",
       "sha256": "d21cb9819bafb63f5d19b9583cb6040ac8395945f577c474806ec646cb3844d2",
@@ -75,6 +50,11 @@
       "size": 1145
     },
     {
+      "path": "api/models/Traveller.json",
+      "sha256": "16e67d5a4e02c367b95fbe11efa61026d152144c1e0818e61fd5c89ed59e2fa5",
+      "size": 3082
+    },
+    {
       "path": "api/models/TravelLocation.json",
       "sha256": "e4c5effae895a3ac99b607705108e0ec802f84b568b1539c8cb8a352ee7695dc",
       "size": 852
@@ -83,11 +63,6 @@
       "path": "api/models/TravelRequirement.json",
       "sha256": "df81e3d84538890505d6ad1afade9a0f4aee0ce227722fb6534ba112da995c7f",
       "size": 910
-    },
-    {
-      "path": "api/models/Traveller.json",
-      "sha256": "16e67d5a4e02c367b95fbe11efa61026d152144c1e0818e61fd5c89ed59e2fa5",
-      "size": 3082
     },
     {
       "path": "api/models/TripPlan.json",
@@ -210,6 +185,11 @@
       "size": 704
     },
     {
+      "path": "api/routes.json",
+      "sha256": "2c2dd9fcde3122324cf07a50f3538c75466f2fc4e93d311e1165940450936186",
+      "size": 27781
+    },
+    {
       "path": "api/services/availability.js",
       "sha256": "9e2d0a9d962c5d90e495ab0077d1c74fa9d1117e9e1861ca4d6df75008fb2f84",
       "size": 6614
@@ -261,8 +241,8 @@
     },
     {
       "path": "api/services/lead-create-extras.js",
-      "sha256": "43dce1e62de68566ec2d77f3fccb79ce315600d7a2088ee5b892bf49382f4d0f",
-      "size": 14045
+      "sha256": "414fd3f4deffe38457b3d9883616d0e9bc8c28aabed23e9226741e10a12a1b09",
+      "size": 15896
     },
     {
       "path": "api/services/passport-alerts.js",
@@ -350,6 +330,11 @@
       "size": 12759
     },
     {
+      "path": "crm-extension.json",
+      "sha256": "4e7c12375c3e73141ed32d814395a93ce6fdb78a901e72c466afa0d7718c40ce",
+      "size": 14640
+    },
+    {
       "path": "json/actions.json",
       "sha256": "754c326a3804cc2bd93bf8f8d644204ce0854e60d3a2c59f401f55a6a4c50156",
       "size": 1269
@@ -390,14 +375,14 @@
       "size": 1895
     },
     {
-      "path": "ui/mount.js",
-      "sha256": "798c5103c14ac992ae1836f805b37aab815bc26e837729b879e3d22256716734",
-      "size": 6456
+      "path": "README.md",
+      "sha256": "74d0f527d5c9e89d73c0d6c2cc9cbc2535a82feeecc0661a1d3784e73ba0e0f3",
+      "size": 31806
     },
     {
-      "path": "ui/style.css",
-      "sha256": "5aff2e3a35c37c2c4de37a9694e7bc98ab50916b4a95648a956b5033e85d231a",
-      "size": 12092
+      "path": "request-type.json",
+      "sha256": "0e6ebae5e79e96d59c8d2cedf229bf491b6ac88a416a75a1ab0a2016c7950461",
+      "size": 1426
     },
     {
       "path": "ui/components/availability-dialog/availability-dialog.css",
@@ -481,8 +466,8 @@
     },
     {
       "path": "ui/components/lead-create/lead-create.js",
-      "sha256": "eab789ffd10320442e0ab98af14582404ebfd7472e2c6aa7c82ee830f06b2667",
-      "size": 20843
+      "sha256": "70ee8a7cb05933d0b077f63fa7986dfd14dafb6e83b4735b0aaf9e00ccd2d6ef",
+      "size": 20849
     },
     {
       "path": "ui/components/lead-requirements/lead-requirements.css",
@@ -580,6 +565,11 @@
       "size": 11353
     },
     {
+      "path": "ui/mount.js",
+      "sha256": "798c5103c14ac992ae1836f805b37aab815bc26e837729b879e3d22256716734",
+      "size": 6456
+    },
+    {
       "path": "ui/shared/booking-ui.css",
       "sha256": "7d7c8b5d541ece58e781de6184a6988cab6d27247359f1f231123b3a75a68a23",
       "size": 3104
@@ -628,6 +618,16 @@
       "path": "ui/shared/trip-range.js",
       "sha256": "5c820f7d6446a2b5e8fa0b5c9d6ac788db5827181e533276ca39d8ce197bde31",
       "size": 2776
+    },
+    {
+      "path": "ui/style.css",
+      "sha256": "5aff2e3a35c37c2c4de37a9694e7bc98ab50916b4a95648a956b5033e85d231a",
+      "size": 12092
+    },
+    {
+      "path": "WORKFLOW.md",
+      "sha256": "b2e6e384131d7d163955cbe5f49aa7bc8ca0a03cf86f7d53173f14e10cf89646",
+      "size": 24359
     }
   ]
 }

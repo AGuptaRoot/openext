@@ -11,10 +11,11 @@
  *     requirements: { <service_key>: form values }   kept for every service ever ticked; only ticked ones count
  *   }
  *
- * Nothing is saved before the lead exists. Both sections are optional (the user's rule):
+ * Nothing is saved before the lead exists. Travellers are optional; requirement forms are not (2.43.1, the user's rule):
  *  - every traveller in the list is checked like Lead → Travellers (an error stops Create);
  *  - a requirement form with values is checked like the Travel Requirement tab (wrong values stop Create);
- *    missing required fields do not — the form is saved as Draft and finished later;
+ *  - every ticked service's form must have its required fields filled in (an empty form too), so Create also needs
+ *    Traveller Details and Travel Information filled in (the forms open only then) when a service is ticked;
  *  - when as many travellers are added as Adults + Children + Infants, their ages on the Travel Start Date
  *    (Infant under 2, Child 2–11, Adult 12+; no date of birth = Adult) are compared with those counts → a warning;
  *    more travellers than the counts → a warning. The user may create the lead anyway.
@@ -65,7 +66,42 @@ async function tripParts(sdk, values) {
 /** A form the user typed something in. */
 const hasValues = (form) => Object.values(plain(form)).some((v) => !isEmpty(v));
 
-/** Each ticked service's form that has values → { errors, checked } (missing required fields are allowed). */
+/** What is still empty before the Travel Requirement forms open on Lead Create (as missingBeforeForms on the page). */
+function formsNotOpen(values) {
+  const v = plain(values);
+  const total = COUNT_KEYS.reduce((n, k) => {
+    const c = Number(v[k]);
+    return n + (Number.isFinite(c) && c > 0 ? Math.floor(c) : 0);
+  }, 0);
+  const missing = [];
+  if (!total) missing.push('Traveller Details (Adults, Children or Infants)');
+  if (!str(v.from).trim()) missing.push('From');
+  if (!str(v.to).trim()) missing.push('To');
+  if (!str(v.travel_start_date).trim()) missing.push('Travel Start Date');
+  if (!str(v.travel_end_date).trim()) missing.push('Travel End Date');
+  return missing;
+}
+
+/**
+ * 2.43.1: every ticked service's requirement form must have its required fields filled in before Create
+ * (empty forms too) → [error]. The forms open only once Traveller Details and Travel Information are filled in.
+ */
+function requiredErrors(services, selected, forms, trip, values) {
+  const active = selected.map((key) => activeService(services, key)).filter(Boolean);
+  if (!active.length) return [];
+  const notOpen = formsNotOpen(values);
+  if (notOpen.length) {
+    return [`Fill in ${notOpen.join(', ')} so the Travel Requirement forms open, then fill in their required fields.`];
+  }
+  const errors = [];
+  for (const service of active) {
+    const { missing } = checkValues(service, plain(forms[service.key]), { trip });
+    if (missing.length) errors.push(`${service.name} Requirement: fill in ${missing.join(', ')}.`);
+  }
+  return errors;
+}
+
+/** Each ticked service's form that has values → { errors, checked } (wrong values; required fields: requiredErrors). */
 function checkForms(services, selected, forms, trip) {
   const errors = [];
   const checked = {};
@@ -175,6 +211,7 @@ exports.check = async (sdk, draft, step = 'all') => {
   }
   if (which === 'travellers') return { errors, matches };
   errors.push(...checkForms(services, selected, parts.forms, trip).errors);
+  errors.push(...requiredErrors(services, selected, parts.forms, trip, parts.values));
   const warnings = errors.length ? [] : await countWarnings(sdk, parts.values, parts.travellers);
   return { errors: errors.slice(0, 30), warnings };
 };
@@ -264,4 +301,4 @@ exports.commit = async (sdk, leadId, draft) => {
   return { ok: true, message: what ? `Lead created with ${what}.` : '', result };
 };
 
-exports._internal = { partsOf, countWarnings, checkForms, describe };
+exports._internal = { partsOf, countWarnings, checkForms, requiredErrors, formsNotOpen, describe };

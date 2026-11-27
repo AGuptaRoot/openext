@@ -104,6 +104,23 @@ function buildPublicUrl(storageKey, provider) {
 const CRM_PLUGIN_ID = 'openext-crm-suite';
 
 /**
+ * CRM 3.71.0: a photo / avatar address kept on a record must be a file this CRM stored in S3 (through the S3
+ * Media plugin): its own /media/file link (not the old "local" provider) or the S3 Media plugin's file route.
+ * Anything else — a link to another website, a data: / blob: URL, a local disk path — gives ''.
+ */
+function storedMediaUrl(value) {
+  const url = String(value === undefined || value === null ? '' : value).trim();
+  if (!url || url.length > 2048 || /[\s<>"']/.test(url)) return '';
+  if (url.startsWith('/api/plugins/s3_media_plugin/media/')) return url;
+  const own = `/api/plugins/${CRM_PLUGIN_ID}/media/file?`;
+  if (!url.startsWith(own)) return '';
+  const params = new URLSearchParams(url.slice(own.length));
+  const key = params.get('key') || '';
+  if (!key || (params.get('provider') || 'local') === 'local' || !isSafeStorageKey(key)) return '';
+  return url;
+}
+
+/**
  * Browser-reachable URL for CRM-stored files. Files stored through the S3 Media plugin API open through
  * its own route (/api/plugins/s3_media_plugin/media/:encodedKey/file); older files stream via the CRM's
  * GET /media/file. Both work with the session cookie in <img> and downloads.
@@ -568,6 +585,7 @@ module.exports = {
   hasExpectedFileSignature,
   buildPublicUrl,
   buildCrmMediaFileUrl,
+  storedMediaUrl,
   isSafeStorageKey,
   getStorageStatus
 };

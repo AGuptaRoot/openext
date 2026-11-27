@@ -364,7 +364,8 @@ async function create(req, input) {
     tenantId,
     salutation: String(input.salutation || '').trim(),
     name,
-    photoUrl: String(input.photoUrl || '').trim(),
+    // CRM 3.71.0: only an image this CRM stored in S3.
+    photoUrl: require('../utils/storage.util').storedMediaUrl(input.photoUrl),
     email,
     phone,
     gender: String(input.gender || '').trim(),
@@ -403,7 +404,7 @@ async function update(req, id, input) {
     if (!name) throw appError('Contact name is required');
     updates.name = name;
   }
-  if (input.photoUrl !== undefined) updates.photoUrl = String(input.photoUrl || '').trim();
+  if (input.photoUrl !== undefined) updates.photoUrl = require('../utils/storage.util').storedMediaUrl(input.photoUrl);
   if (input.email !== undefined) updates.email = normalizeEmail(input.email);
   if (input.phone !== undefined) updates.phone = normalizePhone(input.phone);
   if (input.gender !== undefined) updates.gender = String(input.gender || '').trim();

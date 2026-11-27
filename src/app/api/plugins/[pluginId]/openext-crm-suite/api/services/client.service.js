@@ -498,7 +498,8 @@ async function create(req, input) {
     ...(gstPrep && gstPrep.gst ? { gst: gstPrep.gst } : {}),
     taxId,
     website: input.website || '',
-    avatarUrl: input.avatarUrl || '',
+    // CRM 3.71.0: only an image this CRM stored in S3.
+    avatarUrl: require('../utils/storage.util').storedMediaUrl(input.avatarUrl),
     avatarColor: /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(input.avatarColor || '').trim()) ? String(input.avatarColor).trim() : '',
     status: input.status !== undefined ? (input.status === 'Inactive' ? 'Inactive' : 'Active') : 'Active',
     category: input.category ? String(input.category).trim() : '',
@@ -553,7 +554,7 @@ async function update(req, id, input) {
     updates.website = input.website;
   }
   if (input.avatarUrl !== undefined) {
-    updates.avatarUrl = String(input.avatarUrl || '').trim();
+    updates.avatarUrl = require('../utils/storage.util').storedMediaUrl(input.avatarUrl);
   }
   // CRM 3.54.0: saved now (it was dropped before, so the colour went back to the default on reload).
   if (input.avatarColor !== undefined) {

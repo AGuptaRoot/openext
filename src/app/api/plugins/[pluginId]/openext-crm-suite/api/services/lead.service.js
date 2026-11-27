@@ -771,7 +771,8 @@ async function create(req, input) {
     notes: input.notes || '',
     value: input.value !== undefined && input.value !== null && input.value !== '' ? Number(input.value) : null,
     currency: input.currency ? String(input.currency).trim().toUpperCase() : '',
-    photoUrl: input.photoUrl || '',
+    // CRM 3.71.0: only an image this CRM stored in S3.
+    photoUrl: require('../utils/storage.util').storedMediaUrl(input.photoUrl),
     latitude: input.latitude != null && input.latitude !== '' ? Number(input.latitude) : null,
     longitude: input.longitude != null && input.longitude !== '' ? Number(input.longitude) : null,
     address: input.address || input.formattedAddress || '',
@@ -996,7 +997,7 @@ async function update(req, id, input) {
     updates.nextFollowUp = input.nextFollowUp ? new Date(input.nextFollowUp) : null;
   }
   if (input.contactId !== undefined) updates.contactId = String(input.contactId || '').trim();
-  if (input.photoUrl !== undefined) updates.photoUrl = String(input.photoUrl).trim();
+  if (input.photoUrl !== undefined) updates.photoUrl = require('../utils/storage.util').storedMediaUrl(input.photoUrl);
   if (input.address !== undefined) updates.address = String(input.address).trim();
   if (input.formattedAddress !== undefined && input.address === undefined) {
     updates.address = String(input.formattedAddress || '').trim();

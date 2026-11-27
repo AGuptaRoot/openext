@@ -69,6 +69,12 @@ const HIDEABLE_SETTINGS_TABS = [
   'users'
 ];
 
+/**
+ * CRM 3.72.0: core tabs / sections of a record page an extension may hide (manifest `hiddenRecordTabs`,
+ * "<record>.<part>"). Only the page part goes; its data and APIs are unchanged.
+ */
+const HIDEABLE_RECORD_TABS = ['client.addresses', 'client.documents', 'lead.documents'];
+
 /** Lucide icon names the Extensions card grid knows how to render. */
 const ALLOWED_ICONS = [
   'package',
@@ -291,6 +297,7 @@ function toFeaturePayload(def) {
     pipelineKey: ext.pipelineKey,
     hiddenModules: [...(ext.hiddenModules || [])],
     hiddenSettingsTabs: [...(ext.hiddenSettingsTabs || [])],
+    hiddenRecordTabs: [...(ext.hiddenRecordTabs || [])],
     conversions: { ...(ext.conversions || {}) },
     declarations: {
       fields: decl.fields || {},
@@ -376,6 +383,7 @@ module.exports = {
   ALL_CORE_MODULES,
   HIDEABLE_MODULES,
   HIDEABLE_SETTINGS_TABS,
+  HIDEABLE_RECORD_TABS,
   ALLOWED_ICONS,
   ALLOWED_ACCENTS,
   STAGE_TYPES,

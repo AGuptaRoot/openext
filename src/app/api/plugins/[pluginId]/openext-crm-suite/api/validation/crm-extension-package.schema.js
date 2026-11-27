@@ -25,6 +25,7 @@ const {
   ALL_CORE_MODULES,
   HIDEABLE_MODULES,
   HIDEABLE_SETTINGS_TABS,
+  HIDEABLE_RECORD_TABS,
   ALLOWED_ICONS,
   ALLOWED_ACCENTS,
   STAGE_TYPES,
@@ -930,6 +931,20 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
     }
   }
 
+  // CRM 3.72.0: record page tabs / sections the extension has no use for, e.g. ["client.documents"].
+  const hiddenRecordTabs = [];
+  if (source.hiddenRecordTabs !== undefined && !Array.isArray(source.hiddenRecordTabs)) {
+    errors.push('hiddenRecordTabs must be a list of record tab ids');
+  }
+  for (const raw of Array.isArray(source.hiddenRecordTabs) ? source.hiddenRecordTabs : []) {
+    const tabId = str(raw).toLowerCase();
+    if (!HIDEABLE_RECORD_TABS.includes(tabId)) {
+      errors.push(`hiddenRecordTabs cannot hide "${tabId}"; valid ids: ${HIDEABLE_RECORD_TABS.join(', ')}`);
+    } else if (!hiddenRecordTabs.includes(tabId)) {
+      hiddenRecordTabs.push(tabId);
+    }
+  }
+
   const conversionsRaw = isObject(source.conversions) ? source.conversions : {};
   const conversions = {
     salesOrder: conversionsRaw.salesOrder === true,
@@ -1371,6 +1386,7 @@ function validatePackageDefinition(manifest, requestType, context, files = new M
     adoptDefaultPipeline: false,
     hiddenModules,
     hiddenSettingsTabs,
+    hiddenRecordTabs,
     conversions,
     highlights,
     manifestVersion,

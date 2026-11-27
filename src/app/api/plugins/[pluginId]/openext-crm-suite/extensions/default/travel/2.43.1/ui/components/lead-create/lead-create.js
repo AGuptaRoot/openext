@@ -11,7 +11,7 @@
  *                         empty forms at once. Optional: empty forms are simply not saved.
  *   Travel Requirements   one form per service ticked in Required Services; ticking / unticking adds or hides the
  *                         form at once. An unticked form keeps what was typed until Create (only ticked ones are
- *                         saved). Optional: missing required fields are finished on the lead's Travel Requirement tab.
+ *                         saved). 2.43.1: Create needs every required field of each ticked service's form.
  *
  * Nothing is saved here. The list and the forms live in the CRM page's draft (ctx.createForm.setDraft). On Create the
  * CRM asks the server (POST /quotation-prefill { leadCreate: true }): wrong values stop Create; ages that do not match
@@ -332,7 +332,7 @@ function renderLeadCreate(root, ctx) {
     });
     reqHost.replaceChildren(
       h('div', { class: 'tvx-gs' }, [
-        h('p', { class: 'tvx-muted', text: 'Optional. One form for each service ticked above — fill what you know now; the rest can be finished on the lead’s Travel Requirement tab. Dates stay inside the travel dates.' }),
+        h('p', { class: 'tvx-muted', text: 'One form for each service ticked above — fill in every required field before Create; the other fields can be finished on the lead’s Travel Requirement tab. Dates stay inside the travel dates.' }),
         ...cards
       ])
     );

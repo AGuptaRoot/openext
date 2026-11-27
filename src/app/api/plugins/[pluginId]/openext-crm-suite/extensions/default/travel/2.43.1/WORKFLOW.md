@@ -1,6 +1,14 @@
 # crm-travel — Workflow
 
-Travel extension `travel` **2.42.0**, needs CRM `openext-crm-suite` **>= 3.69.0 < 4.0.0** (GST suite).
+Travel extension `travel` **2.43.1**, needs CRM `openext-crm-suite` **>= 3.72.0 < 4.0.0** (GST suite).
+
+**Required requirement fields on Lead Create (2.43.1):** Create stops until every required field of each ticked
+service's Travel Requirement form is filled in, empty forms included ("Hotel Requirement: fill in City, Rooms.").
+A ticked service also needs Traveller Details and Travel Information filled in, since the forms open only then.
+Optional fields can still be finished on the lead's Travel Requirement tab. Travellers stay optional.
+
+**Hidden record tabs (2.43.0, CRM 3.72.0):** `hiddenRecordTabs` leaves out the client page's **Addresses** and
+**Documents** tabs and the lead page's **Documents & Attachments** section. Saved data and APIs are unchanged.
 
 **Activities hidden (2.42.0, CRM 3.69.0):** Travel lists `activities` in `hiddenModules`. The CRM then shows no lead
 Activities tab, no Leads "Activity" view or missed-activity badge, no activity reminders or follow-up alerts, no
